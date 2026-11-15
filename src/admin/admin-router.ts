@@ -2053,8 +2053,8 @@ function getDashboardHtml(): string {
             '<td><span style="color:var(--text-subtle); font-size:0.8rem;">' + lastUsed + '</span></td>' +
             '<td>' +
               '<div style="display:flex; gap:6px;">' +
-                '<button class="btn btn-emerald btn-sm" id="btn-test-' + a.id + '" onclick="testAccount(\'' + a.id + '\')">Test</button>' +
-                '<button class="btn btn-danger btn-sm" onclick="deleteAccount(\'' + a.id + '\')">Delete</button>' +
+                '<button class="btn btn-emerald btn-sm" id="btn-test-' + a.id + '" data-action="test-account" data-id="' + a.id + '">Test</button>' +
+                '<button class="btn btn-danger btn-sm" data-action="delete-account" data-id="' + a.id + '">Delete</button>' +
               '</div>' +
             '</td>' +
           '</tr>';
@@ -2159,8 +2159,8 @@ function getDashboardHtml(): string {
             '<td>' + proxyBadge + '</td>' +
             '<td>' +
               '<div style="display:flex; gap:6px;">' +
-                '<button class="btn btn-secondary btn-sm" onclick="showToast(\'Virtual combo ' + c.id + ' live & auto-routing\', \'info\')">Check</button>' +
-                '<button class="btn btn-danger btn-sm" onclick="deleteCombo(\'' + c.id + '\')">Delete</button>' +
+                '<button class="btn btn-secondary btn-sm" data-action="check-combo" data-id="' + c.id + '">Check</button>' +
+                '<button class="btn btn-danger btn-sm" data-action="delete-combo" data-id="' + c.id + '">Delete</button>' +
               '</div>' +
             '</td>' +
           '</tr>';
@@ -2211,7 +2211,7 @@ function getDashboardHtml(): string {
             '<td><span style="font-size:0.8rem; color:var(--text-subtle);">' + authTypes + '</span></td>' +
             '<td>' + statusTag + '</td>' +
             '<td>' +
-              '<button class="btn btn-secondary btn-sm" onclick="togglePlugin(\'' + p.id + '\')">Toggle</button>' +
+              '<button class="btn btn-secondary btn-sm" data-action="toggle-plugin" data-id="' + p.id + '">Toggle</button>' +
             '</td>' +
           '</tr>';
         }).join('');
@@ -2819,6 +2819,49 @@ function getDashboardHtml(): string {
           closeComboWizard();
         }
       });
+
+      // 5. Global Action Event Delegation for Dynamic Buttons
+      document.addEventListener('click', (e) => {
+        // Handle tab clicks via data-tab attribute
+        const navLink = e.target.closest('[data-tab]');
+        if (navLink) {
+          const tab = navLink.getAttribute('data-tab');
+          if (tab) switchNavTab(tab);
+        }
+
+        // Handle action buttons
+        const actionBtn = e.target.closest('button[data-action]');
+        if (actionBtn) {
+          const act = actionBtn.getAttribute('data-action');
+          const id = actionBtn.getAttribute('data-id');
+          if (act === 'test-account') testAccount(id);
+          else if (act === 'delete-account') deleteAccount(id);
+          else if (act === 'check-combo') showToast('Virtual combo ' + id + ' live & auto-routing', 'info');
+          else if (act === 'delete-combo') deleteCombo(id);
+          else if (act === 'toggle-plugin') togglePlugin(id);
+        }
+      });
+
+      // Explicit global window export
+      window.switchNavTab = switchNavTab;
+      window.openCredentialsModal = openCredentialsModal;
+      window.closeCredentialsModal = closeCredentialsModal;
+      window.openComboWizard = openComboWizard;
+      window.closeComboWizard = closeComboWizard;
+      window.triggerSimulatedPing = triggerSimulatedPing;
+      window.clearLogs = clearLogs;
+      window.switchProviderTab = switchProviderTab;
+      window.submitAccountForm = submitAccountForm;
+      window.nextWizardStep = nextWizardStep;
+      window.prevWizardStep = prevWizardStep;
+      window.addTargetToChain = addTargetToChain;
+      window.addCustomTarget = addCustomTarget;
+      window.removeWizardTarget = removeWizardTarget;
+      window.moveWizardTarget = moveWizardTarget;
+      window.onBackdropClick = onBackdropClick;
+      window.fetchAccounts = fetchAccounts;
+      window.fetchCombos = fetchCombos;
+      window.fetchPlugins = fetchPlugins;
     }
 
     // Guaranteed execution regardless of readyState
