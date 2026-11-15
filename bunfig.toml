@@ -1,0 +1,6 @@
+[test]
+root = "tests"
+timeout = 10000
+
+[install]
+cache = true
