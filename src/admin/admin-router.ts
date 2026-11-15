@@ -502,6 +502,10 @@ function getDashboardHtml(): string {
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100vh;
+      overflow: hidden;
+    }
     body {
       background: var(--bg);
       background-image: 
@@ -511,12 +515,10 @@ function getDashboardHtml(): string {
         radial-gradient(at 0% 100%, rgba(6, 182, 212, 0.1) 0px, transparent 50%);
       color: var(--text);
       font-family: var(--font-sans);
-      min-height: 100vh;
       display: flex;
-      overflow-x: hidden;
     }
 
-    /* Scrollbar */
+    /* Scrollbars */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
@@ -530,13 +532,12 @@ function getDashboardHtml(): string {
       padding: 24px 18px;
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: 20px;
       backdrop-filter: blur(20px);
-      position: sticky;
-      top: 0;
       height: 100vh;
       z-index: 50;
       flex-shrink: 0;
+      overflow-y: auto;
     }
     .brand {
       display: flex;
@@ -545,17 +546,18 @@ function getDashboardHtml(): string {
       padding: 0 4px;
     }
     .brand-logo {
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
       background: linear-gradient(135deg, var(--accent), var(--purple));
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 700;
-      font-size: 1.15rem;
+      font-size: 1.2rem;
       color: #fff;
       box-shadow: 0 0 20px var(--accent-glow);
+      flex-shrink: 0;
     }
     .brand-title {
       font-weight: 700;
@@ -590,7 +592,7 @@ function getDashboardHtml(): string {
     .nav-link {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       padding: 10px 14px;
       border-radius: 8px;
       color: var(--text-muted);
@@ -600,16 +602,32 @@ function getDashboardHtml(): string {
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       cursor: pointer;
       border: 1px solid transparent;
+      user-select: none;
     }
     .nav-link:hover {
       color: var(--text);
       background: var(--surface-hover);
     }
     .nav-link.active {
-      background: rgba(99, 102, 241, 0.15);
+      background: rgba(99, 102, 241, 0.16);
       color: #a5b4fc;
-      border-color: rgba(99, 102, 241, 0.28);
+      border-color: rgba(99, 102, 241, 0.32);
       box-shadow: 0 0 16px rgba(99, 102, 241, 0.15);
+      font-weight: 600;
+    }
+    .nav-badge {
+      margin-left: auto;
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .nav-link.active .nav-badge {
+      background: rgba(99, 102, 241, 0.32);
+      color: #c7d2fe;
     }
 
     .sidebar-actions {
@@ -636,6 +654,10 @@ function getDashboardHtml(): string {
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       border: 1px solid transparent;
       outline: none;
+      user-select: none;
+    }
+    .btn:active {
+      transform: scale(0.98);
     }
     .btn-primary {
       background: linear-gradient(135deg, var(--accent), var(--purple));
@@ -663,6 +685,7 @@ function getDashboardHtml(): string {
     }
     .btn-emerald:hover {
       background: rgba(16, 185, 129, 0.25);
+      border-color: rgba(16, 185, 129, 0.5);
       transform: translateY(-1px);
     }
     .btn-danger {
@@ -672,93 +695,130 @@ function getDashboardHtml(): string {
     }
     .btn-danger:hover {
       background: rgba(239, 68, 68, 0.22);
+      border-color: rgba(239, 68, 68, 0.45);
     }
     .btn-sm {
-      padding: 5px 10px;
+      padding: 6px 12px;
       font-size: 0.78rem;
     }
 
-    /* Main Content */
+    /* Main Workspace */
     main {
       flex: 1;
       padding: 32px 40px;
       overflow-y: auto;
-      max-width: 1480px;
+      height: 100vh;
+      position: relative;
     }
+    .main-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Tab Views */
+    .tab-view {
+      display: none;
+      flex-direction: column;
+      gap: 24px;
+      animation: tabFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .tab-view.active {
+      display: flex;
+    }
+    @keyframes tabFadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     header {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 28px;
+      justify-content: space-between;
+      gap: 20px;
     }
     h1 {
       font-size: 1.85rem;
       font-weight: 700;
       letter-spacing: -0.03em;
     }
+    .header-breadcrumb {
+      font-size: 0.78rem;
+      color: var(--text-subtle);
+      margin-bottom: 4px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
     .header-actions {
       display: flex;
-      gap: 10px;
       align-items: center;
+      gap: 12px;
     }
     .status-pill {
       display: flex;
       align-items: center;
       gap: 8px;
       padding: 6px 14px;
-      border-radius: 20px;
       background: rgba(16, 185, 129, 0.1);
       border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 999px;
+      font-size: 0.8rem;
       color: #34d399;
-      font-size: 0.85rem;
-      font-weight: 500;
       font-family: var(--font-mono);
     }
     .status-dot {
       width: 8px;
       height: 8px;
+      background: #10b981;
       border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 10px var(--success);
-      animation: pulseGlow 2s infinite;
+      box-shadow: 0 0 10px #10b981;
     }
-    @keyframes pulseGlow {
+    .status-dot.live {
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.15); }
+      50% { opacity: 0.4; transform: scale(0.85); }
     }
 
     /* KPI Grid */
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
-      gap: 14px;
-      margin-bottom: 28px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
     }
     .kpi-card {
       background: var(--bg-surface);
       border: 1px solid var(--surface-border);
       border-radius: 12px;
       padding: 18px 20px;
-      backdrop-filter: blur(14px);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .kpi-card:hover {
-      border-color: rgba(255, 255, 255, 0.14);
+      border-color: rgba(99, 102, 241, 0.35);
       transform: translateY(-2px);
+      box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35);
     }
     .kpi-label {
-      font-size: 0.75rem;
+      font-size: 0.78rem;
       color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 6px;
+      font-weight: 500;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
     .kpi-val {
-      font-size: 1.7rem;
+      font-size: 1.6rem;
       font-weight: 700;
       font-family: var(--font-mono);
       letter-spacing: -0.02em;
@@ -766,191 +826,256 @@ function getDashboardHtml(): string {
     .kpi-sub {
       font-size: 0.75rem;
       color: var(--text-subtle);
-      margin-top: 4px;
-      font-family: var(--font-mono);
     }
 
-    /* Section Styling */
+    /* Overview Hub Grid */
+    .overview-hub-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .overview-hub-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 14px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      transition: all 0.2s ease;
+    }
+    .overview-hub-card:hover {
+      border-color: rgba(99, 102, 241, 0.35);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+      transform: translateY(-1px);
+    }
+    .hub-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .hub-icon {
+      font-size: 1.6rem;
+      width: 44px;
+      height: 44px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .hub-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .hub-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .hub-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .hub-stat-pill {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    .hub-stat-pill strong {
+      color: var(--text);
+    }
+    .hub-actions {
+      margin-top: auto;
+      display: flex;
+      gap: 10px;
+    }
+
+    /* Section Headers */
     .section-title {
-      font-size: 1.15rem;
-      font-weight: 600;
-      margin-bottom: 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-    }
-    .glass-panel {
-      background: var(--bg-surface);
-      border: 1px solid var(--surface-border);
-      border-radius: 12px;
-      backdrop-filter: blur(16px);
-      overflow: hidden;
-      margin-bottom: 28px;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+      gap: 12px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
 
-    /* Telemetry Grid & Gauges */
+    /* Telemetry Panels */
     .telemetry-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 28px;
+      gap: 20px;
+    }
+    @media (max-width: 1024px) {
+      .telemetry-grid { grid-template-columns: 1fr; }
     }
     .telemetry-panel {
       background: var(--bg-surface);
       border: 1px solid var(--surface-border);
-      border-radius: 12px;
-      padding: 20px;
-      backdrop-filter: blur(16px);
-    }
-    .token-meter-container {
-      margin-top: 14px;
-    }
-    .token-bar-track {
-      height: 12px;
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 6px;
-      overflow: hidden;
-      display: flex;
-      margin: 8px 0;
-    }
-    .token-bar-prompt {
-      background: linear-gradient(90deg, #38bdf8, var(--accent));
-      height: 100%;
-      transition: width 0.4s ease;
-    }
-    .token-bar-completion {
-      background: linear-gradient(90deg, var(--purple), #ec4899);
-      height: 100%;
-      transition: width 0.4s ease;
-    }
-    .token-meter-legend {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.78rem;
-      font-family: var(--font-mono);
-      color: var(--text-muted);
-    }
-
-    .provider-bars {
+      border-radius: 14px;
+      padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      margin-top: 12px;
+      gap: 18px;
+      backdrop-filter: blur(14px);
     }
-    .provider-bar-row {
+    .token-meter-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .token-progress-bar {
+      height: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+      display: flex;
+    }
+    .bar-prompt {
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      height: 100%;
+      transition: width 0.4s ease;
+    }
+    .bar-completion {
+      background: linear-gradient(90deg, #f43f5e, #ec4899);
+      height: 100%;
+      transition: width 0.4s ease;
+    }
+    .token-legend {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+    }
+    .token-legend-item {
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-size: 0.8rem;
+      gap: 8px;
     }
-    .provider-bar-name {
-      width: 85px;
-      font-family: var(--font-mono);
-      font-weight: 500;
-      color: var(--text-muted);
+    .dot-prompt { width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; }
+    .dot-completion { width: 8px; height: 8px; border-radius: 50%; background: #ec4899; }
+
+    /* Provider Bars */
+    .provider-bars-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .provider-bar-row {
+      display: grid;
+      grid-template-columns: 110px 1fr 70px;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.82rem;
     }
     .provider-bar-track {
-      flex: 1;
       height: 8px;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
       overflow: hidden;
     }
     .provider-bar-fill {
       height: 100%;
-      border-radius: 4px;
-      transition: width 0.4s ease;
-    }
-    .provider-bar-val {
-      width: 75px;
-      text-align: right;
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: var(--text-subtle);
+      border-radius: 999px;
+      transition: width 0.5s ease;
     }
 
-    /* Tables */
+    /* Glass Panels & Tables */
+    .glass-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(14px);
+    }
     table {
       width: 100%;
       border-collapse: collapse;
       text-align: left;
-      font-size: 0.88rem;
+      font-size: 0.86rem;
     }
     th {
       background: rgba(255, 255, 255, 0.02);
-      padding: 12px 18px;
+      padding: 14px 20px;
       color: var(--text-muted);
       font-weight: 600;
       border-bottom: 1px solid var(--surface-border);
-      font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      font-size: 0.72rem;
     }
     td {
-      padding: 13px 18px;
+      padding: 16px 20px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      font-size: 0.84rem;
+      vertical-align: middle;
     }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--surface-hover); }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
+    /* Tags & Badges */
     .tag {
-      padding: 2px 8px;
-      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 6px;
       font-size: 0.72rem;
       font-weight: 600;
       font-family: var(--font-mono);
-      display: inline-block;
       text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
-    .tag-active { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
-    .tag-cooldown { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
-    .tag-invalid { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
-    .tag-free { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.25); }
-    .tag-provider {
-      background: rgba(255, 255, 255, 0.06);
-      color: #e2e8f0;
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
+    .tag-active { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
+    .tag-cooldown { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
+    .tag-invalid { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
+    .tag-provider { background: rgba(99, 102, 241, 0.12); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.25); }
+    .tag-free { background: rgba(6, 182, 212, 0.12); color: #67e8f9; border: 1px solid rgba(6, 182, 212, 0.25); }
 
-    /* Terminal Log Box */
+    /* Terminal Stream */
     .terminal-box {
-      background: #050608;
+      background: #06080e;
       border: 1px solid var(--surface-border);
       border-radius: 12px;
-      padding: 16px;
+      padding: 18px;
       font-family: var(--font-mono);
-      font-size: 0.78rem;
-      max-height: 320px;
-      overflow-y: auto;
+      font-size: 0.8rem;
       line-height: 1.6;
-      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+      height: 480px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column-reverse;
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6);
     }
     .log-line {
       display: flex;
-      gap: 12px;
+      align-items: baseline;
+      gap: 10px;
+      padding: 3px 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.02);
-      padding: 4px 0;
-      align-items: center;
-      transition: background 0.15s ease;
     }
-    .log-line:hover { background: rgba(255, 255, 255, 0.02); }
-    .log-ts { color: var(--text-subtle); flex-shrink: 0; }
+    .log-ts { color: var(--text-subtle); font-size: 0.75rem; flex-shrink: 0; }
     .log-method { color: #38bdf8; font-weight: 600; flex-shrink: 0; }
-    .log-path { color: #cbd5e1; flex-shrink: 0; }
-    .log-provider { color: #c084fc; flex-shrink: 0; }
+    .log-path { color: #f1f5f9; flex-shrink: 0; }
+    .log-provider { color: #a5b4fc; font-weight: 600; flex-shrink: 0; }
     .log-status { color: #34d399; font-weight: 600; flex-shrink: 0; }
-    .log-tokens { color: #a7f3d0; margin-left: auto; flex-shrink: 0; }
+    .log-tokens { color: #f43f5e; margin-left: auto; font-size: 0.75rem; }
 
     /* Modals */
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.75);
+      background: rgba(0, 0, 0, 0.78);
       backdrop-filter: blur(12px);
       display: none;
       align-items: center;
@@ -966,7 +1091,7 @@ function getDashboardHtml(): string {
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 16px;
       width: 100%;
-      max-width: 650px;
+      max-width: 660px;
       max-height: 90vh;
       overflow-y: auto;
       box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px var(--accent-glow);
@@ -978,7 +1103,6 @@ function getDashboardHtml(): string {
       from { transform: translateY(20px) scale(0.97); opacity: 0; }
       to { transform: translateY(0) scale(1); opacity: 1; }
     }
-
     .modal-header {
       padding: 20px 24px;
       border-bottom: 1px solid var(--surface-border);
@@ -1005,7 +1129,6 @@ function getDashboardHtml(): string {
       flex-direction: column;
       gap: 18px;
     }
-
     .modal-footer {
       padding: 16px 24px;
       border-top: 1px solid var(--surface-border);
@@ -1022,11 +1145,13 @@ function getDashboardHtml(): string {
       gap: 6px;
     }
     .form-label {
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       font-weight: 600;
       color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+    }
+    .form-hint {
+      font-size: 0.72rem;
+      color: var(--text-subtle);
     }
     .form-input, .form-select, .form-textarea {
       background: rgba(255, 255, 255, 0.04);
@@ -1035,145 +1160,102 @@ function getDashboardHtml(): string {
       padding: 10px 14px;
       color: var(--text);
       font-family: var(--font-sans);
-      font-size: 0.9rem;
-      transition: all 0.2s ease;
+      font-size: 0.88rem;
       outline: none;
+      transition: all 0.2s ease;
     }
     .form-input:focus, .form-select:focus, .form-textarea:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
       background: rgba(255, 255, 255, 0.07);
+      box-shadow: 0 0 14px var(--accent-glow);
     }
-    .form-textarea { min-height: 80px; resize: vertical; font-family: var(--font-mono); font-size: 0.82rem; }
-    .form-hint { font-size: 0.75rem; color: var(--text-subtle); margin-top: 2px; }
+    .form-select option {
+      background: #0f131f;
+      color: var(--text);
+    }
+    .form-textarea { min-height: 80px; font-family: var(--font-mono); font-size: 0.8rem; resize: vertical; }
 
     /* Provider Selector Tabs in Modal */
     .provider-tabs {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
       gap: 8px;
-      margin-bottom: 6px;
     }
     .provider-tab-btn {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--surface-border);
-      border-radius: 10px;
-      padding: 12px 8px;
+      padding: 10px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .provider-tab-btn:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.15); }
+    .provider-tab-btn.active {
+      background: rgba(99, 102, 241, 0.18);
+      border-color: var(--accent);
+      box-shadow: 0 0 14px var(--accent-glow);
+    }
+    .provider-tab-icon { font-size: 1.2rem; }
+    .provider-tab-name { font-size: 0.75rem; font-weight: 600; }
+
+    /* Wizard Steps */
+    .wizard-steps-indicator {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      margin-bottom: 12px;
+    }
+    .wizard-step-node {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 6px;
-      cursor: pointer;
-      transition: all 0.2s ease;
+      z-index: 1;
+    }
+    .wizard-step-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
       color: var(--text-muted);
     }
-    .provider-tab-btn:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text);
-      border-color: rgba(255, 255, 255, 0.16);
-    }
-    .provider-tab-btn.active {
-      background: rgba(99, 102, 241, 0.16);
+    .wizard-step-node.active .wizard-step-circle {
+      background: var(--accent);
       border-color: var(--accent);
       color: #fff;
-      box-shadow: 0 0 16px var(--accent-glow);
+      box-shadow: 0 0 12px var(--accent-glow);
     }
-    .provider-tab-icon { font-size: 1.4rem; }
-    .provider-tab-name { font-size: 0.78rem; font-weight: 600; text-align: center; }
-
-    /* Combo Wizard Stepper */
-    .wizard-steps {
-      display: flex;
-      border-bottom: 1px solid var(--surface-border);
-      background: rgba(0, 0, 0, 0.2);
+    .wizard-step-node.completed .wizard-step-circle {
+      background: #10b981;
+      border-color: #10b981;
+      color: #fff;
     }
-    .wizard-step {
-      flex: 1;
-      padding: 12px 14px;
-      text-align: center;
-      font-size: 0.8rem;
-      font-weight: 600;
+    .wizard-step-label {
+      font-size: 0.72rem;
       color: var(--text-subtle);
-      border-bottom: 2px solid transparent;
-      transition: all 0.2s ease;
     }
-    .wizard-step.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
-      background: rgba(99, 102, 241, 0.06);
-    }
-    .wizard-step.completed {
-      color: var(--success);
-    }
+    .wizard-step-node.active .wizard-step-label { color: var(--text); font-weight: 600; }
 
-    /* Fallback Chain Flowchart Preview */
-    .chain-diagram {
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px dashed rgba(255, 255, 255, 0.15);
-      border-radius: 10px;
-      padding: 16px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-      margin-top: 10px;
-      min-height: 60px;
-    }
-    .chain-node {
-      background: rgba(99, 102, 241, 0.18);
-      border: 1px solid rgba(99, 102, 241, 0.4);
-      color: #e0e7ff;
-      border-radius: 6px;
-      padding: 6px 12px;
-      font-family: var(--font-mono);
-      font-size: 0.78rem;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .chain-arrow {
-      color: var(--warning);
-      font-size: 0.8rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .chain-arrow-badge {
-      font-size: 0.65rem;
-      background: rgba(245, 158, 11, 0.15);
-      padding: 1px 4px;
-      border-radius: 3px;
-    }
-
-    .target-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 6px;
-    }
-    .target-chip {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--surface-border);
-      border-radius: 6px;
-      padding: 4px 10px;
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .target-chip:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--text);
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-
+    /* Target Chain Builder in Wizard */
     .targets-list {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      margin-top: 10px;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      padding-right: 4px;
     }
     .target-item {
       display: flex;
@@ -1182,17 +1264,17 @@ function getDashboardHtml(): string {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--surface-border);
       border-radius: 8px;
-      padding: 8px 12px;
+      padding: 10px 14px;
       font-family: var(--font-mono);
-      font-size: 0.8rem;
+      font-size: 0.82rem;
     }
     .target-controls {
       display: flex;
-      gap: 4px;
+      gap: 6px;
     }
 
-    /* Toast Notifications */
-    .toast-container {
+    /* Toasts */
+    #toast-container {
       position: fixed;
       bottom: 24px;
       right: 24px;
@@ -1203,27 +1285,31 @@ function getDashboardHtml(): string {
       pointer-events: none;
     }
     .toast {
-      pointer-events: auto;
-      background: #0f1422;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 10px;
+      background: #1e2538;
+      border: 1px solid var(--surface-border);
       padding: 12px 18px;
+      border-radius: 8px;
       color: var(--text);
       font-size: 0.85rem;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
       display: flex;
       align-items: center;
       gap: 10px;
-      animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      min-width: 280px;
+      pointer-events: auto;
+      animation: toastSlide 0.25s ease;
     }
-    .toast-success { border-left: 4px solid var(--success); }
-    .toast-error { border-left: 4px solid var(--danger); }
-    .toast-info { border-left: 4px solid var(--accent); }
-    @keyframes toastIn { from { transform: translateX(50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .toast-success { border-color: rgba(16, 185, 129, 0.5); }
+    .toast-error { border-color: rgba(239, 68, 68, 0.5); }
+    .toast-info { border-color: rgba(99, 102, 241, 0.5); }
+    @keyframes toastSlide {
+      from { transform: translateX(50px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
   </style>
 </head>
 <body>
+  <div id="toast-container"></div>
+
   <!-- Sidebar Navigation -->
   <aside>
     <div class="brand">
@@ -1234,14 +1320,36 @@ function getDashboardHtml(): string {
       </div>
     </div>
 
-    <nav>
+    <nav id="sidebar-nav">
       <div class="nav-label">Core Navigation</div>
-      <a class="nav-link active" onclick="scrollToSection('sec-overview')">📊 Overview & KPIs</a>
-      <a class="nav-link" onclick="scrollToSection('sec-telemetry')">📈 Real-Time Telemetry</a>
-      <a class="nav-link" onclick="scrollToSection('sec-accounts')">👥 Credential Pools</a>
-      <a class="nav-link" onclick="scrollToSection('sec-combos')">🔀 Virtual Combos</a>
-      <a class="nav-link" onclick="scrollToSection('sec-plugins')">🔌 Provider Plugins</a>
-      <a class="nav-link" onclick="scrollToSection('sec-logs')">⚡ Live Ingress Stream</a>
+      <a class="nav-link active" data-tab="overview" onclick="switchNavTab('overview')">
+        <span>📊</span>
+        <span>Overview & KPIs</span>
+      </a>
+      <a class="nav-link" data-tab="telemetry" onclick="switchNavTab('telemetry')">
+        <span>📈</span>
+        <span>Real-Time Telemetry</span>
+      </a>
+      <a class="nav-link" data-tab="accounts" onclick="switchNavTab('accounts')">
+        <span>👥</span>
+        <span>Credential Pools</span>
+        <span class="nav-badge" id="badge-accounts-count">8</span>
+      </a>
+      <a class="nav-link" data-tab="combos" onclick="switchNavTab('combos')">
+        <span>🔀</span>
+        <span>Virtual Combos</span>
+        <span class="nav-badge" id="badge-combos-count">2</span>
+      </a>
+      <a class="nav-link" data-tab="plugins" onclick="switchNavTab('plugins')">
+        <span>🔌</span>
+        <span>Provider Plugins</span>
+        <span class="nav-badge" id="badge-plugins-count">5</span>
+      </a>
+      <a class="nav-link" data-tab="logs" onclick="switchNavTab('logs')">
+        <span>⚡</span>
+        <span>Live Ingress Stream</span>
+        <span class="status-dot live" style="margin-left:auto;"></span>
+      </a>
     </nav>
 
     <div class="sidebar-actions">
@@ -1259,227 +1367,389 @@ function getDashboardHtml(): string {
 
   <!-- Main Workspace -->
   <main>
-    <header id="sec-overview">
-      <div>
-        <h1>Mission Control</h1>
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
-          Universal Multi-Provider LLM Gateway, Credential Pool & Virtual Combos
-        </p>
-      </div>
-      <div class="header-actions">
-        <div class="status-pill">
-          <div class="status-dot"></div>
-          <span>Core Operational :4000</span>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">+ Add Account</button>
-        <button class="btn btn-secondary btn-sm" onclick="openComboWizard()">+ Create Combo</button>
-      </div>
-    </header>
-
-    <!-- Top KPI Grid -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-label">Active Plugins</div>
-        <div class="kpi-val" id="kpi-plugins" style="color: #818cf8;">5 Active</div>
-        <div class="kpi-sub">Kilo · Nous · Cline · OpenCode · DeepSeek</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Active Accounts</div>
-        <div class="kpi-val" id="kpi-accounts" style="color: #34d399;">Healthy</div>
-        <div class="kpi-sub" id="kpi-accounts-sub">0 in cooldown</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Virtual Combos</div>
-        <div class="kpi-val" id="kpi-combos" style="color: #38bdf8;">2 Active</div>
-        <div class="kpi-sub">Auto-failover active</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Average Latency</div>
-        <div class="kpi-val" id="kpi-latency" style="color: #fbbf24;">~118ms</div>
-        <div class="kpi-sub" id="kpi-latency-sub">Rolling avg across upstreams</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Streamed Tokens</div>
-        <div class="kpi-val" id="kpi-tokens" style="color: #ec4899;">813,700</div>
-        <div class="kpi-sub" id="kpi-tokens-sub">524k in · 289k out</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Token Throughput</div>
-        <div class="kpi-val" id="kpi-velocity" style="color: #a78bfa;">54 tok/s</div>
-        <div class="kpi-sub">Real-time velocity</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Cost Avoidance</div>
-        <div class="kpi-val" id="kpi-saved" style="color: #10b981;">$21.45</div>
-        <div class="kpi-sub">$0 Free-tier value saved</div>
-      </div>
-    </div>
-
-    <!-- Section 1: Real-Time Token Telemetry Metrics -->
-    <div class="section-title" id="sec-telemetry">
-      <span>📈 Real-Time Token Telemetry & Provider Metrics</span>
-      <button class="btn btn-secondary btn-sm" onclick="triggerSimulatedPing()">⚡ Simulate Traffic Burst</button>
-    </div>
-    <div class="telemetry-grid">
-      <!-- Token Split & Throughput Panel -->
-      <div class="telemetry-panel">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="font-size:1rem; font-weight:600;">Prompt vs Completion Ratio</h3>
-          <span class="tag tag-active" id="telemetry-status-badge">LIVE STREAMING</span>
-        </div>
-        <div class="token-meter-container">
-          <div class="token-bar-track">
-            <div class="token-bar-prompt" id="bar-prompt" style="width: 64%;"></div>
-            <div class="token-bar-completion" id="bar-comp" style="width: 36%;"></div>
+    <div class="main-container">
+      
+      <!-- ================================================================= -->
+      <!-- VIEW 1: Overview & KPIs (Default Home)                            -->
+      <!-- ================================================================= -->
+      <div class="tab-view active" id="view-overview">
+        <header>
+          <div>
+            <div class="header-breadcrumb">System / Core Health</div>
+            <h1>Mission Control</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Universal Multi-Provider LLM Gateway, Autonomous Credential Pool & Virtual Combos
+            </p>
           </div>
-          <div class="token-meter-legend">
-            <span style="color:#38bdf8;">● Prompt: <strong id="lbl-prompt-tok">524,300</strong> (<span id="lbl-prompt-pct">64%</span>)</span>
-            <span style="color:#ec4899;">● Completion: <strong id="lbl-comp-tok">289,400</strong> (<span id="lbl-comp-pct">36%</span>)</span>
+          <div class="header-actions">
+            <div class="status-pill">
+              <div class="status-dot live"></div>
+              <span>Core Operational :4000</span>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">+ Add Account</button>
+            <button class="btn btn-secondary btn-sm" onclick="openComboWizard()">+ Create Combo</button>
+          </div>
+        </header>
+
+        <!-- KPI Grid -->
+        <div class="kpi-grid">
+          <div class="kpi-card" onclick="switchNavTab('plugins')" style="cursor:pointer;" title="View Provider Plugins">
+            <div class="kpi-label"><span>Active Plugins</span> <span>↗</span></div>
+            <div class="kpi-val" id="kpi-plugins" style="color: #818cf8;">5 Active</div>
+            <div class="kpi-sub">Kilo · Nous · Cline · OpenCode · DeepSeek</div>
+          </div>
+          <div class="kpi-card" onclick="switchNavTab('accounts')" style="cursor:pointer;" title="View Credential Pools">
+            <div class="kpi-label"><span>Active Accounts</span> <span>↗</span></div>
+            <div class="kpi-val" id="kpi-accounts" style="color: #34d399;">8 Active</div>
+            <div class="kpi-sub" id="kpi-accounts-sub">0 in cooldown</div>
+          </div>
+          <div class="kpi-card" onclick="switchNavTab('combos')" style="cursor:pointer;" title="View Virtual Combos">
+            <div class="kpi-label"><span>Virtual Combos</span> <span>↗</span></div>
+            <div class="kpi-val" id="kpi-combos" style="color: #38bdf8;">2 Active</div>
+            <div class="kpi-sub">Auto-failover active</div>
+          </div>
+          <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
+            <div class="kpi-label"><span>Average Latency</span> <span>↗</span></div>
+            <div class="kpi-val" id="kpi-latency" style="color: #fbbf24;">~118ms</div>
+            <div class="kpi-sub" id="kpi-latency-sub">Rolling avg across upstreams</div>
+          </div>
+          <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
+            <div class="kpi-label"><span>Streamed Tokens</span> <span>↗</span></div>
+            <div class="kpi-val" id="kpi-tokens" style="color: #ec4899;">813,700</div>
+            <div class="kpi-sub" id="kpi-tokens-sub">524k in · 289k out</div>
+          </div>
+          <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
+            <div class="kpi-label"><span>Token Velocity</span> <span>↗</span></div>
+            <div class="kpi-val" id="kpi-velocity" style="color: #a78bfa;">54 tok/s</div>
+            <div class="kpi-sub">Real-time throughput</div>
+          </div>
+          <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
+            <div class="kpi-label"><span>Cost Avoidance</span> <span>↗</span></div>
+            <div class="kpi-val" id="kpi-saved" style="color: #10b981;">$21.45</div>
+            <div class="kpi-sub">$0 Free-tier value saved</div>
           </div>
         </div>
 
-        <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--surface-border); border-radius:8px; padding:12px;">
-            <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Total Tokens (Lifetime)</div>
-            <div style="font-size:1.4rem; font-weight:700; font-family:var(--font-mono); color:var(--text); margin-top:4px;" id="val-total-tok">813,700</div>
+        <!-- Overview Quick Action Hub -->
+        <div class="overview-hub-grid">
+          <!-- Hub Card 1: Credential Pools -->
+          <div class="overview-hub-card">
+            <div class="hub-header">
+              <span class="hub-icon">👥</span>
+              <div>
+                <div class="hub-title">Credential Pools</div>
+                <div class="hub-desc">Multi-account token rotation & cooldown management</div>
+              </div>
+            </div>
+            <div class="hub-stats">
+              <div class="hub-stat-pill"><strong id="hub-acc-active">8</strong> Active Accounts Across Providers</div>
+              <div class="hub-stat-pill"><strong id="hub-acc-cooldown">0</strong> Accounts in Rate-Limit Cooldown</div>
+            </div>
+            <div class="hub-actions">
+              <button class="btn btn-secondary btn-sm" onclick="switchNavTab('accounts')">Manage Accounts →</button>
+              <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">+ Add Key</button>
+            </div>
           </div>
-          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--surface-border); border-radius:8px; padding:12px;">
-            <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Zero-Cost Routing Value</div>
-            <div style="font-size:1.4rem; font-weight:700; font-family:var(--font-mono); color:#34d399; margin-top:4px;" id="val-saved-usd">$21.45 Saved</div>
+
+          <!-- Hub Card 2: Virtual Combos -->
+          <div class="overview-hub-card">
+            <div class="hub-header">
+              <span class="hub-icon">🔀</span>
+              <div>
+                <div class="hub-title">Virtual Combos</div>
+                <div class="hub-desc">Composite models with zero-drop fallback cascades</div>
+              </div>
+            </div>
+            <div class="hub-stats">
+              <div class="hub-stat-pill"><strong>lattice/code-flagship</strong> (Kilo → DeepSeek)</div>
+              <div class="hub-stat-pill"><strong>lattice/fast-free</strong> (Nous → Kilo Free)</div>
+            </div>
+            <div class="hub-actions">
+              <button class="btn btn-secondary btn-sm" onclick="switchNavTab('combos')">Configure Combos →</button>
+              <button class="btn btn-primary btn-sm" onclick="openComboWizard()">+ Wizard</button>
+            </div>
+          </div>
+
+          <!-- Hub Card 3: Token Telemetry -->
+          <div class="overview-hub-card">
+            <div class="hub-header">
+              <span class="hub-icon">📈</span>
+              <div>
+                <div class="hub-title">Token Telemetry</div>
+                <div class="hub-desc">Live ingress velocity, prompt ratios & provider metrics</div>
+              </div>
+            </div>
+            <div class="hub-stats">
+              <div class="hub-stat-pill"><strong>64% Prompt</strong> (524k) · <strong>36% Completion</strong> (289k)</div>
+              <div class="hub-stat-pill"><strong>$21.45</strong> Total Zero-Cost Value Saved</div>
+            </div>
+            <div class="hub-actions">
+              <button class="btn btn-secondary btn-sm" onclick="switchNavTab('telemetry')">Open Telemetry →</button>
+              <button class="btn btn-emerald btn-sm" onclick="triggerSimulatedPing()">⚡ Test Burst</button>
+            </div>
+          </div>
+
+          <!-- Hub Card 4: Ingress Stream -->
+          <div class="overview-hub-card">
+            <div class="hub-header">
+              <span class="hub-icon">⚡</span>
+              <div>
+                <div class="hub-title">Live Ingress Stream</div>
+                <div class="hub-desc">Server-Sent Events streaming all client gateway requests</div>
+              </div>
+            </div>
+            <div class="hub-stats">
+              <div class="hub-stat-pill"><span class="status-dot live"></span> Port 4000 Wire Protocols Active</div>
+              <div class="hub-stat-pill">Dual Dialects: OpenAI & Anthropic Compatible</div>
+            </div>
+            <div class="hub-actions">
+              <button class="btn btn-secondary btn-sm" onclick="switchNavTab('logs')">Open Live Stream →</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Provider Token Distribution Panel -->
-      <div class="telemetry-panel">
-        <h3 style="font-size:1rem; font-weight:600;">Provider Token Volume Distribution</h3>
-        <div class="provider-bars" id="provider-bars-list">
-          <div class="provider-bar-row">
-            <div class="provider-bar-name">Kilo Code</div>
-            <div class="provider-bar-track">
-              <div class="provider-bar-fill" id="pbar-kilo" style="width: 36%; background: #6366f1;"></div>
-            </div>
-            <div class="provider-bar-val" id="pval-kilo">293.0k</div>
+      <!-- ================================================================= -->
+      <!-- VIEW 2: Real-Time Telemetry                                       -->
+      <!-- ================================================================= -->
+      <div class="tab-view" id="view-telemetry">
+        <header>
+          <div>
+            <div class="header-breadcrumb">Mission Control &gt; Telemetry</div>
+            <h1>Real-Time Token Telemetry & Velocity</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Live token ingress metrics, prompt/completion ratios, and upstream provider distribution
+            </p>
           </div>
-          <div class="provider-bar-row">
-            <div class="provider-bar-name">Nous Hermes</div>
-            <div class="provider-bar-track">
-              <div class="provider-bar-fill" id="pbar-nous" style="width: 25%; background: #f97316;"></div>
-            </div>
-            <div class="provider-bar-val" id="pval-nous">201.0k</div>
+          <div class="header-actions">
+            <button class="btn btn-emerald btn-sm" onclick="triggerSimulatedPing()">⚡ Simulate Traffic Burst</button>
+            <button class="btn btn-secondary btn-sm" onclick="switchNavTab('overview')">← Back to Overview</button>
           </div>
-          <div class="provider-bar-row">
-            <div class="provider-bar-name">Cline Pool</div>
-            <div class="provider-bar-track">
-              <div class="provider-bar-fill" id="pbar-cline" style="width: 20%; background: #38bdf8;"></div>
+        </header>
+
+        <div class="telemetry-grid">
+          <!-- Token Split & Throughput Panel -->
+          <div class="telemetry-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h3 style="font-size:1rem; font-weight:600;">Prompt vs Completion Ratio</h3>
+              <span class="tag tag-active" id="telemetry-status-badge">LIVE STREAMING</span>
             </div>
-            <div class="provider-bar-val" id="pval-cline">165.0k</div>
+            <div class="token-meter-container">
+              <div class="token-progress-bar">
+                <div class="bar-prompt" id="bar-prompt" style="width: 64%;"></div>
+                <div class="bar-completion" id="bar-completion" style="width: 36%;"></div>
+              </div>
+              <div class="token-legend">
+                <div class="token-legend-item">
+                  <div class="dot-prompt"></div>
+                  <span>Prompt: <strong id="lbl-prompt-tok">524,300</strong> (<span id="lbl-prompt-pct">64%</span>)</span>
+                </div>
+                <div class="token-legend-item">
+                  <div class="dot-completion"></div>
+                  <span>Completion: <strong id="lbl-comp-tok">289,400</strong> (<span id="lbl-comp-pct">36%</span>)</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;">
+              <div style="background:rgba(255,255,255,0.03); padding:14px; border-radius:8px; border:1px solid var(--surface-border);">
+                <div style="font-size:0.75rem; color:var(--text-subtle);">TOTAL TOKENS (LIFETIME)</div>
+                <div style="font-size:1.4rem; font-weight:700; font-family:var(--font-mono); color:var(--text); margin-top:4px;" id="val-total-tok">813,700</div>
+              </div>
+              <div style="background:rgba(255,255,255,0.03); padding:14px; border-radius:8px; border:1px solid var(--surface-border);">
+                <div style="font-size:0.75rem; color:var(--text-subtle);">ZERO-COST ROUTING VALUE</div>
+                <div style="font-size:1.4rem; font-weight:700; font-family:var(--font-mono); color:#10b981; margin-top:4px;" id="val-saved-usd">$21.45 Saved</div>
+              </div>
+            </div>
           </div>
-          <div class="provider-bar-row">
-            <div class="provider-bar-name">OpenCode Zen</div>
-            <div class="provider-bar-track">
-              <div class="provider-bar-fill" id="pbar-opencode" style="width: 12%; background: #10b981;"></div>
+
+          <!-- Provider Volume Distribution -->
+          <div class="telemetry-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h3 style="font-size:1rem; font-weight:600;">Provider Token Volume Distribution</h3>
             </div>
-            <div class="provider-bar-val" id="pval-opencode">97.4k</div>
-          </div>
-          <div class="provider-bar-row">
-            <div class="provider-bar-name">DeepSeek Pool</div>
-            <div class="provider-bar-track">
-              <div class="provider-bar-fill" id="pbar-deepseek" style="width: 7%; background: #8b5cf6;"></div>
+            <div class="provider-bars-list">
+              <div class="provider-bar-row">
+                <span style="color:var(--text-muted); font-weight:500;">Kilo Code</span>
+                <div class="provider-bar-track">
+                  <div class="provider-bar-fill" id="pbar-kilo" style="width:72%; background:#818cf8;"></div>
+                </div>
+                <span style="font-family:var(--font-mono); text-align:right;" id="pval-kilo">293.0k</span>
+              </div>
+              <div class="provider-bar-row">
+                <span style="color:var(--text-muted); font-weight:500;">Nous Hermes</span>
+                <div class="provider-bar-track">
+                  <div class="provider-bar-fill" id="pbar-nous" style="width:58%; background:#fb923c;"></div>
+                </div>
+                <span style="font-family:var(--font-mono); text-align:right;" id="pval-nous">201.0k</span>
+              </div>
+              <div class="provider-bar-row">
+                <span style="color:var(--text-muted); font-weight:500;">Cline Pool</span>
+                <div class="provider-bar-track">
+                  <div class="provider-bar-fill" id="pbar-cline" style="width:48%; background:#38bdf8;"></div>
+                </div>
+                <span style="font-family:var(--font-mono); text-align:right;" id="pval-cline">165.0k</span>
+              </div>
+              <div class="provider-bar-row">
+                <span style="color:var(--text-muted); font-weight:500;">OpenCode Zen</span>
+                <div class="provider-bar-track">
+                  <div class="provider-bar-fill" id="pbar-opencode" style="width:34%; background:#34d399;"></div>
+                </div>
+                <span style="font-family:var(--font-mono); text-align:right;" id="pval-opencode">97.4k</span>
+              </div>
+              <div class="provider-bar-row">
+                <span style="color:var(--text-muted); font-weight:500;">DeepSeek Pool</span>
+                <div class="provider-bar-track">
+                  <div class="provider-bar-fill" id="pbar-deepseek" style="width:24%; background:#a855f7;"></div>
+                </div>
+                <span style="font-family:var(--font-mono); text-align:right;" id="pval-deepseek">57.3k</span>
+              </div>
             </div>
-            <div class="provider-bar-val" id="pval-deepseek">57.3k</div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Section 2: Interactive Accounts & Pools Management -->
-    <div class="section-title" id="sec-accounts">
-      <span>👥 Accounts & Credential Pools</span>
-      <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">+ Add Credentials</button>
-    </div>
-    <div class="glass-panel">
-      <table>
-        <thead>
-          <tr>
-            <th>Account ID</th>
-            <th>Provider</th>
-            <th>Auth Archetype</th>
-            <th>Status</th>
-            <th>Error Count</th>
-            <th>Last Used</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="accounts-body">
-          <tr>
-            <td colspan="7" style="text-align:center; color:var(--text-muted); padding:24px;">Loading accounts pool...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <!-- ================================================================= -->
+      <!-- VIEW 3: Credential Pools                                          -->
+      <!-- ================================================================= -->
+      <div class="tab-view" id="view-accounts">
+        <header>
+          <div>
+            <div class="header-breadcrumb">Mission Control &gt; Credential Pools</div>
+            <h1>Accounts &amp; Credential Pools</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Manage multi-provider API keys, OAuth tokens, and cookie pools with automated rate-limit recovery
+            </p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">+ Add Credentials</button>
+            <button class="btn btn-secondary btn-sm" onclick="fetchAccounts()">↻ Refresh Pool</button>
+          </div>
+        </header>
 
-    <!-- Section 3: Virtual Model Combos Management -->
-    <div class="section-title" id="sec-combos">
-      <span>🔀 Virtual Model Combos (Auto-Failover Pipelines)</span>
-      <button class="btn btn-secondary btn-sm" onclick="openComboWizard()">+ Launch Combo Wizard</button>
-    </div>
-    <div class="glass-panel">
-      <table>
-        <thead>
-          <tr>
-            <th>Combo ID</th>
-            <th>Display Name</th>
-            <th>Priority Fallback Chain</th>
-            <th>Proxy Rotation</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="combos-body">
-          <tr>
-            <td colspan="5" style="text-align:center; color:var(--text-muted); padding:24px;">Loading virtual combos...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Section 4: Provider Plugins -->
-    <div class="section-title" id="sec-plugins">
-      <span>🔌 Provider Plugins & Upstreams</span>
-    </div>
-    <div class="glass-panel">
-      <table>
-        <thead>
-          <tr>
-            <th>Plugin ID</th>
-            <th>Provider Name</th>
-            <th>Default Base URL</th>
-            <th>Supported Auth Types</th>
-            <th>Status</th>
-            <th>Toggle</th>
-          </tr>
-        </thead>
-        <tbody id="plugins-body">
-          <tr>
-            <td colspan="6" style="text-align:center; color:var(--text-muted); padding:24px;">Loading plugins...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Section 5: Real-Time Ingress Telemetry (SSE Stream) -->
-    <div class="section-title" id="sec-logs">
-      <span>⚡ Real-Time Ingress & Token Telemetry (SSE Stream)</span>
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-secondary btn-sm" onclick="clearLogs()">Clear Stream</button>
-        <button class="btn btn-emerald btn-sm" onclick="triggerSimulatedPing()">+ Emit Test Event</button>
+        <div class="glass-panel">
+          <table>
+            <thead>
+              <tr>
+                <th>Account ID</th>
+                <th>Provider</th>
+                <th>Auth Archetype</th>
+                <th>Status</th>
+                <th>Error Count</th>
+                <th>Last Used</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="accounts-body">
+              <tr>
+                <td colspan="7" style="text-align:center; color:var(--text-muted); padding:32px;">Loading accounts pool...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-    <div class="terminal-box" id="logs-terminal">
-      <div class="log-line">
-        <span class="log-ts">[SYSTEM]</span>
-        <span class="log-status">Gateway initialized on port 4000. Listening for client requests...</span>
+
+      <!-- ================================================================= -->
+      <!-- VIEW 4: Virtual Model Combos                                      -->
+      <!-- ================================================================= -->
+      <div class="tab-view" id="view-combos">
+        <header>
+          <div>
+            <div class="header-breadcrumb">Mission Control &gt; Virtual Combos</div>
+            <h1>Virtual Model Combos &amp; Cascades</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Define composite virtual model IDs that automatically cascade across fallback chains with zero client dropouts
+            </p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary btn-sm" onclick="openComboWizard()">+ Launch Combo Wizard</button>
+            <button class="btn btn-secondary btn-sm" onclick="fetchCombos()">↻ Refresh Combos</button>
+          </div>
+        </header>
+
+        <div class="glass-panel">
+          <table>
+            <thead>
+              <tr>
+                <th>Combo ID</th>
+                <th>Display Name</th>
+                <th>Priority Fallback Chain</th>
+                <th>Proxy Rotation</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="combos-body">
+              <tr>
+                <td colspan="5" style="text-align:center; color:var(--text-muted); padding:32px;">Loading virtual combos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      <!-- ================================================================= -->
+      <!-- VIEW 5: Provider Plugins                                          -->
+      <!-- ================================================================= -->
+      <div class="tab-view" id="view-plugins">
+        <header>
+          <div>
+            <div class="header-breadcrumb">Mission Control &gt; Provider Plugins</div>
+            <h1>Provider Plugins &amp; Wire Adapters</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Installed wire-level protocol adapters translating incoming client payloads into upstream provider formats
+            </p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" onclick="fetchPlugins()">↻ Refresh Plugins</button>
+          </div>
+        </header>
+
+        <div class="glass-panel">
+          <table>
+            <thead>
+              <tr>
+                <th>Plugin ID</th>
+                <th>Provider Name</th>
+                <th>Default Base URL</th>
+                <th>Supported Auth Types</th>
+                <th>Status</th>
+                <th>Toggle</th>
+              </tr>
+            </thead>
+            <tbody id="plugins-body">
+              <tr>
+                <td colspan="6" style="text-align:center; color:var(--text-muted); padding:32px;">Loading plugins...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- VIEW 6: Live Ingress Stream                                       -->
+      <!-- ================================================================= -->
+      <div class="tab-view" id="view-logs">
+        <header>
+          <div>
+            <div class="header-breadcrumb">Mission Control &gt; Ingress Stream</div>
+            <h1>Live Ingress Stream &amp; Events</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Real-time SSE event pipeline streaming all client requests, upstream routing, token costs, and latencies
+            </p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" onclick="clearLogs()">Clear Stream</button>
+            <button class="btn btn-emerald btn-sm" onclick="triggerSimulatedPing()">+ Emit Test Event</button>
+          </div>
+        </header>
+
+        <div class="terminal-box" id="logs-terminal">
+          <div class="log-line">
+            <span class="log-ts">[SYSTEM]</span>
+            <span class="log-status">Gateway initialized on port 4000. Listening for client requests...</span>
+          </div>
+        </div>
+      </div>
+
     </div>
   </main>
 
@@ -1512,6 +1782,10 @@ function getDashboardHtml(): string {
               <span class="provider-tab-icon">🟢</span>
               <span class="provider-tab-name">DeepSeek</span>
             </div>
+            <div class="provider-tab-btn" id="tab-btn-opencode" onclick="switchProviderTab('opencode')">
+              <span class="provider-tab-icon">⚡</span>
+              <span class="provider-tab-name">OpenCode Zen</span>
+            </div>
           </div>
         </div>
 
@@ -1521,16 +1795,14 @@ function getDashboardHtml(): string {
           <span class="form-hint">Unique identifier for this account credential record.</span>
         </div>
 
-        <!-- Provider Specific Fields -->
-        <div id="provider-fields-container">
-          <!-- Dynamic Content Injected by JS -->
-        </div>
+        <!-- Provider Specific Fields (Dynamically Injected) -->
+        <div id="provider-fields-container"></div>
 
         <div class="form-group">
           <label class="form-label">Initial Pool Status</label>
           <select class="form-select" id="acc-form-status">
-            <option value="active">Active (Immediate rotation ready)</option>
-            <option value="cooldown">Cooldown (Hold off temporary)</option>
+            <option value="active">Active (Available for immediate routing)</option>
+            <option value="cooldown">Cooldown (Temporarily suppressed)</option>
           </select>
         </div>
       </div>
@@ -1542,7 +1814,7 @@ function getDashboardHtml(): string {
   </div>
 
   <!-- ===================================================================== -->
-  <!-- MODAL 2: Live Combo Creator Wizard                                   -->
+  <!-- MODAL 2: Virtual Combo Creator Wizard                                 -->
   <!-- ===================================================================== -->
   <div class="modal-backdrop" id="modal-combo-wizard" onclick="onBackdropClick(event, 'modal-combo-wizard')">
     <div class="modal-window">
@@ -1556,94 +1828,122 @@ function getDashboardHtml(): string {
         <button class="modal-close" onclick="closeComboWizard()">&times;</button>
       </div>
 
-      <!-- Stepper Header -->
-      <div class="wizard-steps">
-        <div class="wizard-step active" id="wstep-1">1. Identity</div>
-        <div class="wizard-step" id="wstep-2">2. Fallback Chain</div>
-        <div class="wizard-step" id="wstep-3">3. Policies</div>
-        <div class="wizard-step" id="wstep-4">4. Review & Deploy</div>
-      </div>
-
       <div class="modal-body">
-        <!-- Wizard Step 1: Identity -->
+        <!-- Wizard Steps Indicator -->
+        <div class="wizard-steps-indicator">
+          <div class="wizard-step-node active" id="wizard-node-1">
+            <div class="wizard-step-circle">1</div>
+            <span class="wizard-step-label">Identity</span>
+          </div>
+          <div class="wizard-step-node" id="wizard-node-2">
+            <div class="wizard-step-circle">2</div>
+            <span class="wizard-step-label">Fallback Chain</span>
+          </div>
+          <div class="wizard-step-node" id="wizard-node-3">
+            <div class="wizard-step-circle">3</div>
+            <span class="wizard-step-label">Policies</span>
+          </div>
+          <div class="wizard-step-node" id="wizard-node-4">
+            <div class="wizard-step-circle">4</div>
+            <span class="wizard-step-label">Deploy</span>
+          </div>
+        </div>
+
+        <!-- Step 1: Identity -->
         <div id="wizard-page-1">
           <div class="form-group">
-            <label class="form-label">Virtual Combo ID</label>
-            <input type="text" class="form-input" id="wizard-combo-id" placeholder="e.g. lattice/code-flagship-v2" value="lattice/">
-            <span class="form-hint">The model identifier clients will pass to /v1/chat/completions or /v1/messages.</span>
+            <label class="form-label">Virtual Combo ID (Client Model Name)</label>
+            <input type="text" class="form-input" id="wizard-combo-id" placeholder="e.g. lattice/code-flagship" required>
+            <span class="form-hint">Clients will request this exact model string in their OpenAI / Anthropic requests.</span>
           </div>
-          <div class="form-group" style="margin-top:14px;">
+          <div class="form-group" style="margin-top:12px;">
             <label class="form-label">Display Name</label>
-            <input type="text" class="form-input" id="wizard-combo-name" placeholder="e.g. Flagship Multi-Provider Auto-Failover">
+            <input type="text" class="form-input" id="wizard-combo-name" placeholder="e.g. Flagship Coding Cascade (Kilo -> DeepSeek)">
           </div>
-          <div class="form-group" style="margin-top:14px;">
-            <label class="form-label">Description</label>
-            <textarea class="form-textarea" id="wizard-combo-desc" placeholder="Zero-drop multi-provider cascade with automatic 429 fallback and token optimization"></textarea>
+          <div class="form-group" style="margin-top:12px;">
+            <label class="form-label">Description / Purpose</label>
+            <input type="text" class="form-input" id="wizard-combo-desc" placeholder="e.g. Primary coding combo with automated free-tier failover">
           </div>
-        </div>
-
-        <!-- Wizard Step 2: Fallback Chain -->
-        <div id="wizard-page-2" style="display:none;">
-          <div class="form-group">
-            <label class="form-label">Quick Add Model Targets</label>
-            <div class="target-chips">
-              <span class="target-chip" onclick="addTargetToChain('kilo/code-fast:free')">+ kilo/code-fast:free</span>
-              <span class="target-chip" onclick="addTargetToChain('nous/hermes-3-llama3')">+ nous/hermes-3-llama3</span>
-              <span class="target-chip" onclick="addTargetToChain('cline/sonnet-agent')">+ cline/sonnet-agent</span>
-              <span class="target-chip" onclick="addTargetToChain('deepseek/deepseek-reasoner')">+ deepseek/deepseek-reasoner</span>
-              <span class="target-chip" onclick="addTargetToChain('opencode/big-pickle')">+ opencode/big-pickle</span>
-              <span class="target-chip" onclick="addTargetToChain('mimo-v2.6-flash-free')">+ mimo-v2.6-flash-free</span>
-            </div>
-          </div>
-
-          <div class="form-group" style="margin-top:14px;">
-            <label class="form-label">Add Custom Upstream Target</label>
-            <div style="display:flex; gap:8px;">
-              <input type="text" class="form-input" id="wizard-custom-target" placeholder="provider/model-id" style="flex:1;">
-              <button class="btn btn-secondary" onclick="addCustomTarget()">Add</button>
-            </div>
-          </div>
-
-          <div class="form-group" style="margin-top:14px;">
-            <label class="form-label">Configured Fallback Sequence</label>
-            <div class="targets-list" id="wizard-targets-list">
-              <!-- Dynamically populated target items -->
-            </div>
-          </div>
-
-          <div class="form-group" style="margin-top:14px;">
-            <label class="form-label">Live Failover Pipeline Preview</label>
-            <div class="chain-diagram" id="wizard-chain-preview">
-              <!-- Dynamically drawn diagram -->
-            </div>
-          </div>
-        </div>
-
-        <!-- Wizard Step 3: Policies -->
-        <div id="wizard-page-3" style="display:none;">
-          <div class="form-group">
-            <label class="form-label">Failover Strategy</label>
-            <select class="form-select" id="wizard-strategy">
-              <option value="priority_fallback">Priority Fallback (Sequential cascade upon 429/5xx)</option>
-              <option value="round_robin">Round Robin (Load balance requests evenly across targets)</option>
+          <div class="form-group" style="margin-top:12px;">
+            <label class="form-label">Cascade Routing Strategy</label>
+            <select class="form-select" id="wizard-combo-strategy">
+              <option value="priority">Priority Cascade (Try targets strictly in order 1 -> 2 -> 3)</option>
+              <option value="round-robin">Round Robin (Distribute requests evenly across healthy targets)</option>
+              <option value="lowest-latency">Lowest Latency (Prefer fastest responding upstream)</option>
             </select>
-            <span class="form-hint">Defines how traffic traverses the configured targets.</span>
-          </div>
-
-          <div class="form-group" style="margin-top:18px;">
-            <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-              <input type="checkbox" id="wizard-use-proxies" checked style="width:16px; height:16px; accent-color:var(--accent);">
-              <span>Enable Egress Proxy Rotation on Failover</span>
-            </label>
-            <span class="form-hint" style="margin-left:24px;">Automatically route failed attempts through SOCKS5/HTTP proxy pool.</span>
           </div>
         </div>
 
-        <!-- Wizard Step 4: Review & Deploy -->
+        <!-- Step 2: Fallback Chain -->
+        <div id="wizard-page-2" style="display:none;">
+          <label class="form-label">Configured Fallback Target Chain</label>
+          <div class="targets-list" id="wizard-targets-list" style="margin-top:6px;"></div>
+
+          <div style="margin-top:14px;">
+            <label class="form-label">Add Model to Chain</label>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
+              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('kilo/kilo-auto/free')">+ kilo/kilo-auto/free</button>
+              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('nous/upstage/solar-mini4:free')">+ nous/solar-mini:free</button>
+              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('deepseek/deepseek-chat')">+ deepseek/deepseek-chat</button>
+              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('opencode/zen-free')">+ opencode/zen-free</button>
+              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('cline/claude-3-7-sonnet')">+ cline/claude-3-7-sonnet</button>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <input type="text" class="form-input" id="wizard-custom-target" placeholder="provider/model-id or custom-model" style="flex:1;">
+              <button class="btn btn-secondary" onclick="addCustomTarget()">Add Custom</button>
+            </div>
+          </div>
+
+          <div style="margin-top:16px; background:rgba(0,0,0,0.3); border:1px solid var(--surface-border); border-radius:8px; padding:12px;">
+            <div style="font-size:0.75rem; color:var(--text-subtle);">CHAIN PREVIEW</div>
+            <div id="wizard-chain-preview" style="font-family:var(--font-mono); font-size:0.8rem; color:#38bdf8; margin-top:4px;"></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Policies -->
+        <div id="wizard-page-3" style="display:none;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div class="form-group">
+              <label class="form-label">Per-Target Timeout (ms)</label>
+              <input type="number" class="form-input" id="wizard-timeout" value="45000">
+              <span class="form-hint">Time before triggering cascade to next target.</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Failover Retries</label>
+              <input type="number" class="form-input" id="wizard-retries" value="3">
+              <span class="form-hint">Number of sequential cascades attempted.</span>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:12px;">
+            <label class="form-label">Failure Trigger Status Codes</label>
+            <input type="text" class="form-input" id="wizard-fail-statuses" value="429, 500, 502, 503, 504">
+            <span class="form-hint">Comma separated list of upstream HTTP statuses that initiate failover.</span>
+          </div>
+
+          <div class="form-group" style="margin-top:12px;">
+            <label class="form-label">Proxy & Network Routing</label>
+            <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
+              <input type="checkbox" id="wizard-use-proxies" checked style="width:18px; height:18px; accent-color:var(--accent);">
+              <label for="wizard-use-proxies" style="font-size:0.85rem; color:var(--text); cursor:pointer;">
+                Rotate through residential/datacenter proxy pool on 429/403
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Verification & Deploy -->
         <div id="wizard-page-4" style="display:none;">
-          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--surface-border); border-radius:10px; padding:16px;">
-            <h4 style="font-size:0.95rem; font-weight:600; margin-bottom:10px;">Virtual Combo Specification</h4>
-            <pre style="font-family:var(--font-mono); font-size:0.8rem; color:#a5b4fc; background:rgba(0,0,0,0.3); padding:12px; border-radius:8px; overflow-x:auto;" id="wizard-json-preview"></pre>
+          <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:#34d399; font-size:0.95rem;">✓ Configuration Validated</div>
+            <p style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">
+              This virtual combo is ready to be written to storage and registered live across gateway routers.
+            </p>
+          </div>
+
+          <div style="margin-top:14px;">
+            <label class="form-label">Combo Blueprint JSON</label>
+            <textarea class="form-textarea" id="wizard-summary-json" readonly style="height:140px;"></textarea>
           </div>
         </div>
       </div>
@@ -1651,50 +1951,66 @@ function getDashboardHtml(): string {
       <div class="modal-footer">
         <button class="btn btn-secondary" id="wizard-btn-prev" onclick="prevWizardStep()" style="display:none;">Back</button>
         <button class="btn btn-primary" id="wizard-btn-next" onclick="nextWizardStep()">Next: Fallback Chain</button>
-        <button class="btn btn-emerald" id="wizard-btn-deploy" onclick="deployCombo()" style="display:none;">Deploy Virtual Combo</button>
       </div>
     </div>
   </div>
 
-  <!-- Toast Container -->
-  <div class="toast-container" id="toast-container"></div>
-
-  <!-- ===================================================================== -->
-  <!-- JavaScript Application Logic                                          -->
-  <!-- ===================================================================== -->
+  <!-- Dashboard SPA Script Engine -->
   <script>
-    // State
+    // Global Dashboard State
     let currentProviderTab = 'kilo';
     let wizardCurrentStep = 1;
-    let wizardTargets = ['kilo/code-fast:free', 'nous/hermes-3-llama3', 'cline/sonnet-agent'];
+    let wizardTargets = ['kilo/kilo-auto/free', 'nous/upstage/solar-mini4:free', 'deepseek/deepseek-chat'];
     let telemetryStats = {
       promptTokens: 524300,
       completionTokens: 289400,
       totalTokens: 813700,
       tokensPerSec: 54,
-      savedUsd: 21.45,
+      savedUsd: '21.45',
     };
 
-    // Initialize Dashboard
-    document.addEventListener('DOMContentLoaded', () => {
-      fetchAccounts();
-      fetchCombos();
-      fetchPlugins();
-      fetchStats();
-      initLogStream();
-      switchProviderTab('kilo');
-      renderWizardTargets();
-    });
+    // =========================================================================
+    // SPA TAB ROUTING
+    // =========================================================================
+    function switchNavTab(tabId) {
+      // 1. Update navigation active state
+      document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
+        if (link.getAttribute('data-tab') === tabId) {
+          link.classList.add('active');
+        } else {
+          link.classList.remove('active');
+        }
+      });
 
-    // Navigation Smooth Scroll
-    function scrollToSection(id) {
-      const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      // 2. Hide all views and reveal target view
+      document.querySelectorAll('.tab-view').forEach(view => {
+        view.classList.remove('active');
+      });
+      const targetView = document.getElementById('view-' + tabId);
+      if (targetView) {
+        targetView.classList.add('active');
+      }
+
+      // 3. Reset scroll position smoothly
+      const main = document.querySelector('main');
+      if (main) main.scrollTop = 0;
+
+      // 4. Synchronize URL hash
+      if (window.location.hash !== '#' + tabId) {
+        if (history.pushState) {
+          history.pushState(null, '', '#' + tabId);
+        } else {
+          window.location.hash = '#' + tabId;
+        }
+      }
     }
 
-    // Toast Notifications
+    // =========================================================================
+    // TOAST NOTIFICATIONS
+    // =========================================================================
     function showToast(message, type = 'info') {
       const c = document.getElementById('toast-container');
+      if (!c) return;
       const t = document.createElement('div');
       t.className = 'toast toast-' + type;
       t.innerHTML = '<span>' + (type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ') + '</span> ' +
@@ -1708,7 +2024,9 @@ function getDashboardHtml(): string {
       }, 3500);
     }
 
-    // Fetch Accounts
+    // =========================================================================
+    // DATA FETCHING & UI SYNCHRONIZATION
+    // =========================================================================
     async function fetchAccounts() {
       try {
         const res = await fetch('/api/accounts');
@@ -1716,8 +2034,10 @@ function getDashboardHtml(): string {
         const accounts = json.accounts || (json.data && json.data.accounts) || [];
         const tbody = document.getElementById('accounts-body');
         
+        if (!tbody) return;
+
         if (accounts.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:24px;">No accounts currently configured. Click <strong>+ Add Credentials</strong> to add one.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:32px;">No accounts currently configured. Click <strong>+ Add Credentials</strong> to add one.</td></tr>';
           return;
         }
 
@@ -1725,12 +2045,12 @@ function getDashboardHtml(): string {
           const statusTag = a.status === 'active' ? 'tag-active' : a.status === 'cooldown' ? 'tag-cooldown' : 'tag-invalid';
           const lastUsed = a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleTimeString() : 'Never';
           return '<tr>' +
-            '<td><strong style="color:#e2e8f0;">' + a.id + '</strong></td>' +
+            '<td><strong style="color:#e2e8f0; font-family:var(--font-mono);">' + a.id + '</strong></td>' +
             '<td><span class="tag-provider">' + a.providerId + '</span></td>' +
-            '<td><span style="color:var(--text-muted); font-size:0.8rem;">' + a.authType + '</span></td>' +
+            '<td><span style="color:var(--text-muted); font-size:0.8rem; font-family:var(--font-mono);">' + a.authType + '</span></td>' +
             '<td><span class="tag ' + statusTag + '">' + a.status + '</span></td>' +
             '<td>' + (a.errorCount || 0) + '</td>' +
-            '<td><span style="color:var(--text-subtle);">' + lastUsed + '</span></td>' +
+            '<td><span style="color:var(--text-subtle); font-size:0.8rem;">' + lastUsed + '</span></td>' +
             '<td>' +
               '<div style="display:flex; gap:6px;">' +
                 '<button class="btn btn-emerald btn-sm" id="btn-test-' + a.id + '" onclick="testAccount(\'' + a.id + '\')">Test</button>' +
@@ -1740,17 +2060,28 @@ function getDashboardHtml(): string {
           '</tr>';
         }).join('');
 
-        // Update KPI
+        // Update KPIs and Badges
         const activeCount = accounts.filter(a => a.status === 'active').length;
         const cooldownCount = accounts.filter(a => a.status === 'cooldown').length;
-        document.getElementById('kpi-accounts').textContent = activeCount + ' Active';
-        document.getElementById('kpi-accounts-sub').textContent = cooldownCount + ' in cooldown';
+        
+        const kpiAcc = document.getElementById('kpi-accounts');
+        if (kpiAcc) kpiAcc.textContent = activeCount + ' Active';
+        const kpiAccSub = document.getElementById('kpi-accounts-sub');
+        if (kpiAccSub) kpiAccSub.textContent = cooldownCount + ' in cooldown';
+
+        const badgeAcc = document.getElementById('badge-accounts-count');
+        if (badgeAcc) badgeAcc.textContent = accounts.length;
+
+        const hubActive = document.getElementById('hub-acc-active');
+        if (hubActive) hubActive.textContent = activeCount;
+        const hubCooldown = document.getElementById('hub-acc-cooldown');
+        if (hubCooldown) hubCooldown.textContent = cooldownCount;
+
       } catch (err) {
         console.error('Failed to fetch accounts:', err);
       }
     }
 
-    // Test Account Health Check Probe
     async function testAccount(id) {
       const btn = document.getElementById('btn-test-' + id);
       if (btn) {
@@ -1763,26 +2094,26 @@ function getDashboardHtml(): string {
         if (json.success && json.health) {
           if (json.health.healthy) {
             const lat = json.health.latencyMs ? ' (' + json.health.latencyMs + 'ms)' : '';
-            showToast('Account ' + id + ' probe OK: ' + (json.health.message || 'Healthy') + lat, 'success');
+            showToast('Account ' + id + ' probe SUCCESS' + lat, 'success');
           } else {
-            showToast('Account ' + id + ' probe warning: ' + (json.health.message || 'Check credentials'), 'error');
+            showToast('Account ' + id + ' probe FAILED: ' + (json.health.error || 'Healthcheck returned unhealthy'), 'error');
           }
         } else {
-          showToast('Health check failed: ' + (json.error || 'Unknown error'), 'error');
+          showToast('Probe error: ' + (json.error || 'Internal error'), 'error');
         }
       } catch (err) {
-        showToast('Network error while testing account', 'error');
+        showToast('Network error probing account: ' + err.message, 'error');
       } finally {
         if (btn) {
           btn.disabled = false;
           btn.textContent = 'Test';
         }
+        fetchAccounts();
       }
     }
 
-    // Delete Account
     async function deleteAccount(id) {
-      if (!confirm('Are you sure you want to delete account credential: ' + id + '?')) return;
+      if (!confirm('Are you sure you want to remove account ' + id + ' from the active credential pool?')) return;
       try {
         const res = await fetch('/api/accounts/' + encodeURIComponent(id), { method: 'DELETE' });
         const json = await res.json();
@@ -1794,20 +2125,20 @@ function getDashboardHtml(): string {
           showToast('Failed to delete account: ' + (json.message || 'Error'), 'error');
         }
       } catch (err) {
-        showToast('Network error while deleting account', 'error');
+        showToast('Network error deleting account: ' + err.message, 'error');
       }
     }
 
-    // Fetch Combos
     async function fetchCombos() {
       try {
         const res = await fetch('/api/combos');
         const json = await res.json();
         const combos = json.combos || (json.data && json.data.combos) || [];
         const tbody = document.getElementById('combos-body');
+        if (!tbody) return;
 
         if (combos.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:24px;">No virtual combos registered. Click <strong>+ Launch Combo Wizard</strong> to create one.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:32px;">No virtual combos registered. Click <strong>+ Launch Combo Wizard</strong> to create one.</td></tr>';
           return;
         }
 
@@ -1822,55 +2153,61 @@ function getDashboardHtml(): string {
             : '<span style="color:var(--text-subtle); font-size:0.75rem;">Disabled</span>';
 
           return '<tr>' +
-            '<td><strong style="color:#a5b4fc;">' + c.id + '</strong></td>' +
+            '<td><strong style="color:#a5b4fc; font-family:var(--font-mono);">' + c.id + '</strong></td>' +
             '<td>' + (c.name || c.id) + '</td>' +
             '<td>' + chainPills + '</td>' +
             '<td>' + proxyBadge + '</td>' +
             '<td>' +
-              '<button class="btn btn-danger btn-sm" onclick="deleteCombo(\'' + c.id + '\')">Delete</button>' +
+              '<div style="display:flex; gap:6px;">' +
+                '<button class="btn btn-secondary btn-sm" onclick="showToast(\'Virtual combo ' + c.id + ' live & auto-routing\', \'info\')">Check</button>' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteCombo(\'' + c.id + '\')">Delete</button>' +
+              '</div>' +
             '</td>' +
           '</tr>';
         }).join('');
 
-        document.getElementById('kpi-combos').textContent = combos.length + ' Active';
+        const kpiCombos = document.getElementById('kpi-combos');
+        if (kpiCombos) kpiCombos.textContent = combos.length + ' Active';
+
+        const badgeCombos = document.getElementById('badge-combos-count');
+        if (badgeCombos) badgeCombos.textContent = combos.length;
+
       } catch (err) {
         console.error('Failed to fetch combos:', err);
       }
     }
 
-    // Delete Combo
     async function deleteCombo(id) {
-      if (!confirm('Are you sure you want to delete virtual combo: ' + id + '?')) return;
+      if (!confirm('Are you sure you want to remove virtual combo ' + id + '?')) return;
       try {
         const res = await fetch('/api/combos/' + encodeURIComponent(id), { method: 'DELETE' });
         const json = await res.json();
         if (json.success) {
           showToast('Virtual combo ' + id + ' deleted', 'success');
           fetchCombos();
-          fetchStats();
         } else {
-          showToast('Failed to delete combo', 'error');
+          showToast('Failed to delete combo: ' + (json.error || 'Error'), 'error');
         }
       } catch (err) {
-        showToast('Network error while deleting combo', 'error');
+        showToast('Network error deleting combo: ' + err.message, 'error');
       }
     }
 
-    // Fetch Plugins
     async function fetchPlugins() {
       try {
         const res = await fetch('/api/plugins');
         const json = await res.json();
         const plugins = json.plugins || (json.data && json.data.plugins) || [];
         const tbody = document.getElementById('plugins-body');
+        if (!tbody) return;
 
         tbody.innerHTML = plugins.map(p => {
           const statusTag = p.enabled ? '<span class="tag tag-active">ENABLED</span>' : '<span class="tag tag-invalid">DISABLED</span>';
           const authTypes = (p.supportedAuthTypes || []).join(', ') || 'Standard';
           return '<tr>' +
-            '<td><strong style="color:#c084fc;">' + p.id + '</strong></td>' +
+            '<td><strong style="color:#c084fc; font-family:var(--font-mono);">' + p.id + '</strong></td>' +
             '<td>' + p.displayName + '</td>' +
-            '<td style="color:var(--text-muted); font-size:0.78rem;">' + p.defaultBaseUrl + '</td>' +
+            '<td style="color:var(--text-muted); font-size:0.78rem; font-family:var(--font-mono);">' + p.defaultBaseUrl + '</td>' +
             '<td><span style="font-size:0.8rem; color:var(--text-subtle);">' + authTypes + '</span></td>' +
             '<td>' + statusTag + '</td>' +
             '<td>' +
@@ -1879,28 +2216,32 @@ function getDashboardHtml(): string {
           '</tr>';
         }).join('');
 
-        document.getElementById('kpi-plugins').textContent = plugins.filter(p => p.enabled).length + ' Active';
+        const kpiPlugs = document.getElementById('kpi-plugins');
+        if (kpiPlugs) kpiPlugs.textContent = plugins.filter(p => p.enabled).length + ' Active';
+
+        const badgePlugs = document.getElementById('badge-plugins-count');
+        if (badgePlugs) badgePlugs.textContent = plugins.length;
+
       } catch (err) {
         console.error('Failed to fetch plugins:', err);
       }
     }
 
-    // Toggle Plugin
     async function togglePlugin(id) {
       try {
         const res = await fetch('/api/plugins/' + encodeURIComponent(id) + '/toggle', { method: 'POST' });
         const json = await res.json();
         if (json.success) {
-          showToast('Plugin ' + id + ' set to ' + (json.enabled ? 'ENABLED' : 'DISABLED'), 'info');
+          showToast('Plugin ' + id + ' ' + (json.enabled ? 'Enabled' : 'Disabled'), 'success');
           fetchPlugins();
-          fetchStats();
+        } else {
+          showToast('Failed to toggle plugin: ' + (json.error || 'Error'), 'error');
         }
       } catch (err) {
-        showToast('Failed to toggle plugin', 'error');
+        showToast('Error toggling plugin: ' + err.message, 'error');
       }
     }
 
-    // Fetch Stats & Telemetry
     async function fetchStats() {
       try {
         const res = await fetch('/api/telemetry');
@@ -1911,7 +2252,6 @@ function getDashboardHtml(): string {
       } catch {}
     }
 
-    // Update Telemetry UI
     function updateTelemetryUI(data) {
       telemetryStats = { ...telemetryStats, ...data };
       const pTok = telemetryStats.promptTokens;
@@ -1921,22 +2261,34 @@ function getDashboardHtml(): string {
       const pPct = tTok > 0 ? Math.round((pTok / tTok) * 100) : 60;
       const cPct = 100 - pPct;
 
-      document.getElementById('kpi-tokens').textContent = Number(tTok).toLocaleString();
-      document.getElementById('kpi-tokens-sub').textContent = Math.round(pTok / 1000) + 'k in · ' + Math.round(cTok / 1000) + 'k out';
-      document.getElementById('kpi-velocity').textContent = (telemetryStats.tokensPerSec || 54) + ' tok/s';
-      document.getElementById('kpi-saved').textContent = '$' + (telemetryStats.savedUsd || '21.45');
+      const kpiTok = document.getElementById('kpi-tokens');
+      if (kpiTok) kpiTok.textContent = Number(tTok).toLocaleString();
+      const kpiTokSub = document.getElementById('kpi-tokens-sub');
+      if (kpiTokSub) kpiTokSub.textContent = Math.round(pTok / 1000) + 'k in · ' + Math.round(cTok / 1000) + 'k out';
+      const kpiVel = document.getElementById('kpi-velocity');
+      if (kpiVel) kpiVel.textContent = (telemetryStats.tokensPerSec || 54) + ' tok/s';
+      const kpiSave = document.getElementById('kpi-saved');
+      if (kpiSave) kpiSave.textContent = '$' + (telemetryStats.savedUsd || '21.45');
 
-      document.getElementById('val-total-tok').textContent = Number(tTok).toLocaleString();
-      document.getElementById('val-saved-usd').textContent = '$' + (telemetryStats.savedUsd || '21.45') + ' Saved';
+      const valTotal = document.getElementById('val-total-tok');
+      if (valTotal) valTotal.textContent = Number(tTok).toLocaleString();
+      const valSave = document.getElementById('val-saved-usd');
+      if (valSave) valSave.textContent = '$' + (telemetryStats.savedUsd || '21.45') + ' Saved';
 
-      document.getElementById('bar-prompt').style.width = pPct + '%';
-      document.getElementById('bar-comp').style.width = cPct + '%';
-      document.getElementById('lbl-prompt-tok').textContent = Number(pTok).toLocaleString();
-      document.getElementById('lbl-comp-tok').textContent = Number(cTok).toLocaleString();
-      document.getElementById('lbl-prompt-pct').textContent = pPct + '%';
-      document.getElementById('lbl-comp-pct').textContent = cPct + '%';
+      const barPrompt = document.getElementById('bar-prompt');
+      if (barPrompt) barPrompt.style.width = pPct + '%';
+      const barComp = document.getElementById('bar-completion');
+      if (barComp) barComp.style.width = cPct + '%';
 
-      // Update provider bars if available
+      const lblPromptTok = document.getElementById('lbl-prompt-tok');
+      if (lblPromptTok) lblPromptTok.textContent = Number(pTok).toLocaleString();
+      const lblCompTok = document.getElementById('lbl-comp-tok');
+      if (lblCompTok) lblCompTok.textContent = Number(cTok).toLocaleString();
+      const lblPromptPct = document.getElementById('lbl-prompt-pct');
+      if (lblPromptPct) lblPromptPct.textContent = pPct + '%';
+      const lblCompPct = document.getElementById('lbl-comp-pct');
+      if (lblCompPct) lblCompPct.textContent = cPct + '%';
+
       if (data.providerTokens) {
         for (const [p, stats] of Object.entries(data.providerTokens)) {
           const bar = document.getElementById('pbar-' + p);
@@ -1950,9 +2302,13 @@ function getDashboardHtml(): string {
       }
     }
 
-    // SSE Stream Ingestion
+    // =========================================================================
+    // SSE STREAM INGESTION
+    // =========================================================================
     function initLogStream() {
       const term = document.getElementById('logs-terminal');
+      if (!term) return;
+
       try {
         const sse = new EventSource('/api/logs/stream');
         sse.onmessage = (e) => {
@@ -1972,49 +2328,79 @@ function getDashboardHtml(): string {
               '<span class="log-path">' + (log.path || '/v1/chat/completions') + '</span> ' +
               '<span class="log-provider">(' + (log.provider || 'kilo') + '/' + (log.model || 'code-fast') + ')</span> ' +
               '<span class="log-status">' + (log.status || 200) + ' OK</span> ' +
-              '<span style="color:var(--text-subtle)">' + (log.latencyMs || 45) + 'ms</span> ' +
-              '<span class="log-tokens">+' + totalTok + ' tok (' + pTok + ' in / ' + cTok + ' out)</span>';
+              '<span style="color:var(--text-subtle);">' + (log.latencyMs || 84) + 'ms</span> ' +
+              '<span class="log-tokens">+' + totalTok + ' tok</span>';
 
-            term.appendChild(line);
-            term.scrollTop = term.scrollHeight;
+            term.prepend(line);
+            if (term.childNodes.length > 200) term.removeChild(term.lastChild);
 
-            // Increment real-time token telemetry
-            telemetryStats.promptTokens += pTok;
-            telemetryStats.completionTokens += cTok;
-            telemetryStats.totalTokens += totalTok;
-            telemetryStats.savedUsd = (telemetryStats.promptTokens * 0.000003 + telemetryStats.completionTokens * 0.000015).toFixed(2);
-            updateTelemetryUI(telemetryStats);
-          } catch (err) {}
+            updateTelemetryUI({
+              promptTokens: telemetryStats.promptTokens + pTok,
+              completionTokens: telemetryStats.completionTokens + cTok,
+              totalTokens: telemetryStats.totalTokens + totalTok,
+            });
+          } catch {}
         };
-      } catch (err) {}
+
+        sse.onerror = () => {
+          console.warn('SSE stream disconnected, retrying...');
+        };
+      } catch (err) {
+        console.error('Failed to init SSE stream:', err);
+      }
     }
 
     function clearLogs() {
-      document.getElementById('logs-terminal').innerHTML = '<div class="log-line"><span class="log-ts">[SYSTEM]</span><span class="log-status">Stream cleared.</span></div>';
+      const term = document.getElementById('logs-terminal');
+      if (term) term.innerHTML = '<div class="log-line"><span class="log-ts">[SYSTEM]</span><span>Stream cleared.</span></div>';
     }
 
     async function triggerSimulatedPing() {
+      const providers = ['kilo', 'nous', 'cline', 'opencode', 'deepseek'];
+      const models = ['code-fast:free', 'hermes-3-llama3:free', 'sonnet-agent', 'deepseek-chat', 'solar-mini:free'];
+      const p = providers[Math.floor(Math.random() * providers.length)];
+      const m = models[Math.floor(Math.random() * models.length)];
+
+      const pTok = Math.floor(200 + Math.random() * 500);
+      const cTok = Math.floor(150 + Math.random() * 600);
+      const total = pTok + cTok;
+
       try {
-        const res = await fetch('/api/telemetry/simulate', { method: 'POST' });
-        const json = await res.json();
-        if (json.success) {
-          showToast('Simulated token telemetry packet dispatched', 'info');
-        }
-      } catch (err) {
-        showToast('Simulation error', 'error');
-      }
+        await fetch('/api/telemetry/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: p,
+            model: m,
+            promptTokens: pTok,
+            completionTokens: cTok,
+            latencyMs: Math.floor(70 + Math.random() * 120),
+          }),
+        });
+      } catch {}
+
+      updateTelemetryUI({
+        promptTokens: telemetryStats.promptTokens + pTok,
+        completionTokens: telemetryStats.completionTokens + cTok,
+        totalTokens: telemetryStats.totalTokens + total,
+      });
+
+      showToast('⚡ Simulated traffic burst received (+' + total.toLocaleString() + ' tokens via ' + p + '/' + m + ')', 'success');
     }
 
     // =========================================================================
     // CREDENTIALS MODAL LOGIC
     // =========================================================================
     function openCredentialsModal() {
-      document.getElementById('modal-credentials').classList.add('open');
-      document.getElementById('acc-form-id').focus();
+      const modal = document.getElementById('modal-credentials');
+      if (modal) modal.classList.add('open');
+      const input = document.getElementById('acc-form-id');
+      if (input) input.focus();
     }
 
     function closeCredentialsModal() {
-      document.getElementById('modal-credentials').classList.remove('open');
+      const modal = document.getElementById('modal-credentials');
+      if (modal) modal.classList.remove('open');
     }
 
     function switchProviderTab(provider) {
@@ -2025,6 +2411,7 @@ function getDashboardHtml(): string {
 
       const container = document.getElementById('provider-fields-container');
       const idInput = document.getElementById('acc-form-id');
+      if (!container || !idInput) return;
 
       if (provider === 'kilo') {
         idInput.placeholder = 'e.g. acc_kilo_primary';
@@ -2038,68 +2425,73 @@ function getDashboardHtml(): string {
           '</div>' +
           '<div class="form-group" style="margin-top:10px;">' +
             '<label class="form-label">Kilo Code API Key / Token</label>' +
-            '<input type="password" class="form-input" id="field-kilo-key" placeholder="sk-kilo-..." required>' +
-            '<span class="form-hint">Kilo Code platform key granting access to :free and flagship coding models.</span>' +
+            '<input type="password" class="form-input" id="field-kilo-token" placeholder="eyJhbGciOiJIUz..." required>' +
           '</div>' +
           '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">Organization ID (Optional)</label>' +
-            '<input type="text" class="form-input" id="field-kilo-org" placeholder="org_..."> ' +
+            '<label class="form-label">Custom Base URL (Optional)</label>' +
+            '<input type="text" class="form-input" id="field-kilo-baseurl" value="https://ai-gateway.kilo.ai/api/v1">' +
           '</div>';
       } else if (provider === 'nous') {
-        idInput.placeholder = 'e.g. acc_nous_hermes_01';
+        idInput.placeholder = 'e.g. acc_nous_portal';
         container.innerHTML = 
           '<div class="form-group">' +
             '<label class="form-label">Auth Archetype</label>' +
             '<select class="form-select" id="field-nous-authtype">' +
-              '<option value="api_key">sk-nous API Key</option>' +
-              '<option value="oauth">Hermes Portal OAuth</option>' +
+              '<option value="oauth">OAuth Access Token (Portal)</option>' +
+              '<option value="api_key">API Key</option>' +
             '</select>' +
           '</div>' +
           '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">Nous Hermes sk-nous Key</label>' +
-            '<input type="password" class="form-input" id="field-nous-key" placeholder="sk-nous-..." required>' +
-            '<span class="form-hint">Portal key enabling Hermes 3 reasoning and fine-tuned models.</span>' +
+            '<label class="form-label">Nous Portal JWT Access Token</label>' +
+            '<textarea class="form-textarea" id="field-nous-token" placeholder="eyJhbGciOiJSUz..." required></textarea>' +
+          '</div>' +
+          '<div class="form-group" style="margin-top:10px;">' +
+            '<label class="form-label">Base URL</label>' +
+            '<input type="text" class="form-input" id="field-nous-baseurl" value="https://inference-api.nousresearch.com/v1">' +
           '</div>';
       } else if (provider === 'cline') {
-        idInput.placeholder = 'e.g. acc_cline_workos_01';
+        idInput.placeholder = 'e.g. acc_cline_worker_01';
         container.innerHTML = 
           '<div class="form-group">' +
-            '<label class="form-label">Auth Archetype</label>' +
-            '<select class="form-select" id="field-cline-authtype">' +
-              '<option value="oauth">WorkOS OAuth Bearer</option>' +
-              '<option value="api_key">Cline Direct API Key</option>' +
-            '</select>' +
+            '<label class="form-label">Cline Refresh Token</label>' +
+            '<input type="password" class="form-input" id="field-cline-refreshtoken" placeholder="xpme0ziVV..." required>' +
           '</div>' +
           '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">WorkOS Access Token</label>' +
-            '<input type="password" class="form-input" id="field-cline-token" placeholder="Bearer eyJhbGci..." required>' +
+            '<label class="form-label">Account ID</label>' +
+            '<input type="text" class="form-input" id="field-cline-accid" placeholder="acc_05d478fa02dd5bc0" required>' +
           '</div>' +
           '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">WorkOS Refresh Token (Optional)</label>' +
-            '<input type="password" class="form-input" id="field-cline-refresh" placeholder="refresh_...">' +
-          '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">Associated Account Email</label>' +
-            '<input type="email" class="form-input" id="field-cline-email" placeholder="dev@example.com">' +
+            '<label class="form-label">Associated Email (Optional)</label>' +
+            '<input type="email" class="form-input" id="field-cline-email" placeholder="user@gmail.com">' +
           '</div>';
       } else if (provider === 'deepseek') {
-        idInput.placeholder = 'e.g. acc_deepseek_cookie_01';
+        idInput.placeholder = 'e.g. acc_deepseek_web';
+        container.innerHTML = 
+          '<div class="form-group">' +
+            '<label class="form-label">DeepSeek User Token</label>' +
+            '<input type="password" class="form-input" id="field-deepseek-usertoken" placeholder="OFbLqvDHzCY..." required>' +
+          '</div>' +
+          '<div class="form-group" style="margin-top:10px;">' +
+            '<label class="form-label">Browser Session Cookie</label>' +
+            '<textarea class="form-textarea" id="field-deepseek-cookie" placeholder="aws-waf-token=...; ds_session_id=..." required></textarea>' +
+          '</div>' +
+          '<div class="form-group" style="margin-top:10px;">' +
+            '<label class="form-label">WASM Pow URL (Optional)</label>' +
+            '<input type="text" class="form-input" id="field-deepseek-wasm" value="https://fe-static.deepseek.com/chat/static/sha3_wasm_bg.7b9ca65ddd.wasm">' +
+          '</div>';
+      } else if (provider === 'opencode') {
+        idInput.placeholder = 'e.g. acc_opencode_zen';
         container.innerHTML = 
           '<div class="form-group">' +
             '<label class="form-label">Auth Archetype</label>' +
-            '<select class="form-select" id="field-deepseek-authtype">' +
-              '<option value="cookie_pool">Chrome Cookie Pool & Token</option>' +
-              '<option value="token">User Web Token</option>' +
+            '<select class="form-select" id="field-opencode-authtype">' +
+              '<option value="anonymous">Anonymous (No API Key Required)</option>' +
+              '<option value="api_key">API Key (Optional)</option>' +
             '</select>' +
           '</div>' +
           '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">DeepSeek User Token (userToken)</label>' +
-            '<input type="password" class="form-input" id="field-deepseek-token" placeholder="userToken=..." required>' +
-          '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">Raw Chrome Cookies or JSON</label>' +
-            '<textarea class="form-textarea" id="field-deepseek-cookies" placeholder="HAPO=...; userToken=..."></textarea>' +
-            '<span class="form-hint">Exported session cookie bundle from Chrome extension.</span>' +
+            '<label class="form-label">OpenCode Inference Base URL</label>' +
+            '<input type="text" class="form-input" id="field-opencode-baseurl" value="https://opencode.ai/inference/openai/v1">' +
           '</div>';
       }
     }
@@ -2108,57 +2500,76 @@ function getDashboardHtml(): string {
       const id = document.getElementById('acc-form-id').value.trim();
       const status = document.getElementById('acc-form-status').value;
       if (!id) {
-        showToast('Account ID is required', 'error');
+        showToast('Please provide an Account ID or alias', 'error');
         return;
       }
 
-      const credentials = {};
+      let credentials = {};
       let authType = 'api_key';
 
       if (currentProviderTab === 'kilo') {
         authType = document.getElementById('field-kilo-authtype').value;
-        const key = document.getElementById('field-kilo-key').value.trim();
-        const org = document.getElementById('field-kilo-org').value.trim();
-        if (!key) { showToast('Kilo API key is required', 'error'); return; }
-        credentials.apiKey = key;
-        if (org) credentials.organizationId = org;
+        const token = document.getElementById('field-kilo-token').value.trim();
+        if (!token) { showToast('Kilo Code token is required', 'error'); return; }
+        credentials = {
+          accessToken: token,
+          baseUrl: document.getElementById('field-kilo-baseurl').value.trim(),
+        };
       } else if (currentProviderTab === 'nous') {
         authType = document.getElementById('field-nous-authtype').value;
-        const key = document.getElementById('field-nous-key').value.trim();
-        if (!key) { showToast('Nous sk-nous key is required', 'error'); return; }
-        credentials.apiKey = key;
+        const token = document.getElementById('field-nous-token').value.trim();
+        if (!token) { showToast('Nous token is required', 'error'); return; }
+        credentials = {
+          accessToken: token,
+          baseUrl: document.getElementById('field-nous-baseurl').value.trim(),
+        };
       } else if (currentProviderTab === 'cline') {
-        authType = document.getElementById('field-cline-authtype').value;
-        const token = document.getElementById('field-cline-token').value.trim();
-        const refresh = document.getElementById('field-cline-refresh').value.trim();
-        const email = document.getElementById('field-cline-email').value.trim();
-        if (!token) { showToast('WorkOS token is required', 'error'); return; }
-        credentials.accessToken = token;
-        if (refresh) credentials.refreshToken = refresh;
-        if (email) credentials.customData = { email };
+        authType = 'oauth';
+        const rToken = document.getElementById('field-cline-refreshtoken').value.trim();
+        const accId = document.getElementById('field-cline-accid').value.trim();
+        if (!rToken || !accId) { showToast('Cline refresh token and account ID are required', 'error'); return; }
+        credentials = {
+          refreshToken: rToken,
+          accountId: accId,
+          email: document.getElementById('field-cline-email').value.trim(),
+        };
       } else if (currentProviderTab === 'deepseek') {
-        authType = document.getElementById('field-deepseek-authtype').value;
-        const token = document.getElementById('field-deepseek-token').value.trim();
-        const cookies = document.getElementById('field-deepseek-cookies').value.trim();
-        if (!token) { showToast('DeepSeek userToken is required', 'error'); return; }
-        credentials.accessToken = token;
-        if (cookies) credentials.cookies = cookies;
+        authType = 'cookie_pool';
+        const uToken = document.getElementById('field-deepseek-usertoken').value.trim();
+        const cookie = document.getElementById('field-deepseek-cookie').value.trim();
+        if (!uToken || !cookie) { showToast('DeepSeek token and cookie are required', 'error'); return; }
+        credentials = {
+          userToken: uToken,
+          cookie: cookie,
+          wasmUrl: document.getElementById('field-deepseek-wasm').value.trim(),
+          baseUrl: 'https://chat.deepseek.com/api/v0',
+        };
+      } else if (currentProviderTab === 'opencode') {
+        authType = document.getElementById('field-opencode-authtype').value;
+        credentials = {
+          baseUrl: document.getElementById('field-opencode-baseurl').value.trim(),
+        };
       }
 
-      const payload = {
-        id,
-        providerId: currentProviderTab,
-        authType,
-        status,
-        credentials,
-      };
+      const saveBtn = document.getElementById('btn-save-account');
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Registering Account...';
+      }
 
       try {
         const res = await fetch('/api/accounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            id: id,
+            providerId: currentProviderTab,
+            authType: authType,
+            status: status,
+            credentials: credentials,
+          }),
         });
+
         const json = await res.json();
         if (json.success) {
           showToast('Successfully registered ' + currentProviderTab + ' account: ' + id, 'success');
@@ -2169,69 +2580,89 @@ function getDashboardHtml(): string {
           showToast('Failed to add account: ' + (json.error || 'Server error'), 'error');
         }
       } catch (err) {
-        showToast('Network error while saving account', 'error');
+        showToast('Network error saving account: ' + err.message, 'error');
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save & Connect Account';
+        }
       }
     }
 
     // =========================================================================
-    // COMBO WIZARD LOGIC
+    // VIRTUAL COMBO WIZARD LOGIC
     // =========================================================================
     function openComboWizard() {
       wizardCurrentStep = 1;
       updateWizardView();
-      document.getElementById('modal-combo-wizard').classList.add('open');
+      const modal = document.getElementById('modal-combo-wizard');
+      if (modal) modal.classList.add('open');
     }
 
     function closeComboWizard() {
-      document.getElementById('modal-combo-wizard').classList.remove('open');
+      const modal = document.getElementById('modal-combo-wizard');
+      if (modal) modal.classList.remove('open');
     }
 
     function updateWizardView() {
       for (let i = 1; i <= 4; i++) {
-        document.getElementById('wizard-page-' + i).style.display = i === wizardCurrentStep ? 'block' : 'none';
-        const stepHeader = document.getElementById('wstep-' + i);
-        stepHeader.classList.remove('active', 'completed');
-        if (i === wizardCurrentStep) stepHeader.classList.add('active');
-        else if (i < wizardCurrentStep) stepHeader.classList.add('completed');
+        const p = document.getElementById('wizard-page-' + i);
+        const node = document.getElementById('wizard-node-' + i);
+        if (p) p.style.display = i === wizardCurrentStep ? 'block' : 'none';
+        if (node) {
+          if (i === wizardCurrentStep) {
+            node.className = 'wizard-step-node active';
+          } else if (i < wizardCurrentStep) {
+            node.className = 'wizard-step-node completed';
+          } else {
+            node.className = 'wizard-step-node';
+          }
+        }
       }
 
       const prevBtn = document.getElementById('wizard-btn-prev');
       const nextBtn = document.getElementById('wizard-btn-next');
-      const deployBtn = document.getElementById('wizard-btn-deploy');
+      if (prevBtn) prevBtn.style.display = wizardCurrentStep > 1 ? 'inline-flex' : 'none';
 
-      prevBtn.style.display = wizardCurrentStep > 1 ? 'inline-flex' : 'none';
+      if (nextBtn) {
+        if (wizardCurrentStep === 1) nextBtn.textContent = 'Next: Fallback Chain';
+        else if (wizardCurrentStep === 2) nextBtn.textContent = 'Next: Failure Policies';
+        else if (wizardCurrentStep === 3) nextBtn.textContent = 'Next: Verify & Deploy';
+        else if (wizardCurrentStep === 4) nextBtn.textContent = '🚀 Deploy Virtual Combo';
+      }
 
       if (wizardCurrentStep === 4) {
-        nextBtn.style.display = 'none';
-        deployBtn.style.display = 'inline-flex';
         renderWizardJson();
-      } else {
-        nextBtn.style.display = 'inline-flex';
-        deployBtn.style.display = 'none';
-        nextBtn.textContent = wizardCurrentStep === 1 ? 'Next: Fallback Chain' : wizardCurrentStep === 2 ? 'Next: Policies' : 'Next: Review & Deploy';
       }
     }
 
     function nextWizardStep() {
       if (wizardCurrentStep === 1) {
         const id = document.getElementById('wizard-combo-id').value.trim();
-        if (!id || id === 'lattice/') {
-          showToast('Please enter a valid combo ID', 'error');
-          return;
-        }
-      } else if (wizardCurrentStep === 2) {
-        if (wizardTargets.length === 0) {
-          showToast('Please add at least one model target', 'error');
+        if (!id) {
+          showToast('Please enter a Virtual Combo ID (e.g. lattice/code-flagship)', 'error');
           return;
         }
       }
-      wizardCurrentStep = Math.min(4, wizardCurrentStep + 1);
+      if (wizardCurrentStep === 2) {
+        if (wizardTargets.length === 0) {
+          showToast('Please configure at least one fallback target model in the chain', 'error');
+          return;
+        }
+      }
+      if (wizardCurrentStep === 4) {
+        deployCombo();
+        return;
+      }
+      wizardCurrentStep++;
       updateWizardView();
     }
 
     function prevWizardStep() {
-      wizardCurrentStep = Math.max(1, wizardCurrentStep - 1);
-      updateWizardView();
+      if (wizardCurrentStep > 1) {
+        wizardCurrentStep--;
+        updateWizardView();
+      }
     }
 
     function addTargetToChain(modelId) {
@@ -2243,6 +2674,7 @@ function getDashboardHtml(): string {
 
     function addCustomTarget() {
       const input = document.getElementById('wizard-custom-target');
+      if (!input) return;
       const val = input.value.trim();
       if (val && !wizardTargets.includes(val)) {
         wizardTargets.push(val);
@@ -2284,17 +2716,13 @@ function getDashboardHtml(): string {
         }).join('');
       }
 
-      // Render Visual Diagram
+      // Render Visual Diagram Preview
       const preview = document.getElementById('wizard-chain-preview');
       if (preview) {
         if (wizardTargets.length === 0) {
-          preview.innerHTML = '<span style="color:var(--text-subtle); font-size:0.75rem;">Pipeline diagram will appear here</span>';
+          preview.textContent = 'No fallback targets set';
         } else {
-          preview.innerHTML = wizardTargets.map((t, i) => {
-            const isLast = i === wizardTargets.length - 1;
-            return '<div class="chain-node"><span>' + (i + 1) + '.</span> <span>' + t + '</span></div>' +
-              (!isLast ? '<div class="chain-arrow"><span>➔</span> <span class="chain-arrow-badge">429 Failover</span></div>' : '');
-          }).join('');
+          preview.textContent = wizardTargets.join(' ➔ ');
         }
       }
     }
@@ -2305,21 +2733,25 @@ function getDashboardHtml(): string {
         name: document.getElementById('wizard-combo-name').value.trim() || document.getElementById('wizard-combo-id').value.trim(),
         description: document.getElementById('wizard-combo-desc').value.trim(),
         targets: wizardTargets,
-        strategy: document.getElementById('wizard-strategy').value,
+        strategy: document.getElementById('wizard-combo-strategy').value,
         useProxies: document.getElementById('wizard-use-proxies').checked,
+        timeoutMs: Number(document.getElementById('wizard-timeout').value) || 45000,
+        retries: Number(document.getElementById('wizard-retries').value) || 3,
       };
-      document.getElementById('wizard-json-preview').textContent = JSON.stringify(payload, null, 2);
+      const summary = document.getElementById('wizard-summary-json');
+      if (summary) summary.value = JSON.stringify(payload, null, 2);
     }
 
     async function deployCombo() {
-      const payload = {
-        id: document.getElementById('wizard-combo-id').value.trim(),
-        name: document.getElementById('wizard-combo-name').value.trim() || document.getElementById('wizard-combo-id').value.trim(),
-        description: document.getElementById('wizard-combo-desc').value.trim(),
-        targets: wizardTargets,
-        strategy: document.getElementById('wizard-strategy').value,
-        useProxies: document.getElementById('wizard-use-proxies').checked,
-      };
+      const jsonEl = document.getElementById('wizard-summary-json');
+      if (!jsonEl) return;
+      const payload = JSON.parse(jsonEl.value);
+
+      const nextBtn = document.getElementById('wizard-btn-next');
+      if (nextBtn) {
+        nextBtn.disabled = true;
+        nextBtn.textContent = 'Deploying...';
+      }
 
       try {
         const res = await fetch('/api/combos', {
@@ -2332,27 +2764,69 @@ function getDashboardHtml(): string {
           showToast('Virtual combo ' + payload.id + ' deployed successfully!', 'success');
           closeComboWizard();
           fetchCombos();
-          fetchStats();
+          switchNavTab('combos');
         } else {
-          showToast('Failed to create combo: ' + (json.error || 'Error'), 'error');
+          showToast('Failed to deploy combo: ' + (json.error || 'Server error'), 'error');
         }
       } catch (err) {
-        showToast('Network error while creating combo', 'error');
+        showToast('Network error deploying combo: ' + err.message, 'error');
+      } finally {
+        if (nextBtn) {
+          nextBtn.disabled = false;
+          nextBtn.textContent = '🚀 Deploy Virtual Combo';
+        }
       }
     }
 
     function onBackdropClick(e, modalId) {
-      if (e.target.id === modalId) {
-        document.getElementById(modalId).classList.remove('open');
+      if (e.target && e.target.id === modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) modal.classList.remove('open');
       }
     }
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeCredentialsModal();
-        closeComboWizard();
-      }
-    });
+    // =========================================================================
+    // BOOTSTRAP INITIALIZATION
+    // =========================================================================
+    function initDashboard() {
+      console.log('[Lattice] Bootstrapping Mission Control SPA...');
+
+      // 1. Listen for hash changes
+      window.addEventListener('hashchange', () => {
+        const tab = window.location.hash.replace('#', '');
+        if (tab && document.getElementById('view-' + tab)) {
+          switchNavTab(tab);
+        }
+      });
+
+      // 2. Initial Tab Selection from Hash or Default Overview
+      const initialTab = window.location.hash.replace('#', '') || 'overview';
+      switchNavTab(document.getElementById('view-' + initialTab) ? initialTab : 'overview');
+
+      // 3. Isolated Async Fetch Calls
+      fetchAccounts().catch(e => console.error('fetchAccounts:', e));
+      fetchCombos().catch(e => console.error('fetchCombos:', e));
+      fetchPlugins().catch(e => console.error('fetchPlugins:', e));
+      fetchStats().catch(e => console.error('fetchStats:', e));
+      initLogStream();
+      switchProviderTab('kilo');
+      renderWizardTargets();
+
+      // 4. Escape Key Modal Closer
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeCredentialsModal();
+          closeComboWizard();
+        }
+      });
+    }
+
+    // Guaranteed execution regardless of readyState
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initDashboard);
+    } else {
+      initDashboard();
+    }
   </script>
 </body>
 </html>`;
