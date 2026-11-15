@@ -9,9 +9,188 @@ import type {
   CanonicalRequest,
   CanonicalResponse,
   CanonicalStreamEvent,
+  CanonicalContentPart,
 } from '../core/types/canonical';
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
+import { parseXMLToolCall, applyXMLToolInterceptor } from '../engine/dialect/xml-tool-interceptor';
+import { logger } from '../utils/logger';
+
+export const KILO_DEFAULT_BASE_URL = 'https://ai-gateway.kilo.ai/api/v1';
+
+export interface KiloDeviceAuthResponse {
+  user_code: string;
+  device_code: string;
+  verification_uri: string;
+  expires_in?: number;
+  interval?: number;
+}
+
+export interface KiloTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  token_type: string;
+  expires_in?: number;
+}
+
+export const KILO_CURATED_MODELS: ModelDescriptor[] = [
+  {
+    id: 'kilo/code-fast:free',
+    name: 'Kilo Code Fast (Free Tier)',
+    providerId: 'kilo',
+    ownedBy: 'kilo',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['free', 'fast', 'coding'],
+  },
+  {
+    id: 'kilo/qwen-2.5-coder:free',
+    name: 'Kilo Qwen 2.5 Coder Free',
+    providerId: 'kilo',
+    ownedBy: 'kilo',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['free', 'coding'],
+  },
+  {
+    id: 'kilo/free-model:free',
+    name: 'Kilo Free Model',
+    providerId: 'kilo',
+    ownedBy: 'kilo',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['free'],
+  },
+  {
+    id: 'kilo/nvidia/nemotron-3.5-super-vl:free',
+    name: 'NVIDIA Nemotron 3.5 Super VL Free',
+    providerId: 'kilo',
+    ownedBy: 'nvidia',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['free', 'vision', 'reasoning'],
+  },
+  {
+    id: 'kilo/cohere/north-mini-code:free',
+    name: 'Cohere North Mini Code Free',
+    providerId: 'kilo',
+    ownedBy: 'cohere',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['free', 'coding'],
+  },
+  {
+    id: 'kilo/kilo-auto/free',
+    name: 'Kilo Auto Free Router',
+    providerId: 'kilo',
+    ownedBy: 'kilo',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['free', 'auto'],
+  },
+  {
+    id: 'kilo/deepseek-r1:free',
+    name: 'DeepSeek R1 Free (via Kilo)',
+    providerId: 'kilo',
+    ownedBy: 'deepseek',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['free', 'reasoning'],
+  },
+  {
+    id: 'kilo/deepseek-v3:free',
+    name: 'DeepSeek V3 Free (via Kilo)',
+    providerId: 'kilo',
+    ownedBy: 'deepseek',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['free', 'coding'],
+  },
+  {
+    id: 'kilo/claude-3-7-sonnet',
+    name: 'Kilo Claude 3.7 Sonnet',
+    providerId: 'kilo',
+    ownedBy: 'kilo',
+    created: 1731693600,
+    contextWindow: 200000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: false,
+    tags: ['reasoning', 'coding', 'flagship'],
+  },
+  {
+    id: 'kilo/claude-3-5-sonnet',
+    name: 'Kilo Claude 3.5 Sonnet',
+    providerId: 'kilo',
+    ownedBy: 'kilo',
+    created: 1731693600,
+    contextWindow: 200000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: false,
+    tags: ['coding', 'flagship'],
+  },
+  {
+    id: 'kilo/gpt-4o',
+    name: 'Kilo GPT-4o Flagship',
+    providerId: 'kilo',
+    ownedBy: 'kilo',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: false,
+    tags: ['multimodal', 'general'],
+  },
+  {
+    id: 'kilo/stealth/glyph-cluster',
+    name: 'Kilo Stealth Glyph Cluster',
+    providerId: 'kilo',
+    ownedBy: 'kilo',
+    created: 1731693600,
+    contextWindow: 128000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: false,
+    tags: ['debug', 'cluster'],
+  },
+];
 
 export class KiloProviderPlugin implements ProviderPlugin {
   readonly id = 'kilo';
@@ -21,8 +200,9 @@ export class KiloProviderPlugin implements ProviderPlugin {
   readonly supportedAuthTypes = ['api_key', 'oauth'] as const;
 
   public account?: StoredAccount;
+  private cachedModels?: ModelDescriptor[];
 
-  constructor(defaultBaseUrl = 'https://ai-gateway.kilo.ai/api/v1', account?: StoredAccount) {
+  constructor(defaultBaseUrl = KILO_DEFAULT_BASE_URL, account?: StoredAccount) {
     this.defaultBaseUrl = defaultBaseUrl;
     this.account = account;
   }
@@ -31,74 +211,171 @@ export class KiloProviderPlugin implements ProviderPlugin {
     this.account = account;
   }
 
-  async listModels(): Promise<ModelDescriptor[]> {
-    return [
-      {
-        id: 'kilo/claude-3-7-sonnet',
-        name: 'Kilo Claude 3.7 Sonnet',
-        providerId: 'kilo',
-        ownedBy: 'kilo',
-        created: 1731693600,
-        contextWindow: 200000,
-        supportsThinking: true,
-        supportsTools: true,
-        supportsStreaming: true,
-        isFree: false,
-        tags: ['reasoning', 'coding', 'flagship'],
-      },
-      {
-        id: 'kilo/code-fast:free',
-        name: 'Kilo Code Fast (Free Tier)',
-        providerId: 'kilo',
-        ownedBy: 'kilo',
-        created: 1731693600,
-        contextWindow: 128000,
-        supportsThinking: false,
-        supportsTools: true,
-        supportsStreaming: true,
-        isFree: true,
-        tags: ['free', 'fast'],
-      },
-      {
-        id: 'kilo/qwen-2.5-coder:free',
-        name: 'Kilo Qwen 2.5 Coder Free',
-        providerId: 'kilo',
-        ownedBy: 'kilo',
-        created: 1731693600,
-        contextWindow: 128000,
-        supportsThinking: false,
-        supportsTools: true,
-        supportsStreaming: true,
-        isFree: true,
-        tags: ['free', 'coding'],
-      },
-    ];
+  getAccount(): StoredAccount | undefined {
+    return this.account;
+  }
+
+  private resolveUrl(endpoint: 'chat' | 'models' | 'device_code' | 'token'): string {
+    const base = this.defaultBaseUrl.replace(/\/+$/, '');
+    switch (endpoint) {
+      case 'chat':
+        return base.endsWith('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
+      case 'models':
+        return base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`;
+      case 'device_code':
+        if (base.endsWith('/api/v1') || base.endsWith('/v1')) {
+          return `${base}/auth/device/code`;
+        }
+        return `${base}/api/v1/auth/device/code`;
+      case 'token':
+        if (base.endsWith('/api/v1') || base.endsWith('/v1')) {
+          return `${base}/auth/token`;
+        }
+        return `${base}/api/v1/auth/token`;
+    }
   }
 
   private buildHeaders(account?: StoredAccount): Record<string, string> {
     const acc = account || this.account;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'User-Agent': 'kilo-code-client/1.0 (Lattice Gateway)',
     };
 
-    if (acc?.credentials?.apiKey) {
-      headers['Authorization'] = `Bearer ${acc.credentials.apiKey}`;
-    } else if (acc?.credentials?.accessToken) {
-      headers['Authorization'] = `Bearer ${acc.credentials.accessToken}`;
+    const token = acc?.credentials?.apiKey || acc?.credentials?.accessToken;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
-    if (acc?.credentials?.organizationId) {
-      headers['X-KiloCode-OrganizationId'] = acc.credentials.organizationId;
+    const orgId =
+      acc?.credentials?.organizationId ||
+      (acc?.credentials?.customData?.organizationId as string | undefined);
+    if (orgId) {
+      headers['X-KiloCode-OrganizationId'] = orgId;
     }
 
     return headers;
   }
 
+  /**
+   * Dynamic model catalog synchronization with Kilo Code upstream.
+   * Discovers online models (including :free models) and falls back to curated catalog if offline.
+   */
+  async syncModels(account?: StoredAccount): Promise<ModelDescriptor[]> {
+    try {
+      const url = this.resolveUrl('models');
+      const headers = this.buildHeaders(account);
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const data = (await res.json()) as any;
+        const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+        if (list.length > 0) {
+          const synced: ModelDescriptor[] = list.map((item: any) => {
+            const rawId: string = item.id || item.name || 'unknown';
+            const id = rawId.startsWith('kilo/') ? rawId : `kilo/${rawId}`;
+            const isFree = id.includes(':free') || item.is_free === true;
+            return {
+              id,
+              name: item.name || id,
+              providerId: 'kilo',
+              ownedBy: item.owned_by || 'kilo',
+              created: item.created || 1731693600,
+              contextWindow: item.context_window || (isFree ? 128000 : 200000),
+              supportsThinking:
+                id.includes('sonnet') ||
+                id.includes('r1') ||
+                id.includes('nemotron') ||
+                Boolean(item.supports_thinking),
+              supportsTools: true,
+              supportsStreaming: true,
+              isFree,
+              tags: isFree ? ['free', 'coding'] : ['flagship', 'coding'],
+            };
+          });
+
+          // Ensure mandatory curated :free models are present in catalog
+          const existingIds = new Set(synced.map((m) => m.id));
+          for (const curated of KILO_CURATED_MODELS) {
+            if (!existingIds.has(curated.id)) {
+              synced.push(curated);
+            }
+          }
+
+          this.cachedModels = synced;
+          return synced;
+        }
+      }
+    } catch (err) {
+      logger.debug(`[Kilo] Dynamic model catalog sync skipped/failed: ${err}`);
+    }
+
+    if (!this.cachedModels) {
+      this.cachedModels = [...KILO_CURATED_MODELS];
+    }
+    return this.cachedModels;
+  }
+
+  async listModels(account?: StoredAccount): Promise<ModelDescriptor[]> {
+    if (!this.cachedModels) {
+      this.cachedModels = [...KILO_CURATED_MODELS];
+    }
+    return this.cachedModels;
+  }
+
+  /**
+   * Kilo OAuth Device Code Authorization Request
+   */
+  async requestDeviceCode(clientId = 'kilo_client_app'): Promise<KiloDeviceAuthResponse> {
+    const url = this.resolveUrl('device_code');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId }),
+    });
+
+    if (!res.ok) {
+      throw new GatewayError(
+        res.status,
+        String(res.status),
+        `Kilo device code request failed: ${res.statusText}`
+      );
+    }
+
+    return (await res.json()) as KiloDeviceAuthResponse;
+  }
+
+  /**
+   * Kilo OAuth Device Code Token Exchange
+   */
+  async exchangeDeviceToken(deviceCode: string): Promise<KiloTokenResponse> {
+    const url = this.resolveUrl('token');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+        device_code: deviceCode,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new GatewayError(
+        res.status,
+        String(res.status),
+        `Kilo token exchange failed: ${res.statusText}`
+      );
+    }
+
+    return (await res.json()) as KiloTokenResponse;
+  }
+
   async execute(req: CanonicalRequest, signal?: AbortSignal): Promise<CanonicalResponse> {
     const headers = this.buildHeaders();
     const model = req.model.replace(/^kilo\//, '');
+    const url = this.resolveUrl('chat');
 
-    const res = await fetch(`${this.defaultBaseUrl}/chat/completions`, {
+    const res = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -114,29 +391,103 @@ export class KiloProviderPlugin implements ProviderPlugin {
     });
 
     if (res.status === 401) {
-      throw new GatewayError(401, '401', 'Invalid or expired Kilo API key / OAuth token');
+      throw new GatewayError(401, '401', 'Invalid Kilo API key');
     }
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get('retry-after') || 10);
       throw new GatewayError(429, '429', 'Kilo rate limit reached', { retryAfter });
     }
     if (!res.ok) {
-      throw new GatewayError(res.status, String(res.status), `Kilo upstream error: ${res.statusText}`);
+      throw new GatewayError(
+        res.status,
+        String(res.status),
+        `Kilo upstream error: ${res.statusText}`
+      );
     }
 
     const data = (await res.json()) as any;
     const choice = data.choices?.[0];
     const canonicalId =
       req.clientDialect === 'anthropic-messages' || req.id.startsWith('msg_')
-        ? (req.id.startsWith('msg_') ? req.id : `msg_${req.id.replace(/^req_lat_/, '')}`)
-        : (data.id || req.id);
+        ? req.id.startsWith('msg_')
+          ? req.id
+          : `msg_${req.id.replace(/^req_lat_/, '')}`
+        : data.id || req.id;
+
+    const contentParts: CanonicalContentPart[] = [];
+    let stopReason = choice?.finish_reason || 'stop';
+    const rawContent = choice?.message?.content || '';
+
+    // Handle XML tool calls or structured tool_calls if emitted by Kilo models
+    if (
+      typeof rawContent === 'string' &&
+      (rawContent.includes('<tool_call>') ||
+        rawContent.includes('<invoke') ||
+        rawContent.includes('<function_call>'))
+    ) {
+      const parsed = parseXMLToolCall(rawContent);
+      if (parsed) {
+        const textBefore = rawContent
+          .replace(/<(tool_call|invoke|function_call)[\s\S]*?<\/(tool_call|invoke|function_call)>/gi, '')
+          .trim();
+        if (textBefore) {
+          contentParts.push({ type: 'text', text: textBefore });
+        }
+        let inputObj: Record<string, unknown> = {};
+        try {
+          inputObj = JSON.parse(parsed.arguments);
+        } catch {
+          inputObj = { raw: parsed.arguments };
+        }
+        contentParts.push({
+          type: 'tool_use',
+          id: `call_kilo_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+          name: parsed.name,
+          input: inputObj,
+        });
+        stopReason = 'tool_calls';
+      } else {
+        contentParts.push({ type: 'text', text: rawContent });
+      }
+    } else if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
+      if (rawContent) {
+        contentParts.push({ type: 'text', text: rawContent });
+      }
+      for (const tc of choice.message.tool_calls) {
+        let inputObj: Record<string, unknown> = {};
+        try {
+          inputObj =
+            typeof tc.function?.arguments === 'string'
+              ? JSON.parse(tc.function.arguments)
+              : tc.function?.arguments || {};
+        } catch {
+          inputObj = { raw: tc.function?.arguments };
+        }
+        contentParts.push({
+          type: 'tool_use',
+          id: tc.id || `call_kilo_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+          name: tc.function?.name || 'unknown_tool',
+          input: inputObj,
+        });
+      }
+      stopReason = 'tool_calls';
+    } else {
+      contentParts.push({ type: 'text', text: rawContent });
+    }
+
+    if (choice?.message?.reasoning_content) {
+      contentParts.unshift({
+        type: 'thinking',
+        thinking: choice.message.reasoning_content,
+      });
+    }
 
     return {
       id: canonicalId,
       model: req.model,
       created: data.created || Math.floor(Date.now() / 1000),
-      content: [{ type: 'text', text: choice?.message?.content || '' }],
-      stopReason: choice?.finish_reason || 'stop',
+      content: contentParts,
+      stopReason,
       usage: {
         promptTokens: data.usage?.prompt_tokens || 10,
         completionTokens: data.usage?.completion_tokens || 15,
@@ -151,8 +502,9 @@ export class KiloProviderPlugin implements ProviderPlugin {
   ): Promise<AsyncIterable<CanonicalStreamEvent>> {
     const headers = this.buildHeaders();
     const model = req.model.replace(/^kilo\//, '');
+    const url = this.resolveUrl('chat');
 
-    const res = await fetch(`${this.defaultBaseUrl}/chat/completions`, {
+    const res = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -173,7 +525,11 @@ export class KiloProviderPlugin implements ProviderPlugin {
         const retryAfter = Number(res.headers.get('retry-after') || 10);
         throw new GatewayError(429, '429', 'Kilo rate limit reached', { retryAfter });
       }
-      throw new GatewayError(res.status, String(res.status), `Kilo upstream stream error: ${res.statusText}`);
+      throw new GatewayError(
+        res.status,
+        String(res.status),
+        `Kilo upstream stream error: ${res.statusText}`
+      );
     }
 
     if (!res.body) {
@@ -184,7 +540,7 @@ export class KiloProviderPlugin implements ProviderPlugin {
     const reqId = req.id;
     const reqModel = req.model;
 
-    return (async function* () {
+    async function* rawStreamGenerator(): AsyncGenerator<CanonicalStreamEvent> {
       yield { type: 'stream_start', id: reqId, model: reqModel, created: timestamp };
 
       let streamEnded = false;
@@ -201,6 +557,32 @@ export class KiloProviderPlugin implements ProviderPlugin {
           if (delta?.content) {
             yield { type: 'text_delta', delta: delta.content };
           }
+          if (delta?.reasoning_content || delta?.thinking) {
+            yield {
+              type: 'thinking_delta',
+              delta: delta.reasoning_content || delta.thinking,
+            };
+          }
+          if (delta?.tool_calls && Array.isArray(delta.tool_calls)) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index ?? 0;
+              if (tc.id && tc.function?.name) {
+                yield {
+                  type: 'tool_call_start',
+                  index: idx,
+                  id: tc.id,
+                  name: tc.function.name,
+                };
+              }
+              if (tc.function?.arguments) {
+                yield {
+                  type: 'tool_call_delta',
+                  index: idx,
+                  argumentsDelta: tc.function.arguments,
+                };
+              }
+            }
+          }
           if (parsed.usage) {
             yield {
               type: 'usage',
@@ -216,25 +598,30 @@ export class KiloProviderPlugin implements ProviderPlugin {
         }
       }
 
-      if (!streamEnded) {
-        yield { type: 'stream_end', stopReason: 'stop' };
-      } else {
-        yield { type: 'stream_end', stopReason: 'stop' };
-      }
-    })();
+      yield { type: 'stream_end', stopReason: 'stop' };
+    }
+
+    return applyXMLToolInterceptor(rawStreamGenerator());
   }
 
-  async healthCheck(): Promise<HealthCheckResult> {
+  /**
+   * Health check verifying Kilo upstream connectivity and credential validity.
+   */
+  async healthCheck(account?: StoredAccount): Promise<HealthCheckResult> {
     const start = Date.now();
     try {
-      const res = await fetch(`${this.defaultBaseUrl}/models`, {
-        headers: this.buildHeaders(),
+      const res = await fetch(this.resolveUrl('models'), {
+        headers: this.buildHeaders(account),
+        signal: AbortSignal.timeout(5000),
       });
+      const latencyMs = Date.now() - start;
       return {
         healthy: res.ok,
-        latencyMs: Date.now() - start,
+        latencyMs,
         checkedAt: Date.now(),
-        message: res.ok ? 'OK' : `Status ${res.status}`,
+        message: res.ok
+          ? 'Kilo Code upstream operational'
+          : `Kilo upstream returned HTTP ${res.status}: ${res.statusText}`,
       };
     } catch (err) {
       return {
@@ -246,12 +633,42 @@ export class KiloProviderPlugin implements ProviderPlugin {
     }
   }
 
+  /**
+   * Deep connection probe returning latency and model count.
+   */
+  async probe(account?: StoredAccount): Promise<HealthCheckResult & { modelsCount?: number }> {
+    const health = await this.healthCheck(account);
+    let modelsCount = this.cachedModels?.length || KILO_CURATED_MODELS.length;
+    if (health.healthy) {
+      try {
+        const synced = await this.syncModels(account);
+        modelsCount = synced.length;
+      } catch {}
+    }
+    return {
+      ...health,
+      modelsCount,
+    };
+  }
+
   classifyError(error: unknown, statusCode?: number): ErrorClassificationResult {
     if (statusCode === 401) {
-      return { category: 'authentication', isRetryable: false, message: 'Invalid credentials' };
+      return { category: 'authentication', isRetryable: false, message: 'Invalid Kilo credentials' };
+    }
+    if (statusCode === 403) {
+      return {
+        category: 'permission_denied',
+        isRetryable: false,
+        message: 'Kilo organization permission denied',
+      };
     }
     if (statusCode === 429) {
-      return { category: 'rate_limit', isRetryable: true, cooldownDurationMs: 60_000, message: 'Rate limited' };
+      return {
+        category: 'rate_limit',
+        isRetryable: true,
+        cooldownDurationMs: 60_000,
+        message: 'Kilo rate limit reached',
+      };
     }
     return {
       category: 'upstream_error',

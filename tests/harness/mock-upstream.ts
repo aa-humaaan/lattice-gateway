@@ -596,8 +596,8 @@ export async function createMockUpstream(
         return streamResponse;
       }
 
-      // 5. OpenAI /v1/chat/completions
-      if (path === '/v1/chat/completions') {
+      // 5. OpenAI /v1/chat/completions & /api/v1/chat/completions
+      if (path === '/v1/chat/completions' || path === '/api/v1/chat/completions') {
         const isStream = parsedBody?.stream === true;
         if (isStream) {
           return createOpenAISSEStream(parsedBody, openAIOpts);
@@ -878,6 +878,7 @@ export async function createMockUpstream(
 
     onOpenAIChat(handler: (req: Request, body: any) => Response | Promise<Response>) {
       pathHandlers.set('/v1/chat/completions', handler);
+      pathHandlers.set('/api/v1/chat/completions', handler);
     },
 
     onAnthropicMessages(handler: (req: Request, body: any) => Response | Promise<Response>) {

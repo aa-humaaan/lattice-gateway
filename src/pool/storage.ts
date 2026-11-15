@@ -20,6 +20,7 @@ export class LatticeStorage {
     this.dataDir = dataDir;
     this.filePath = join(dataDir, 'lattice-store.json');
     this.ensureDir();
+    this.load();
   }
 
   private ensureDir(): void {

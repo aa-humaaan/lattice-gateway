@@ -13,30 +13,320 @@ import type {
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
 
-export function parseClineRetryAfter(headerValue?: string | null, bodyText?: string | null): number {
-  if (headerValue && !isNaN(Number(headerValue))) {
-    return Number(headerValue);
+// ============================================================================
+// Genuine Production Constants & URLs (Audited from cline-proxy-main)
+// ============================================================================
+
+export const WORKOS_CLIENT_ID = 'client_01K3A541FN8TA3EPPHTD2325AR';
+export const WORKOS_DEVICE_AUTH_URL = 'https://api.workos.com/user_management/authorize/device';
+export const WORKOS_AUTHENTICATE_URL = 'https://api.workos.com/user_management/authenticate';
+export const CLINE_API_BASE = 'https://api.cline.bot/api/v1';
+export const CLINE_CHAT_URL = 'https://api.cline.bot/api/v1/chat/completions';
+export const CLINE_CLIENT_VERSION = '3.0.70';
+export const CLINE_CORE_VERSION = '0.0.92';
+
+// Failover attempts before returning error
+export const CLINE_FAILOVER_ATTEMPTS = 3;
+
+// ============================================================================
+// Types & Interfaces
+// ============================================================================
+
+export interface DeviceAuthResponse {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete?: string;
+  interval: number;
+  expires_in: number;
+}
+
+export interface WorkOSTokenResponse {
+  access_token: string;
+  refresh_token: string;
+}
+
+export interface ClineAuthResponse {
+  data: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt?: number | string;
+    userInfo?: {
+      email?: string;
+      id?: string;
+    };
+  };
+}
+
+export interface ClineRefreshResponse {
+  data: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt?: number | string;
+  };
+}
+
+// ============================================================================
+// Quota & Rate Limit Parsing Utilities
+// ============================================================================
+
+export const CLINE_QUOTA_KEYWORDS = [
+  'quota exceeded',
+  'quota exhausted',
+  'exceeded your quota',
+  'insufficient quota',
+  'insufficient credit',
+  'insufficient balance',
+  'out of credit',
+  'out of credits',
+  'no credits',
+  'no credit left',
+  'daily limit reach',
+  'daily limit exceed',
+  'monthly limit reach',
+  'monthly limit exceed',
+  'usage limit reach',
+  'usage limit exceed',
+  'credit limit reach',
+  'billing hard limit',
+  'free tier limit',
+] as const;
+
+export function isClineQuotaExhausted(body: string): boolean {
+  const low = body.toLowerCase();
+  return CLINE_QUOTA_KEYWORDS.some((kw) => low.includes(kw));
+}
+
+export function parseHumanDurationSeconds(s: string): number {
+  if (!s) return 0;
+  let totalSeconds = 0;
+  const regex = /(\d+)\s*(d(?:ays?)?|h(?:ours?|rs?)?|m(?:inutes?|ins?)?|s(?:econds?|ecs?)?)/gi;
+  let match: RegExpExecArray | null;
+  let matchedAny = false;
+  while ((match = regex.exec(s)) !== null) {
+    matchedAny = true;
+    const val = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+    if (unit.startsWith('d')) {
+      totalSeconds += val * 86400;
+    } else if (unit.startsWith('h')) {
+      totalSeconds += val * 3600;
+    } else if (unit.startsWith('m')) {
+      totalSeconds += val * 60;
+    } else if (unit.startsWith('s')) {
+      totalSeconds += val;
+    }
+  }
+  return matchedAny ? totalSeconds : 0;
+}
+
+export function parseClineRetryAfter(
+  headerValue?: string | null,
+  bodyText?: string | null
+): number {
+  if (headerValue) {
+    const trimmed = headerValue.trim();
+    const num = Number(trimmed);
+    if (!isNaN(num) && num > 0) {
+      return num;
+    }
+    const parsedDate = Date.parse(trimmed);
+    if (!isNaN(parsedDate)) {
+      const diffSec = Math.ceil((parsedDate - Date.now()) / 1000);
+      if (diffSec > 0) return diffSec;
+    }
   }
 
   const text = (bodyText || '') + ' ' + (headerValue || '');
 
-  const hoursMatch = text.match(/try\s+again\s+in\s+(\d+)\s*hours?/i);
-  if (hoursMatch) {
-    return parseInt(hoursMatch[1], 10) * 3600;
+  // Look for "Try again in ..."
+  const idx = text.search(/try\s+again\s+in/i);
+  if (idx >= 0) {
+    const after = text.substring(idx + 12);
+    const endIdx = after.search(/["\n\r}]/);
+    const segment = endIdx >= 0 ? after.substring(0, endIdx) : after;
+    const dur = parseHumanDurationSeconds(segment);
+    if (dur > 0) return dur;
   }
 
-  const minutesMatch = text.match(/try\s+again\s+in\s+(\d+)\s*minutes?/i);
-  if (minutesMatch) {
-    return parseInt(minutesMatch[1], 10) * 60;
-  }
-
-  const secondsMatch = text.match(/try\s+again\s+in\s+(\d+)\s*(?:seconds?|secs?)/i);
-  if (secondsMatch) {
-    return parseInt(secondsMatch[1], 10);
+  // Quota exhausted check (18 hours fallback)
+  if (bodyText && isClineQuotaExhausted(bodyText)) {
+    return 18 * 3600;
   }
 
   return 30; // Default fallback
 }
+
+export function parseClineExpiry(exp: unknown): number {
+  if (typeof exp === 'number') {
+    return exp < 10_000_000_000 ? exp * 1000 : exp;
+  }
+  if (typeof exp === 'string') {
+    const parsed = Date.parse(exp);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return Date.now() + 3600_000;
+}
+
+// ============================================================================
+// Authentic WorkOS & Cline Auth Flow Implementation
+// ============================================================================
+
+export async function startWorkosDeviceAuth(
+  clientId = WORKOS_CLIENT_ID,
+  authUrl = WORKOS_DEVICE_AUTH_URL
+): Promise<DeviceAuthResponse> {
+  const form = new URLSearchParams();
+  form.set('client_id', clientId);
+
+  const res = await fetch(authUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`WorkOS device auth failed (${res.status}): ${errText}`);
+  }
+
+  return (await res.json()) as DeviceAuthResponse;
+}
+
+export async function pollWorkosToken(
+  deviceCode: string,
+  options?: {
+    interval?: number;
+    expiresIn?: number;
+    clientId?: string;
+    authenticateUrl?: string;
+    signal?: AbortSignal;
+  }
+): Promise<WorkOSTokenResponse> {
+  const interval = options?.interval !== undefined ? options.interval : 5;
+  const expiresIn = options?.expiresIn ?? 300;
+  const clientId = options?.clientId ?? WORKOS_CLIENT_ID;
+  const authenticateUrl = options?.authenticateUrl ?? WORKOS_AUTHENTICATE_URL;
+
+  const deadline = Date.now() + expiresIn * 1000;
+  let currentInterval = interval;
+
+  while (Date.now() < deadline) {
+    if (options?.signal?.aborted) {
+      throw new Error('Device authorization polling aborted');
+    }
+
+    const form = new URLSearchParams();
+    form.set('grant_type', 'urn:ietf:params:oauth:grant-type:device_code');
+    form.set('device_code', deviceCode);
+    form.set('client_id', clientId);
+
+    const res = await fetch(authenticateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+      signal: options?.signal,
+    });
+
+    const data = (await res.json().catch(() => ({}))) as any;
+
+    if (res.ok && data.access_token) {
+      return {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      };
+    }
+
+    if (data.error === 'authorization_pending') {
+      await new Promise((r) => setTimeout(r, currentInterval * 1000));
+      continue;
+    }
+
+    if (data.error === 'slow_down') {
+      currentInterval += 5;
+      await new Promise((r) => setTimeout(r, currentInterval * 1000));
+      continue;
+    }
+
+    const desc = data.error_description || data.error || `HTTP ${res.status}`;
+    throw new Error(`WorkOS polling error: ${desc}`);
+  }
+
+  throw new Error('Device authorization expired (timeout)');
+}
+
+export async function registerWithCline(
+  workosAccess: string,
+  workosRefresh: string,
+  apiBase = CLINE_API_BASE
+): Promise<ClineAuthResponse> {
+  const url = apiBase.endsWith('/auth/register') ? apiBase : `${apiBase.replace(/\/+$/, '')}/auth/register`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      accessToken: workosAccess,
+      refreshToken: workosRefresh,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Cline registration failed (${res.status}): ${errText}`);
+  }
+
+  return (await res.json()) as ClineAuthResponse;
+}
+
+export async function refreshClineToken(
+  refreshToken: string,
+  apiBase = CLINE_API_BASE
+): Promise<{ accessToken: string; refreshToken: string; expiresAt?: number }> {
+  let url: string;
+  if (apiBase.endsWith('/auth/refresh')) {
+    url = apiBase;
+  } else {
+    const cleanBase = apiBase.replace(/\/+$/, '');
+    url = cleanBase.endsWith('/api/v1')
+      ? `${cleanBase}/auth/refresh`
+      : `${cleanBase}/api/v1/auth/refresh`;
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      refreshToken,
+      grantType: 'refresh_token',
+      refresh_token: refreshToken,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new GatewayError(res.status, String(res.status), `Cline token refresh failed (${res.status}): ${errText}`);
+  }
+
+  const data = (await res.json()) as any;
+  const accessToken = data.data?.accessToken || data.access_token || data.accessToken;
+  const newRefreshToken =
+    data.data?.refreshToken || data.refresh_token || data.refreshToken || refreshToken;
+  const expiresAt = data.data?.expiresAt
+    ? parseClineExpiry(data.data.expiresAt)
+    : data.expires_in
+    ? Date.now() + data.expires_in * 1000
+    : undefined;
+
+  if (!accessToken) {
+    throw new GatewayError(500, '500', 'Cline refresh response missing access token');
+  }
+
+  return { accessToken, refreshToken: newRefreshToken, expiresAt };
+}
+
+// ============================================================================
+// Cline Multi-Account Pool Provider Plugin
+// ============================================================================
 
 export class ClinePoolPlugin implements ProviderPlugin {
   readonly id = 'cline';
@@ -48,9 +338,9 @@ export class ClinePoolPlugin implements ProviderPlugin {
   public accounts: StoredAccount[] = [];
   private activeAccountIndex = 0;
 
-  constructor(defaultBaseUrl = 'https://api.cline.bot/v1', initialAccounts?: StoredAccount[]) {
+  constructor(defaultBaseUrl = CLINE_API_BASE, initialAccounts?: StoredAccount[]) {
     this.defaultBaseUrl = defaultBaseUrl;
-    if (initialAccounts) {
+    if (initialAccounts && initialAccounts.length > 0) {
       this.accounts = [...initialAccounts];
     }
   }
@@ -64,14 +354,138 @@ export class ClinePoolPlugin implements ProviderPlugin {
     }
   }
 
-  getActiveAccount(): StoredAccount | undefined {
+  setAccount(account: StoredAccount): void {
+    this.addAccount(account);
+  }
+
+  removeAccount(id: string): boolean {
+    const idx = this.accounts.findIndex((a) => a.id === id);
+    if (idx >= 0) {
+      this.accounts.splice(idx, 1);
+      return true;
+    }
+    return false;
+  }
+
+  getAccount(id: string): StoredAccount | undefined {
+    return this.accounts.find((a) => a.id === id);
+  }
+
+  listAccounts(): StoredAccount[] {
+    return [...this.accounts];
+  }
+
+  resetIndex(): void {
+    this.activeAccountIndex = 0;
+  }
+
+  getActiveAccounts(): StoredAccount[] {
     const now = Date.now();
-    const active = this.accounts.filter(
-      (a) => a.status === 'active' && (!a.cooldownUntil || a.cooldownUntil <= now)
-    );
+    for (const acc of this.accounts) {
+      if (acc.status === 'cooldown' && acc.cooldownUntil && acc.cooldownUntil <= now) {
+        acc.status = 'active';
+        acc.cooldownUntil = undefined;
+        acc.cooldownReason = undefined;
+      }
+    }
+    return this.accounts.filter((a) => a.status === 'active');
+  }
+
+  getActiveAccount(excludingIds?: Set<string>): StoredAccount | undefined {
+    let active = this.getActiveAccounts();
+    if (excludingIds && excludingIds.size > 0) {
+      active = active.filter((a) => !excludingIds.has(a.id));
+    }
     if (active.length === 0) return undefined;
-    this.activeAccountIndex = (this.activeAccountIndex + 1) % active.length;
-    return active[this.activeAccountIndex];
+    const acc = active[this.activeAccountIndex % active.length];
+    this.activeAccountIndex++;
+    return acc;
+  }
+
+  getNextAccount(excludingIds?: Set<string>): StoredAccount {
+    const acc = this.getActiveAccount(excludingIds);
+    if (!acc) {
+      const lowestRetry = this.getLowestCooldownRemaining();
+      throw new GatewayError(
+        429,
+        '429',
+        'All Cline accounts are currently rate-limited or in cooldown',
+        { retryAfter: lowestRetry }
+      );
+    }
+    return acc;
+  }
+
+  getLowestCooldownRemaining(): number {
+    const now = Date.now();
+    let minWaitMs = 30_000;
+    let found = false;
+    for (const acc of this.accounts) {
+      if (acc.status === 'cooldown' && acc.cooldownUntil && acc.cooldownUntil > now) {
+        const diff = acc.cooldownUntil - now;
+        if (!found || diff < minWaitMs) {
+          minWaitMs = diff;
+          found = true;
+        }
+      }
+    }
+    return Math.max(1, Math.ceil(minWaitMs / 1000));
+  }
+
+  async refreshToken(account: StoredAccount): Promise<StoredAccount> {
+    const rt = account.credentials?.refreshToken;
+    if (!rt) {
+      throw new GatewayError(400, '400', `Account ${account.id} has no refreshToken to refresh`);
+    }
+
+    const refreshed = await refreshClineToken(rt, this.defaultBaseUrl);
+    account.credentials.accessToken = refreshed.accessToken;
+    account.credentials.refreshToken = refreshed.refreshToken;
+    account.updatedAt = Date.now();
+    return account;
+  }
+
+  async refreshAuth(account: StoredAccount): Promise<StoredAccount> {
+    return this.refreshToken(account);
+  }
+
+  getChatUrl(): string {
+    if (this.defaultBaseUrl.endsWith('/chat/completions')) {
+      return this.defaultBaseUrl;
+    }
+    const cleanBase = this.defaultBaseUrl.replace(/\/+$/, '');
+    if (cleanBase.endsWith('/api/v1') || cleanBase.endsWith('/v1')) {
+      return `${cleanBase}/chat/completions`;
+    }
+    return `${cleanBase}/api/v1/chat/completions`;
+  }
+
+  buildHeaders(account?: StoredAccount, sessionId?: string): Record<string, string> {
+    const acc = account || this.getActiveAccount();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': `Cline/${CLINE_CLIENT_VERSION}`,
+      'HTTP-Referer': 'https://cline.bot',
+      'X-Title': 'Cline',
+      'X-IS-MULTIROOT': 'false',
+      'X-CLIENT-TYPE': 'cline-cli',
+      'X-CLIENT-VERSION': CLINE_CLIENT_VERSION,
+      'X-PLATFORM': 'cli',
+      'X-PLATFORM-VERSION': CLINE_CLIENT_VERSION,
+      'X-CORE-VERSION': CLINE_CORE_VERSION,
+      'Connection': 'close',
+    };
+
+    if (sessionId) {
+      headers['X-Task-ID'] = sessionId;
+    }
+
+    const token = acc?.credentials?.accessToken || acc?.credentials?.apiKey;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
   }
 
   async listModels(): Promise<ModelDescriptor[]> {
@@ -115,71 +529,119 @@ export class ClinePoolPlugin implements ProviderPlugin {
         isFree: true,
         tags: ['free', 'fast'],
       },
+      {
+        id: 'cline-free/step-5-preview',
+        name: 'Cline Free Step-5 Preview',
+        providerId: 'cline',
+        ownedBy: 'cline',
+        created: 1731693600,
+        contextWindow: 1000000,
+        supportsThinking: true,
+        supportsTools: true,
+        supportsStreaming: true,
+        isFree: true,
+        tags: ['free', 'reasoning'],
+      },
+      {
+        id: 'cline-free/solar-mini4',
+        name: 'Cline Free Solar Mini 4',
+        providerId: 'cline',
+        ownedBy: 'cline',
+        created: 1731693600,
+        contextWindow: 128000,
+        supportsThinking: false,
+        supportsTools: true,
+        supportsStreaming: true,
+        isFree: true,
+        tags: ['free', 'fast'],
+      },
     ];
   }
 
-  private buildHeaders(account?: StoredAccount): Record<string, string> {
-    const acc = account || this.getActiveAccount();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (acc?.credentials?.apiKey) {
-      headers['Authorization'] = `Bearer ${acc.credentials.apiKey}`;
-    } else if (acc?.credentials?.accessToken) {
-      headers['Authorization'] = `Bearer ${acc.credentials.accessToken}`;
-    }
-
-    return headers;
-  }
-
   async execute(req: CanonicalRequest, signal?: AbortSignal): Promise<CanonicalResponse> {
-    const account = this.getActiveAccount();
-    if (!account && this.accounts.length > 0) {
-      throw new GatewayError(429, '429', 'All Cline accounts are currently in cooldown', { retryAfter: 30 });
-    }
+    const triedIds = new Set<string>();
+    const maxAttempts = Math.max(1, Math.min(this.accounts.length, CLINE_FAILOVER_ATTEMPTS));
+    let lastErr: unknown;
 
-    const headers = this.buildHeaders(account);
-    const model = req.model.replace(/^cline(-free)?\//, '');
-
-    const res = await fetch(`${this.defaultBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: req.messages,
-        temperature: req.temperature,
-        max_tokens: req.maxTokens,
-        tools: req.tools,
-        tool_choice: req.toolChoice,
-        stream: false,
-      }),
-      signal,
-    });
-
-    if (res.status === 401) {
-      if (account) {
-        account.status = 'invalid';
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const account = this.getActiveAccount(triedIds);
+      if (!account) {
+        if (lastErr) throw lastErr;
+        const lowestRetry = this.getLowestCooldownRemaining();
+        throw new GatewayError(
+          429,
+          '429',
+          'All Cline accounts are currently rate-limited or suspended',
+          { retryAfter: lowestRetry }
+        );
       }
-      throw new GatewayError(401, '401', 'Cline WorkOS OAuth token invalid or expired');
-    }
+      triedIds.add(account.id);
+      account.lastUsedAt = Date.now();
 
-    if (res.status === 429) {
-      const bodyText = await res.text().catch(() => '');
-      const retryAfter = parseClineRetryAfter(res.headers.get('retry-after'), bodyText);
-      if (account) {
+      const headers = this.buildHeaders(account, req.id);
+      const model = req.model.replace(/^cline(-free)?\//, '');
+
+      let res: Response;
+      try {
+        res = await fetch(this.getChatUrl(), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: req.messages,
+            temperature: req.temperature,
+            max_tokens: req.maxTokens,
+            tools: req.tools,
+            tool_choice: req.toolChoice,
+            stream: false,
+          }),
+          signal,
+        });
+      } catch (networkErr) {
+        account.errorCount++;
+        lastErr = networkErr;
+        continue;
+      }
+
+      // Handle 401 Unauthorized / Suspended
+      if (res.status === 401) {
+        account.status = 'suspended';
+        account.errorCount++;
+        throw new GatewayError(401, '401', 'Cline account suspended or unauthorized');
+      }
+
+      // Handle 429 Rate Limit Exceeded
+      if (res.status === 429) {
+        account.errorCount++;
+        const rawBody = await res.text().catch(() => '');
+        const retryAfter = parseClineRetryAfter(res.headers.get('retry-after'), rawBody);
         account.status = 'cooldown';
         account.cooldownUntil = Date.now() + retryAfter * 1000;
-        account.cooldownReason = bodyText || 'Rate limit exceeded';
+        account.cooldownReason = rawBody || 'Rate limit exceeded';
+
+        lastErr = new GatewayError(
+          429,
+          '429',
+          `Cline rate limit exceeded. Retry in ${retryAfter}s`,
+          { retryAfter }
+        );
+        continue;
       }
-      throw new GatewayError(429, '429', `Cline account quota exceeded: ${bodyText}`, { retryAfter });
+
+      if (!res.ok) {
+        account.errorCount++;
+        const errText = await res.text().catch(() => '');
+        throw new GatewayError(res.status, String(res.status), `Cline upstream error: ${res.statusText} ${errText}`);
+      }
+
+      const data = (await res.json()) as any;
+      return this.transformCanonicalResponse(data, req);
     }
 
-    if (!res.ok) {
-      throw new GatewayError(res.status, String(res.status), `Cline upstream error: ${res.statusText}`);
-    }
+    throw lastErr || new GatewayError(500, '500', 'Cline upstream execution exhausted all accounts');
+  }
 
-    const data = (await res.json()) as any;
+  private transformCanonicalResponse(data: any, req: CanonicalRequest): CanonicalResponse {
     const choice = data.choices?.[0];
     const canonicalId =
       req.clientDialect === 'anthropic-messages' || req.id.startsWith('msg_')
@@ -194,8 +656,8 @@ export class ClinePoolPlugin implements ProviderPlugin {
       stopReason: choice?.finish_reason || 'stop',
       usage: {
         promptTokens: data.usage?.prompt_tokens || 10,
-        completionTokens: data.usage?.completion_tokens || 20,
-        totalTokens: data.usage?.total_tokens || 30,
+        completionTokens: data.usage?.completion_tokens || 15,
+        totalTokens: data.usage?.total_tokens || 25,
       },
     };
   }
@@ -204,50 +666,86 @@ export class ClinePoolPlugin implements ProviderPlugin {
     req: CanonicalRequest,
     signal?: AbortSignal
   ): Promise<AsyncIterable<CanonicalStreamEvent>> {
-    const account = this.getActiveAccount();
-    if (!account && this.accounts.length > 0) {
-      throw new GatewayError(429, '429', 'All Cline accounts are in cooldown', { retryAfter: 30 });
-    }
+    const triedIds = new Set<string>();
+    const maxAttempts = Math.max(1, Math.min(this.accounts.length, CLINE_FAILOVER_ATTEMPTS));
+    let lastErr: unknown;
 
-    const headers = this.buildHeaders(account);
-    const model = req.model.replace(/^cline(-free)?\//, '');
-
-    const res = await fetch(`${this.defaultBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: req.messages,
-        temperature: req.temperature,
-        max_tokens: req.maxTokens,
-        tools: req.tools,
-        tool_choice: req.toolChoice,
-        stream: true,
-      }),
-      signal,
-    });
-
-    if (!res.ok) {
-      if (res.status === 401) {
-        if (account) account.status = 'invalid';
-        throw new GatewayError(401, '401', 'Cline token expired');
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const account = this.getActiveAccount(triedIds);
+      if (!account) {
+        if (lastErr) throw lastErr;
+        const lowestRetry = this.getLowestCooldownRemaining();
+        throw new GatewayError(
+          429,
+          '429',
+          'All Cline accounts are in cooldown',
+          { retryAfter: lowestRetry }
+        );
       }
+      triedIds.add(account.id);
+      account.lastUsedAt = Date.now();
+
+      const headers = this.buildHeaders(account, req.id);
+      const model = req.model.replace(/^cline(-free)?\//, '');
+
+      let res: Response;
+      try {
+        res = await fetch(this.getChatUrl(), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: req.messages,
+            temperature: req.temperature,
+            max_tokens: req.maxTokens,
+            tools: req.tools,
+            tool_choice: req.toolChoice,
+            stream: true,
+          }),
+          signal,
+        });
+      } catch (networkErr) {
+        account.errorCount++;
+        lastErr = networkErr;
+        continue;
+      }
+
+      if (res.status === 401) {
+        account.status = 'suspended';
+        account.errorCount++;
+        throw new GatewayError(401, '401', 'Cline token expired or suspended');
+      }
+
       if (res.status === 429) {
+        account.errorCount++;
         const bodyText = await res.text().catch(() => '');
         const retryAfter = parseClineRetryAfter(res.headers.get('retry-after'), bodyText);
-        if (account) {
-          account.status = 'cooldown';
-          account.cooldownUntil = Date.now() + retryAfter * 1000;
-        }
-        throw new GatewayError(429, '429', `Cline rate limit reached`, { retryAfter });
+        account.status = 'cooldown';
+        account.cooldownUntil = Date.now() + retryAfter * 1000;
+        account.cooldownReason = bodyText || 'Rate limit reached';
+        lastErr = new GatewayError(429, '429', `Cline rate limit reached`, { retryAfter });
+        continue;
       }
-      throw new GatewayError(res.status, String(res.status), `Cline upstream stream error: ${res.statusText}`);
+
+      if (!res.ok) {
+        account.errorCount++;
+        throw new GatewayError(res.status, String(res.status), `Cline upstream stream error: ${res.statusText}`);
+      }
+
+      if (!res.body) {
+        throw new GatewayError(502, 'bad_gateway', 'Cline empty stream response');
+      }
+
+      return this.streamFromResponse(res, req);
     }
 
-    if (!res.body) {
-      throw new GatewayError(502, 'bad_gateway', 'Cline empty stream response');
-    }
+    throw lastErr || new GatewayError(500, '500', 'Cline upstream stream exhausted all accounts');
+  }
 
+  private streamFromResponse(
+    res: Response,
+    req: CanonicalRequest
+  ): AsyncIterable<CanonicalStreamEvent> {
     const timestamp = Math.floor(Date.now() / 1000);
     const reqId = req.id;
     const reqModel = req.model;
@@ -265,6 +763,9 @@ export class ClinePoolPlugin implements ProviderPlugin {
           if (delta?.content) {
             yield { type: 'text_delta', delta: delta.content };
           }
+          if (delta?.reasoning_content) {
+            yield { type: 'thinking_delta', delta: delta.reasoning_content };
+          }
           if (parsed.usage) {
             yield {
               type: 'usage',
@@ -276,7 +777,7 @@ export class ClinePoolPlugin implements ProviderPlugin {
             };
           }
         } catch {
-          // ignore corrupted SSE frame
+          // ignore malformed frame
         }
       }
 
@@ -284,12 +785,14 @@ export class ClinePoolPlugin implements ProviderPlugin {
     })();
   }
 
-  async healthCheck(): Promise<HealthCheckResult> {
-    const active = this.accounts.filter((a) => a.status === 'active');
+  async healthCheck(account?: StoredAccount): Promise<HealthCheckResult> {
+    const active = this.getActiveAccounts();
+    const target = account || active[0];
+
     return {
       healthy: active.length > 0,
       checkedAt: Date.now(),
-      message: `${active.length}/${this.accounts.length} Cline accounts active`,
+      message: `${active.length}/${this.accounts.length} Cline accounts active${target ? ` (${target.id})` : ''}`,
     };
   }
 

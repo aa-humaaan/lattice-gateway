@@ -11,16 +11,18 @@ import { NousProviderPlugin } from './plugins/nous';
 import { ClinePoolPlugin } from './plugins/cline';
 import { OpenCodeProviderPlugin } from './plugins/opencode';
 import { DeepSeekPoolPlugin } from './plugins/deepseek';
+import { LatticeComboPlugin } from './plugins/combo';
 
 // 1. Load persistent accounts, combos, and proxy configs
 globalStorage.load();
 
-// 2. Instantiate and register the 5 primary upstream plugins
+// 2. Instantiate and register the 5 primary upstream plugins + combo failover harness
 const kiloPlugin = new KiloProviderPlugin();
 const nousPlugin = new NousProviderPlugin();
 const clinePlugin = new ClinePoolPlugin();
 const opencodePlugin = new OpenCodeProviderPlugin();
 const deepseekPlugin = new DeepSeekPoolPlugin();
+const comboPlugin = new LatticeComboPlugin();
 
 // Wire accounts from global pool into plugins
 for (const acc of globalAccountPool.listAccounts()) {
@@ -28,6 +30,7 @@ for (const acc of globalAccountPool.listAccounts()) {
   if (acc.providerId === 'nous') nousPlugin.setAccount(acc);
   if (acc.providerId === 'cline') clinePlugin.addAccount(acc);
   if (acc.providerId === 'deepseek') deepseekPlugin.addAccount(acc);
+  if (acc.providerId === 'opencode') opencodePlugin.setAccount(acc);
 }
 
 globalPluginRegistry.register(kiloPlugin);
@@ -35,9 +38,25 @@ globalPluginRegistry.register(nousPlugin);
 globalPluginRegistry.register(clinePlugin);
 globalPluginRegistry.register(opencodePlugin);
 globalPluginRegistry.register(deepseekPlugin);
+globalPluginRegistry.register(comboPlugin);
+
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const overrides: Record<string, any> = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--port' || arg === '-p') {
+      const val = parseInt(args[++i], 10);
+      if (!isNaN(val)) overrides.port = val;
+    } else if (arg === '--host' || arg === '-h') {
+      overrides.host = args[++i];
+    }
+  }
+  return overrides;
+}
 
 // 3. Create Gateway server with all registered plugins
-const config = loadConfig();
+const config = loadConfig(parseArgs());
 const app = createServer(config, globalPluginRegistry.getAll());
 
 const server = Bun.serve({

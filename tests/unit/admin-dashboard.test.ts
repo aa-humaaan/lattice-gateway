@@ -137,6 +137,43 @@ describe('Admin Mission Control Dashboard & REST Control Plane', () => {
     expect(json.log.completionTokens).toBeGreaterThan(0);
   });
 
+  it('hot-reloads saved account into live running plugin instances in memory', async () => {
+    // Check that kilo plugin instance has acc_kilo_unit_test loaded in memory
+    const { globalPluginRegistry } = await import('../../src/plugins/registry');
+    const kiloPlugin = globalPluginRegistry.get('kilo') as any;
+    expect(kiloPlugin).toBeDefined();
+    expect(kiloPlugin.account?.id).toBe('acc_kilo_unit_test');
+
+    const clinePlugin = globalPluginRegistry.get('cline') as any;
+    expect(clinePlugin).toBeDefined();
+    const hasClineAcc = clinePlugin.accounts?.some((a: any) => a.id === 'acc_cline_unit_test');
+    expect(hasClineAcc).toBeTrue();
+
+    const deepseekPlugin = globalPluginRegistry.get('deepseek') as any;
+    expect(deepseekPlugin).toBeDefined();
+    const hasDsAcc = deepseekPlugin.accounts?.some((a: any) => a.id === 'acc_deepseek_unit_test');
+    expect(hasDsAcc).toBeTrue();
+  });
+
+  it('runs upstream healthCheck probe via POST /api/accounts/:id/test', async () => {
+    const res = await router.request('/api/accounts/acc_kilo_unit_test/test', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.success).toBeTrue();
+    expect(json.accountId).toBe('acc_kilo_unit_test');
+    expect(json.providerId).toBe('kilo');
+    expect(json.health).toBeDefined();
+    expect(typeof json.health.healthy).toBe('boolean');
+  });
+
+  it('returns 404 error when testing non-existent account via POST /api/accounts/:id/test', async () => {
+    const res = await router.request('/api/accounts/acc_non_existent/test', { method: 'POST' });
+    expect(res.status).toBe(404);
+    const json = (await res.json()) as any;
+    expect(json.success).toBeFalse();
+    expect(json.error).toContain('not found');
+  });
+
   it('toggles plugin state via POST /api/plugins/:id/toggle', async () => {
     const res = await router.request('/api/plugins/kilo/toggle', {
       method: 'POST',

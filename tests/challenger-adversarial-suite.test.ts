@@ -263,6 +263,7 @@ describe('Challenger Empirical Stress Suite', () => {
                 code: `http_${status}`,
                 message: msg,
                 type: 'api_error',
+                status,
               },
             };
           },

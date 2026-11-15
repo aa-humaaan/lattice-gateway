@@ -101,7 +101,7 @@ export interface ProviderPlugin {
   readonly displayName: string;
   readonly description?: string;
   readonly defaultBaseUrl: string;
-  readonly supportedAuthTypes?: AuthType[];
+  readonly supportedAuthTypes?: readonly AuthType[];
 
   // Catalog Discovery
   listModels(account?: StoredAccount): Promise<ModelDescriptor[]>;

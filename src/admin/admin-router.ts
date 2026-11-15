@@ -5,6 +5,12 @@ import { globalProxyPool } from '../pool/proxy-pool';
 import { globalPluginRegistry } from '../plugins/registry';
 import { globalStorage } from '../pool/storage';
 import type { StoredAccount } from '../core/types/plugin';
+import { KiloProviderPlugin } from '../plugins/kilo';
+import { NousProviderPlugin } from '../plugins/nous';
+import { ClinePoolPlugin } from '../plugins/cline';
+import { OpenCodeProviderPlugin } from '../plugins/opencode';
+import { DeepSeekPoolPlugin } from '../plugins/deepseek';
+import { LatticeComboPlugin } from '../plugins/combo';
 
 export interface LogEvent {
   timestamp: number;
@@ -93,6 +99,23 @@ export function broadcastLog(log: LogEvent): void {
 export function createAdminRouter(): Hono {
   const router = new Hono();
 
+  // Ensure default plugins are registered in globalPluginRegistry
+  if (!globalPluginRegistry.has('kilo')) globalPluginRegistry.register(new KiloProviderPlugin());
+  if (!globalPluginRegistry.has('nous')) globalPluginRegistry.register(new NousProviderPlugin());
+  if (!globalPluginRegistry.has('cline')) globalPluginRegistry.register(new ClinePoolPlugin());
+  if (!globalPluginRegistry.has('opencode')) globalPluginRegistry.register(new OpenCodeProviderPlugin());
+  if (!globalPluginRegistry.has('deepseek')) globalPluginRegistry.register(new DeepSeekPoolPlugin());
+  if (!globalPluginRegistry.has('lattice')) globalPluginRegistry.register(new LatticeComboPlugin());
+
+  // Hot-sync any existing accounts from pool into plugin instances
+  for (const acc of globalAccountPool.listAccounts()) {
+    const plugin = globalPluginRegistry.get(acc.providerId) as any;
+    if (plugin) {
+      if (typeof plugin.setAccount === 'function') plugin.setAccount(acc);
+      else if (typeof plugin.addAccount === 'function') plugin.addAccount(acc);
+    }
+  }
+
   // --------------------------------------------------------------------------
   // Accounts Management
   // --------------------------------------------------------------------------
@@ -124,16 +147,92 @@ export function createAdminRouter(): Hono {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+
+    // 1. Add to account pool
     globalAccountPool.addAccount(account);
+
+    // 2. Hot-reload live in-memory plugin instances
+    const plugin = globalPluginRegistry.get(account.providerId) as any;
+    if (plugin) {
+      if (typeof plugin.setAccount === 'function') {
+        plugin.setAccount(account);
+      } else if (typeof plugin.addAccount === 'function') {
+        plugin.addAccount(account);
+      }
+    }
+
+    // 3. Persist to storage
     globalStorage.save();
-    return c.json({ success: true, message: `Account ${body.id} added`, account });
+    return c.json({ success: true, message: `Account ${body.id} added and hot-reloaded`, account });
   });
 
   router.delete('/api/accounts/:id', (c) => {
     const id = c.req.param('id');
+    const existing = globalAccountPool.getAccount(id);
     const deleted = globalAccountPool.deleteAccount(id);
-    if (deleted) globalStorage.save();
+    if (deleted) {
+      if (existing) {
+        const plugin = globalPluginRegistry.get(existing.providerId) as any;
+        if (plugin) {
+          if (Array.isArray(plugin.accounts)) {
+            plugin.accounts = plugin.accounts.filter((a: any) => a.id !== id);
+          } else if (plugin.account?.id === id) {
+            plugin.account = undefined;
+          }
+        }
+      }
+      globalStorage.save();
+    }
     return c.json({ success: deleted, message: deleted ? `Account ${id} removed` : 'Not found' });
+  });
+
+  router.post('/api/accounts/:id/test', async (c) => {
+    const id = c.req.param('id');
+    const account = globalAccountPool.getAccount(id);
+    if (!account) {
+      return c.json({ success: false, error: `Account ${id} not found` }, 404);
+    }
+
+    const plugin = globalPluginRegistry.get(account.providerId) as any;
+    if (!plugin) {
+      return c.json(
+        { success: false, error: `Plugin ${account.providerId} not found or not registered` },
+        404
+      );
+    }
+
+    // Ensure account is hot-loaded on the target plugin
+    if (typeof plugin.setAccount === 'function') {
+      plugin.setAccount(account);
+    } else if (typeof plugin.addAccount === 'function') {
+      plugin.addAccount(account);
+    }
+
+    let health: any;
+    if (typeof plugin.healthCheck === 'function') {
+      try {
+        health = await plugin.healthCheck();
+      } catch (err) {
+        health = {
+          healthy: false,
+          checkedAt: Date.now(),
+          message: err instanceof Error ? err.message : String(err),
+        };
+      }
+    } else {
+      health = {
+        healthy: true,
+        checkedAt: Date.now(),
+        message: 'Account configured and plugin operational',
+      };
+    }
+
+    return c.json({
+      success: true,
+      accountId: id,
+      providerId: account.providerId,
+      health,
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -1633,7 +1732,10 @@ function getDashboardHtml(): string {
             '<td>' + (a.errorCount || 0) + '</td>' +
             '<td><span style="color:var(--text-subtle);">' + lastUsed + '</span></td>' +
             '<td>' +
-              '<button class="btn btn-danger btn-sm" onclick="deleteAccount(\'' + a.id + '\')">Delete</button>' +
+              '<div style="display:flex; gap:6px;">' +
+                '<button class="btn btn-emerald btn-sm" id="btn-test-' + a.id + '" onclick="testAccount(\'' + a.id + '\')">Test</button>' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteAccount(\'' + a.id + '\')">Delete</button>' +
+              '</div>' +
             '</td>' +
           '</tr>';
         }).join('');
@@ -1645,6 +1747,36 @@ function getDashboardHtml(): string {
         document.getElementById('kpi-accounts-sub').textContent = cooldownCount + ' in cooldown';
       } catch (err) {
         console.error('Failed to fetch accounts:', err);
+      }
+    }
+
+    // Test Account Health Check Probe
+    async function testAccount(id) {
+      const btn = document.getElementById('btn-test-' + id);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Testing...';
+      }
+      try {
+        const res = await fetch('/api/accounts/' + encodeURIComponent(id) + '/test', { method: 'POST' });
+        const json = await res.json();
+        if (json.success && json.health) {
+          if (json.health.healthy) {
+            const lat = json.health.latencyMs ? ' (' + json.health.latencyMs + 'ms)' : '';
+            showToast('Account ' + id + ' probe OK: ' + (json.health.message || 'Healthy') + lat, 'success');
+          } else {
+            showToast('Account ' + id + ' probe warning: ' + (json.health.message || 'Check credentials'), 'error');
+          }
+        } else {
+          showToast('Health check failed: ' + (json.error || 'Unknown error'), 'error');
+        }
+      } catch (err) {
+        showToast('Network error while testing account', 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Test';
+        }
       }
     }
 
