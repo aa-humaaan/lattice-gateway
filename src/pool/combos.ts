@@ -14,15 +14,34 @@ export class ComboManager {
   private combos = new Map<string, VirtualCombo>();
 
   constructor() {
-    // Default Flagship Combos out of the box
+    // 1M Context Window Free Tier Combo
+    this.createCombo({
+      id: 'lattice/1m-free',
+      name: 'Lattice 1M Context Free Tier ($0 Auto-Failover)',
+      targets: [
+        'kilo/nvidia/nemotron-3.5-super-vl:free',
+        'kilo/particle-ai/particle-1:free',
+        'kilo/baidu/ernie-5.5-flash-preview:free',
+        'kilo/nvidia/nemotron-3.5-lightning:free',
+        'kilo/inclusionai/ling-3.2-flash:free',
+        'kilo/kilo-auto/free',
+      ],
+      description: 'Zero-cost 1,000,000+ token context window cascade with instant rate-limit failover across top free providers',
+      createdAt: Date.now(),
+    });
+
+    // Flagship Coding Combos with Zero-Drop Fallback
     this.createCombo({
       id: 'lattice/code-flagship',
       name: 'Lattice Code Flagship (Auto-Failover)',
       targets: [
-        'kilo/code-fast:free',
-        'nous/hermes-3-llama3',
         'cline/sonnet-agent',
-        'deepseek/deepseek-reasoner',
+        'kilo/claude-3-7-sonnet',
+        'kilo/claude-3-5-sonnet',
+        'deepseek/deepseek-chat',
+        'nous/qwen/qwen4-max',
+        'kilo/nvidia/nemotron-3.5-super-vl:free',
+        'kilo/code-fast:free',
       ],
       description: 'Zero-drop multi-provider coding engine with automatic 429 fallback',
       createdAt: Date.now(),
@@ -32,11 +51,14 @@ export class ComboManager {
       id: 'lattice/fast-free',
       name: 'Lattice Fast Free 0$ Tier',
       targets: [
+        'kilo/nvidia/nemotron-3.5-lightning:free',
         'kilo/code-fast:free',
+        'kilo/kilo-auto/free',
+        'kilo/deepseek-r1:free',
         'big-pickle',
         'mimo-v2.6-flash-free',
       ],
-      description: 'High-speed 0$ cost inference aggregator',
+      description: 'High-speed 0$ cost inference aggregator with automatic failover',
       createdAt: Date.now(),
     });
   }
@@ -69,11 +91,11 @@ export class ComboManager {
       providerId: 'lattice',
       ownedBy: 'lattice-gateway',
       created: Math.floor(c.createdAt / 1000),
-      contextWindow: 128000,
+      contextWindow: c.id.includes('1m') ? 1048576 : 200000,
       supportsThinking: true,
       supportsTools: true,
       supportsStreaming: true,
-      isFree: true,
+      isFree: c.id.includes('free'),
       tags: ['combo', 'failover', 'virtual'],
     }));
   }

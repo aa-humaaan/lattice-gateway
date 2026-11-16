@@ -105,8 +105,28 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     return map;
   }
 
-  // Helper to resolve provider plugin for requested model
-  async function resolveProvider(modelId: string): Promise<ProviderPlugin> {
+  // Claude Code & Universal Model Aliases -> Virtual Combos / Default Providers
+  const MODEL_ALIASES: Record<string, string> = {
+    'claude-3-7-sonnet-20250219': 'lattice/code-flagship',
+    'claude-3-7-sonnet': 'lattice/code-flagship',
+    'claude-3-5-sonnet-20241022': 'lattice/code-flagship',
+    'claude-3-5-sonnet-20240620': 'lattice/code-flagship',
+    'claude-3-5-sonnet': 'lattice/code-flagship',
+    'claude-3-5-haiku-20241022': 'lattice/1m-free',
+    'claude-3-5-haiku': 'lattice/1m-free',
+    'claude-3-haiku-20240307': 'lattice/fast-free',
+    'claude-3-opus-20240229': 'lattice/code-flagship',
+    'claude-3-opus': 'lattice/code-flagship',
+    'claude-sonnet-4-6': 'lattice/code-flagship',
+    'claude-opus-4-6': 'lattice/code-flagship',
+    'claude-haiku-4-5': 'lattice/1m-free',
+    'auto': 'lattice/1m-free',
+    'default': 'lattice/code-flagship',
+    'lattice/long-context-free': 'lattice/1m-free',
+  };
+
+  // Helper to resolve provider plugin and normalized model for requested model
+  async function resolveProvider(modelId: string): Promise<{ plugin: ProviderPlugin; resolvedModel: string }> {
     if (plugins.size === 0) {
       throw new GatewayError(
         503,
@@ -115,34 +135,40 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
       );
     }
 
+    // Check alias mapping first
+    const resolvedModel = MODEL_ALIASES[modelId] || modelId;
+
     // In single-provider environments (e.g. M1 mock provider dev/test),
     // route directly to the active provider.
     if (plugins.size === 1) {
-      return plugins.values().next().value!;
+      return { plugin: plugins.values().next().value!, resolvedModel };
     }
 
     // 1. Direct provider prefix match: "providerId/modelName"
-    const [providerId] = modelId.split('/');
+    const [providerId] = resolvedModel.split('/');
     if (plugins.has(providerId)) {
-      return plugins.get(providerId)!;
+      return { plugin: plugins.get(providerId)!, resolvedModel };
     }
 
     // 2. Direct plugin ID match (e.g. "mock", "kilo")
-    if (plugins.has(modelId)) {
-      return plugins.get(modelId)!;
+    if (plugins.has(resolvedModel)) {
+      return { plugin: plugins.get(resolvedModel)!, resolvedModel };
     }
 
     // 3. Catalog lookup: check if any active plugin provides this model
     const modelMap = await getModelPluginMap();
+    if (modelMap.has(resolvedModel)) {
+      return { plugin: modelMap.get(resolvedModel)!, resolvedModel };
+    }
     if (modelMap.has(modelId)) {
-      return modelMap.get(modelId)!;
+      return { plugin: modelMap.get(modelId)!, resolvedModel: modelId };
     }
 
     // 4. Model not found across active plugins — fail with HTTP 404
     throw new GatewayError(
       404,
       'model_not_found',
-      `No active provider found for model: ${modelId}`
+      `No active provider found for model: ${modelId} (resolved as ${resolvedModel})`
     );
   }
 
@@ -163,7 +189,8 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     }
 
     const canonicalReq = normalizeOpenAIChat(rawBody, reqId);
-    const provider = await resolveProvider(canonicalReq.model);
+    const { plugin: provider, resolvedModel } = await resolveProvider(canonicalReq.model);
+    canonicalReq.model = resolvedModel;
 
     // Non-Streaming Branch
     if (!canonicalReq.stream) {
@@ -212,7 +239,8 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     }
 
     const canonicalReq = normalizeAnthropicMessages(rawBody, reqId);
-    const provider = await resolveProvider(canonicalReq.model);
+    const { plugin: provider, resolvedModel } = await resolveProvider(canonicalReq.model);
+    canonicalReq.model = resolvedModel;
 
     // Non-Streaming Branch
     if (!canonicalReq.stream) {
@@ -260,7 +288,8 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     }
 
     const canonicalReq = normalizeOpenAIResponses(rawBody, reqId);
-    const provider = await resolveProvider(canonicalReq.model);
+    const { plugin: provider, resolvedModel } = await resolveProvider(canonicalReq.model);
+    canonicalReq.model = resolvedModel;
 
     const canonicalRes = await provider.execute(canonicalReq, c.req.raw.signal);
     const responsesOutput = serializeOpenAIResponse(canonicalRes);
