@@ -166,9 +166,10 @@ export const AnthropicMessagesRequestSchema = z
     top_k: z.number().int().positive().optional(),
     thinking: z
       .object({
-        type: z.enum(['enabled', 'disabled']),
+        type: z.enum(['enabled', 'disabled', 'adaptive']).or(z.string()),
         budget_tokens: z.number().int().positive().optional(),
       })
+      .passthrough()
       .optional(),
     tools: z.array(AnthropicToolSchema).optional(),
     tool_choice: AnthropicToolChoiceSchema.optional(),

@@ -451,7 +451,7 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
     if (this.isWebEndpoint(url)) {
       const isThinking =
-        model.includes('reasoner') || model.includes('r1') || req.thinking?.type === 'enabled';
+        model.includes('reasoner') || model.includes('r1') || req.thinking?.type === 'enabled' || req.thinking?.type === 'adaptive';
       const prompt = this.formatMessagesToPrompt(req.messages);
       const sessionId = account?.credentials?.customData?.sessionId || `session_${Date.now()}`;
       return {

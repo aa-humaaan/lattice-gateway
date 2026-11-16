@@ -401,13 +401,18 @@ export function normalizeAnthropicMessages(
   let thinkingConfig: CanonicalThinkingConfig | undefined;
   let reasoningEffort: 'low' | 'medium' | 'high' | undefined;
 
-  if (req.thinking?.type === 'enabled') {
+  if (req.thinking?.type === 'enabled' || req.thinking?.type === 'adaptive') {
     const budget = req.thinking.budget_tokens;
-    thinkingConfig = { type: 'enabled', budgetTokens: budget };
+    thinkingConfig = {
+      type: req.thinking.type === 'adaptive' ? 'adaptive' : 'enabled',
+      budgetTokens: budget,
+    };
     if (budget) {
       if (budget < 4000) reasoningEffort = 'low';
       else if (budget <= 16000) reasoningEffort = 'medium';
       else reasoningEffort = 'high';
+    } else {
+      reasoningEffort = 'high';
     }
   }
 

@@ -186,12 +186,12 @@ export const CanonicalToolChoiceSchema = z.union([
 // ============================================================================
 
 export interface CanonicalThinkingConfig {
-  type: 'enabled' | 'disabled';
+  type: 'enabled' | 'disabled' | 'adaptive';
   budgetTokens?: number;
 }
 
 export const CanonicalThinkingConfigSchema = z.object({
-  type: z.enum(['enabled', 'disabled']),
+  type: z.enum(['enabled', 'disabled', 'adaptive']).or(z.string()),
   budgetTokens: z.number().int().positive().optional(),
 });
 
