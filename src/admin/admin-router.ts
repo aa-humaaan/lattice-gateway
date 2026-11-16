@@ -2366,13 +2366,26 @@ function getDashboardHtml(): string {
     window.copyOAuthUserCode = copyOAuthUserCode;
 
     async function startOAuthDeviceLogin(provider) {
-      const prov = provider || selectedProvider || 'cline';
+      const prov = (typeof provider === 'string' && provider) ? provider : (currentProviderTab || 'cline');
+      console.log('[OAuth] Starting device login for provider:', prov);
       const btn = document.getElementById('btn-oauth-' + prov);
       const flowBox = document.getElementById('oauth-flow-' + prov);
+
       if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Requesting Auth URL & Device Code...';
+        btn.textContent = '⏳ Requesting Auth Code from ' + prov + '...';
       }
+
+      if (flowBox) {
+        flowBox.style.display = 'flex';
+        flowBox.innerHTML = 
+          '<div style="display:flex; align-items:center; gap:10px; color:#38bdf8; font-size:0.88rem;">' +
+            '<div class="status-dot live"></div>' +
+            '<span>Connecting to ' + prov + ' authorization gateway...</span>' +
+          '</div>';
+      }
+
+      showToast('Initiating 1-Click OAuth flow for ' + prov + '...', 'info');
 
       try {
         const res = await fetch('/api/oauth/start', {
@@ -2421,7 +2434,11 @@ function getDashboardHtml(): string {
             '</div>';
         }
 
-        window.open(authUrl, '_blank');
+        try {
+          window.open(authUrl, '_blank');
+        } catch (e) {
+          console.warn('Popup blocked:', e);
+        }
 
         if (activeOAuthPollTimer) clearInterval(activeOAuthPollTimer);
         activeOAuthPollTimer = setInterval(async () => {
@@ -2433,7 +2450,7 @@ function getDashboardHtml(): string {
               activeOAuthPollTimer = null;
 
               if (pollJson.status === 'success') {
-                showToast('🎉 Successfully authenticated ' + (pollJson.email || provider) + '!', 'success');
+                showToast('🎉 Successfully authenticated ' + (pollJson.email || prov) + '!', 'success');
                 if (flowBox) {
                   flowBox.innerHTML = 
                     '<div style="padding:16px; background:rgba(16,185,129,0.15); border:1px solid #10b981; border-radius:8px; color:#34d399; font-weight:700;">' +
@@ -2457,13 +2474,15 @@ function getDashboardHtml(): string {
         }, 2000);
 
       } catch (err) {
+        console.error('[OAuth] startOAuthDeviceLogin error:', err);
         showToast('OAuth Error: ' + err.message, 'error');
         if (btn) {
           btn.disabled = false;
-          btn.textContent = '🚀 Start ' + provider + ' OAuth Login';
+          btn.textContent = '🚀 Start ' + prov + ' OAuth Login';
         }
       }
     }
+    window.startOAuthDeviceLogin = startOAuthDeviceLogin;
 
     // 1-CLICK LOCAL ACCOUNTS SYNC
     async function syncLocalAccounts() {
@@ -2883,7 +2902,7 @@ function getDashboardHtml(): string {
             '<p style="font-size:0.82rem; color:var(--text-muted);">' +
               'Authenticate your Cline account directly through WorkOS in your browser. Tokens are captured and saved automatically.' +
             '</p>' +
-            '<button class="btn btn-primary" id="btn-oauth-cline" onclick="startOAuthDeviceLogin()" style="margin-top:6px;">' +
+            '<button class="btn btn-primary" id="btn-oauth-cline" onclick="startOAuthDeviceLogin(&quot;cline&quot;)" style="margin-top:6px;">' +
               '🚀 Start Cline OAuth Login' +
             '</button>' +
             '<div id="oauth-flow-cline" style="display:none;" class="oauth-card-active"></div>' +
@@ -2923,7 +2942,7 @@ function getDashboardHtml(): string {
             '<p style="font-size:0.82rem; color:var(--text-muted);">' +
               'Log in to Kilo Code via browser device code flow. We will automatically capture your session token.' +
             '</p>' +
-            '<button class="btn btn-primary" id="btn-oauth-kilo" onclick="startOAuthDeviceLogin()" style="margin-top:6px;">' +
+            '<button class="btn btn-primary" id="btn-oauth-kilo" onclick="startOAuthDeviceLogin(&quot;kilo&quot;)" style="margin-top:6px;">' +
               '🚀 Start Kilo OAuth Login' +
             '</button>' +
             '<div id="oauth-flow-kilo" style="display:none;" class="oauth-card-active"></div>' +
@@ -2966,7 +2985,7 @@ function getDashboardHtml(): string {
             '<p style="font-size:0.82rem; color:var(--text-muted);">' +
               'Authenticate with the Nous Research Portal via browser device session.' +
             '</p>' +
-            '<button class="btn btn-primary" id="btn-oauth-nous" onclick="startOAuthDeviceLogin()" style="margin-top:6px;">' +
+            '<button class="btn btn-primary" id="btn-oauth-nous" onclick="startOAuthDeviceLogin(&quot;nous&quot;)" style="margin-top:6px;">' +
               '🚀 Start Nous Portal Login' +
             '</button>' +
             '<div id="oauth-flow-nous" style="display:none;" class="oauth-card-active"></div>' +
