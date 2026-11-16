@@ -1920,7 +1920,7 @@ export function getDashboardHtml(): string {
             (m.description ? '<p style="font-size:0.78rem; color:var(--text-secondary);">' + m.description + '</p>' : '') +
             '<div class="model-id-box">' +
               '<span>' + m.id + '</span>' +
-              '<button class="copy-btn" onclick="copyToClipboard(\\'' + m.id + '\\', \\'Copied model ID \\\\'' + m.id + '\\\\\\'!\\')" title="Copy Model ID">' +
+              '<button class="copy-btn" onclick="copyToClipboard(\\\'' + m.id + '\\\', \\\'Copied model ID!\\\')" title="Copy Model ID">' +
                 '${ICONS.copy}' +
               '</button>' +
             '</div>' +
