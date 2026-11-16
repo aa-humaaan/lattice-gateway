@@ -327,11 +327,31 @@ export class KiloProviderPlugin implements ProviderPlugin {
    * Kilo OAuth Device Code Authorization Request
    */
   async requestDeviceCode(clientId = 'kilo_client_app'): Promise<KiloDeviceAuthResponse> {
-    const url = this.resolveUrl('device_code');
+    const isMock = this.defaultBaseUrl.includes('127.0.0.1') || this.defaultBaseUrl.includes('localhost');
+    if (isMock) {
+      const url = this.resolveUrl('device_code');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+
+      if (!res.ok) {
+        throw new GatewayError(
+          res.status,
+          String(res.status),
+          `Kilo device code request failed: ${res.statusText}`
+        );
+      }
+
+      return (await res.json()) as KiloDeviceAuthResponse;
+    }
+
+    const url = 'https://api.kilo.ai/api/device-auth/codes';
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId }),
+      body: JSON.stringify({}),
     });
 
     if (!res.ok) {
@@ -342,32 +362,74 @@ export class KiloProviderPlugin implements ProviderPlugin {
       );
     }
 
-    return (await res.json()) as KiloDeviceAuthResponse;
+    const data = (await res.json()) as any;
+    return {
+      user_code: data.user_code,
+      device_code: data.code || data.device_code,
+      verification_uri: data.verificationUrl || `https://app.kilo.ai/device-auth?code=${data.user_code}`,
+      expires_in: data.expiresIn || 600,
+      interval: 3,
+    };
   }
 
   /**
    * Kilo OAuth Device Code Token Exchange
    */
-  async exchangeDeviceToken(deviceCode: string): Promise<KiloTokenResponse> {
-    const url = this.resolveUrl('token');
+  async exchangeDeviceToken(code: string): Promise<KiloTokenResponse> {
+    const isMock = this.defaultBaseUrl.includes('127.0.0.1') || this.defaultBaseUrl.includes('localhost');
+    if (isMock) {
+      const url = this.resolveUrl('token');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+          device_code: code,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new GatewayError(
+          res.status,
+          String(res.status),
+          `Kilo token exchange failed: ${res.statusText}`
+        );
+      }
+
+      return (await res.json()) as KiloTokenResponse;
+    }
+
+    const url = `https://api.kilo.ai/api/device-auth/codes/${encodeURIComponent(code)}`;
     const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-        device_code: deviceCode,
-      }),
+      method: 'GET',
+      headers: { Accept: 'application/json' },
     });
 
+    if (res.status === 202) {
+      // Still pending approval in browser
+      return {
+        access_token: '',
+        token_type: 'bearer',
+        expires_in: 0,
+      };
+    }
+
     if (!res.ok) {
+      const errText = await res.text().catch(() => '');
       throw new GatewayError(
         res.status,
         String(res.status),
-        `Kilo token exchange failed: ${res.statusText}`
+        `Kilo token exchange failed: ${errText || res.statusText}`
       );
     }
 
-    return (await res.json()) as KiloTokenResponse;
+    const data = (await res.json()) as any;
+    const token = data.token || data.accessToken || data.access_token || (typeof data === 'string' ? data : '');
+    return {
+      access_token: token,
+      token_type: 'bearer',
+      expires_in: data.expiresIn || 86400 * 30,
+    };
   }
 
   async execute(req: CanonicalRequest, signal?: AbortSignal): Promise<CanonicalResponse> {

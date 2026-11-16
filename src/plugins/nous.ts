@@ -21,6 +21,10 @@ export const NOUS_DEFAULT_BASE_URL = 'https://inference-api.nousresearch.com/v1'
 export interface NousPortalAuthResponse {
   auth_url: string;
   session_id: string;
+  user_code?: string;
+  device_code?: string;
+  verification_uri?: string;
+  verification_uri_complete?: string;
   expires_in?: number;
 }
 
@@ -307,8 +311,28 @@ export class NousProviderPlugin implements ProviderPlugin {
   /**
    * Nous Portal OAuth Device Authorization Request
    */
-  async requestPortalAuth(clientId = 'nous_hermes_cli'): Promise<NousPortalAuthResponse> {
-    const url = this.resolveUrl('portal_auth');
+  async requestPortalAuth(clientId = 'hermes-cli'): Promise<NousPortalAuthResponse> {
+    const isMock = this.defaultBaseUrl.includes('127.0.0.1') || this.defaultBaseUrl.includes('localhost');
+    if (isMock) {
+      const url = this.resolveUrl('portal_auth');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+
+      if (!res.ok) {
+        throw new GatewayError(
+          res.status,
+          String(res.status),
+          `Nous portal auth request failed: ${res.statusText}`
+        );
+      }
+
+      return (await res.json()) as NousPortalAuthResponse;
+    }
+
+    const url = 'https://portal.nousresearch.com/api/oauth/device/code';
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -323,29 +347,76 @@ export class NousProviderPlugin implements ProviderPlugin {
       );
     }
 
-    return (await res.json()) as NousPortalAuthResponse;
+    const data = (await res.json()) as any;
+    return {
+      auth_url: data.verification_uri_complete || data.verification_uri || 'https://portal.nousresearch.com/manage-subscription',
+      session_id: data.device_code,
+      device_code: data.device_code,
+      user_code: data.user_code,
+      verification_uri: data.verification_uri,
+      verification_uri_complete: data.verification_uri_complete,
+      expires_in: data.expires_in,
+    };
   }
 
   /**
    * Nous Portal OAuth Token Exchange
    */
-  async pollPortalToken(sessionId: string): Promise<NousPortalTokenResponse> {
-    const url = this.resolveUrl('portal_token');
+  async pollPortalToken(deviceCode: string): Promise<NousPortalTokenResponse> {
+    const isMock = this.defaultBaseUrl.includes('127.0.0.1') || this.defaultBaseUrl.includes('localhost');
+    if (isMock) {
+      const url = this.resolveUrl('portal_token');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: deviceCode }),
+      });
+
+      if (!res.ok) {
+        throw new GatewayError(
+          res.status,
+          String(res.status),
+          `Nous portal token exchange failed: ${res.statusText}`
+        );
+      }
+
+      return (await res.json()) as NousPortalTokenResponse;
+    }
+
+    const url = 'https://portal.nousresearch.com/api/oauth/token';
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId }),
+      body: JSON.stringify({
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+        client_id: 'hermes-cli',
+        device_code: deviceCode,
+      }),
     });
 
     if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as any;
+      if (data.error === 'authorization_pending' || res.status === 400 || res.status === 428) {
+        return {
+          access_token: '',
+          token_type: 'bearer',
+          expires_in: 0,
+        };
+      }
       throw new GatewayError(
         res.status,
         String(res.status),
-        `Nous portal token exchange failed: ${res.statusText}`
+        `Nous portal token exchange failed: ${data.error_description || res.statusText}`
       );
     }
 
-    return (await res.json()) as NousPortalTokenResponse;
+    const data = (await res.json()) as any;
+    return {
+      access_token: data.access_token || '',
+      refresh_token: data.refresh_token,
+      token_type: data.token_type || 'bearer',
+      expires_in: data.expires_in,
+    };
   }
 
   async refreshAuth(account: StoredAccount): Promise<StoredAccount> {

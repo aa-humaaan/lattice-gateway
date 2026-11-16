@@ -7,10 +7,13 @@ import { globalStorage } from '../pool/storage';
 import type { StoredAccount } from '../core/types/plugin';
 import { KiloProviderPlugin } from '../plugins/kilo';
 import { NousProviderPlugin } from '../plugins/nous';
-import { ClinePoolPlugin } from '../plugins/cline';
+import { ClinePoolPlugin, startWorkosDeviceAuth, pollWorkosToken, registerWithCline } from '../plugins/cline';
 import { OpenCodeProviderPlugin } from '../plugins/opencode';
 import { DeepSeekPoolPlugin } from '../plugins/deepseek';
 import { LatticeComboPlugin } from '../plugins/combo';
+import { Database } from 'bun:sqlite';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export interface LogEvent {
   timestamp: number;
@@ -56,8 +59,25 @@ const globalTokenMetrics: TokenMetricsState = {
   recentBuckets: [],
 };
 
+// OAuth Device Flow Session Tracker
+interface OAuthSessionState {
+  id: string;
+  provider: string;
+  deviceCode: string;
+  userCode: string;
+  verificationUri: string;
+  verificationUriComplete?: string;
+  done: boolean;
+  success: boolean;
+  error?: string;
+  email?: string;
+  account?: StoredAccount;
+  createdAt: number;
+}
+
+const activeOAuthSessions = new Map<string, OAuthSessionState>();
+
 export function broadcastLog(log: LogEvent): void {
-  // If token metrics are not passed, synthesize realistic token volume based on latency
   const promptTokens = log.promptTokens ?? Math.floor(40 + Math.random() * 80);
   const completionTokens = log.completionTokens ?? Math.floor(Math.max(15, log.latencyMs * 1.5));
   const totalTokens = log.totalTokens ?? (promptTokens + completionTokens);
@@ -72,7 +92,6 @@ export function broadcastLog(log: LogEvent): void {
   recentLogs.unshift(enrichedLog);
   if (recentLogs.length > 500) recentLogs.pop();
 
-  // Accumulate telemetry stats
   globalTokenMetrics.promptTokens += promptTokens;
   globalTokenMetrics.completionTokens += completionTokens;
   globalTokenMetrics.totalTokens += totalTokens;
@@ -90,68 +109,78 @@ export function broadcastLog(log: LogEvent): void {
   for (const sub of logSubscribers) {
     try {
       sub(enrichedLog);
-    } catch {
-      // client disconnected
-    }
+    } catch {}
   }
 }
 
 export function createAdminRouter(): Hono {
-  const router = new Hono();
-
-  // Ensure default plugins are registered in globalPluginRegistry
-  if (!globalPluginRegistry.has('kilo')) globalPluginRegistry.register(new KiloProviderPlugin());
-  if (!globalPluginRegistry.has('nous')) globalPluginRegistry.register(new NousProviderPlugin());
-  if (!globalPluginRegistry.has('cline')) globalPluginRegistry.register(new ClinePoolPlugin());
-  if (!globalPluginRegistry.has('opencode')) globalPluginRegistry.register(new OpenCodeProviderPlugin());
-  if (!globalPluginRegistry.has('deepseek')) globalPluginRegistry.register(new DeepSeekPoolPlugin());
-  if (!globalPluginRegistry.has('lattice')) globalPluginRegistry.register(new LatticeComboPlugin());
-
-  // Hot-sync any existing accounts from pool into plugin instances
-  for (const acc of globalAccountPool.listAccounts()) {
-    const plugin = globalPluginRegistry.get(acc.providerId) as any;
-    if (plugin) {
-      if (typeof plugin.setAccount === 'function') plugin.setAccount(acc);
-      else if (typeof plugin.addAccount === 'function') plugin.addAccount(acc);
-    }
+  // Ensure default provider plugins are registered in registry
+  if (!globalPluginRegistry.has('kilo')) {
+    globalPluginRegistry.register(new KiloProviderPlugin());
+  }
+  if (!globalPluginRegistry.has('nous')) {
+    globalPluginRegistry.register(new NousProviderPlugin());
+  }
+  if (!globalPluginRegistry.has('cline')) {
+    globalPluginRegistry.register(new ClinePoolPlugin());
+  }
+  if (!globalPluginRegistry.has('opencode')) {
+    globalPluginRegistry.register(new OpenCodeProviderPlugin());
+  }
+  if (!globalPluginRegistry.has('deepseek')) {
+    globalPluginRegistry.register(new DeepSeekPoolPlugin());
+  }
+  if (!globalPluginRegistry.has('lattice-combo')) {
+    globalPluginRegistry.register(new LatticeComboPlugin());
   }
 
+  const router = new Hono();
+
   // --------------------------------------------------------------------------
-  // Accounts Management
+  // REST API: Accounts & Credential Pools
   // --------------------------------------------------------------------------
   router.get('/api/accounts', (c) => {
-    const provider = c.req.query('provider');
-    const accounts = globalAccountPool.listAccounts(provider);
+    const accounts = globalAccountPool.listAccounts();
     return c.json({
       success: true,
-      accounts,
-      data: {
-        total: accounts.length,
-        accounts,
-      },
+      count: accounts.length,
+      accounts: accounts.map((a) => ({
+        id: a.id,
+        providerId: a.providerId,
+        authType: a.authType,
+        status: a.status,
+        errorCount: a.errorCount,
+        lastUsedAt: a.lastUsedAt,
+        credentials: {
+          ...a.credentials,
+          accessToken: a.credentials.accessToken ? a.credentials.accessToken.substring(0, 15) + '...' : undefined,
+          apiKey: a.credentials.apiKey ? a.credentials.apiKey.substring(0, 8) + '...' : undefined,
+          refreshToken: a.credentials.refreshToken ? a.credentials.refreshToken.substring(0, 8) + '...' : undefined,
+          cookies: a.credentials.cookies ? 'cookie_stored' : undefined,
+        },
+      })),
     });
   });
 
   router.post('/api/accounts', async (c) => {
-    const body = (await c.req.json()) as any;
-    if (!body.providerId || !body.id) {
-      return c.json({ success: false, error: 'Missing providerId or id' }, 400);
+    const body = await c.req.json();
+    if (!body.id || !body.providerId || !body.credentials) {
+      return c.json({ success: false, error: 'Missing required account fields (id, providerId, credentials)' }, 400);
     }
+
     const account: StoredAccount = {
       id: body.id,
       providerId: body.providerId,
-      authType: body.authType || (body.providerId === 'deepseek' ? 'cookie_pool' : 'api_key'),
+      authType: body.authType || 'api_key',
       status: body.status || 'active',
-      credentials: body.credentials || {},
+      credentials: body.credentials,
       errorCount: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
-    // 1. Add to account pool
     globalAccountPool.addAccount(account);
 
-    // 2. Hot-reload live in-memory plugin instances
     const plugin = globalPluginRegistry.get(account.providerId) as any;
     if (plugin) {
       if (typeof plugin.setAccount === 'function') {
@@ -161,7 +190,6 @@ export function createAdminRouter(): Hono {
       }
     }
 
-    // 3. Persist to storage
     globalStorage.save();
     return c.json({ success: true, message: `Account ${body.id} added and hot-reloaded`, account });
   });
@@ -195,81 +223,482 @@ export function createAdminRouter(): Hono {
 
     const plugin = globalPluginRegistry.get(account.providerId) as any;
     if (!plugin) {
-      return c.json(
-        { success: false, error: `Plugin ${account.providerId} not found or not registered` },
-        404
-      );
+      return c.json({ success: false, error: `Plugin ${account.providerId} not found` }, 404);
     }
 
-    // Ensure account is hot-loaded on the target plugin
     if (typeof plugin.setAccount === 'function') {
       plugin.setAccount(account);
     } else if (typeof plugin.addAccount === 'function') {
       plugin.addAccount(account);
     }
 
-    let health: any;
-    if (typeof plugin.healthCheck === 'function') {
-      try {
-        health = await plugin.healthCheck();
-      } catch (err) {
-        health = {
-          healthy: false,
-          checkedAt: Date.now(),
-          message: err instanceof Error ? err.message : String(err),
-        };
-      }
-    } else {
-      health = {
-        healthy: true,
-        checkedAt: Date.now(),
-        message: 'Account configured and plugin operational',
-      };
+    try {
+      const health = await plugin.healthCheck();
+      return c.json({ success: true, accountId: id, providerId: account.providerId, health });
+    } catch (err: any) {
+      return c.json({ success: false, accountId: id, error: err.message }, 500);
     }
+  });
+
+  // --------------------------------------------------------------------------
+  // REST API: 1-Click Interactive OAuth Device Flows
+  // --------------------------------------------------------------------------
+  router.post('/api/oauth/start', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const provider = body.provider || 'cline';
+
+    // 1. Cline Pool (WorkOS OAuth Device Code)
+    if (provider === 'cline') {
+      try {
+        const device = await startWorkosDeviceAuth();
+        const sessionId = `oauth_cline_${Date.now()}`;
+        const authUrl = device.verification_uri_complete || device.verification_uri;
+
+        const state: OAuthSessionState = {
+          id: sessionId,
+          provider: 'cline',
+          deviceCode: device.device_code,
+          userCode: device.user_code,
+          verificationUri: device.verification_uri,
+          verificationUriComplete: device.verification_uri_complete,
+          done: false,
+          success: false,
+          createdAt: Date.now(),
+        };
+        activeOAuthSessions.set(sessionId, state);
+
+        // Background poller
+        (async () => {
+          try {
+            const token = await pollWorkosToken(device.device_code, {
+              interval: device.interval || 5,
+              expiresIn: device.expires_in || 300,
+            });
+            const reg = await registerWithCline(token.access_token, token.refresh_token);
+            const email = reg.data?.userInfo?.email || 'cline-user@gmail.com';
+            const accountId = (reg.data as any)?.accountId || reg.data?.userInfo?.id || 'new';
+            const accId = `acc_cline_${Date.now()}_${accountId}`;
+
+            const newAccount: StoredAccount = {
+              id: accId,
+              providerId: 'cline',
+              authType: 'oauth',
+              status: 'active',
+              credentials: {
+                refreshToken: reg.data.refreshToken,
+                accountId: accountId,
+                email: email,
+              },
+              errorCount: 0,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+
+            globalAccountPool.addAccount(newAccount);
+            const plugin = globalPluginRegistry.get('cline') as any;
+            if (plugin && typeof plugin.addAccount === 'function') {
+              plugin.addAccount(newAccount);
+            }
+            globalStorage.save();
+
+            state.done = true;
+            state.success = true;
+            state.email = email;
+            state.account = newAccount;
+          } catch (err: any) {
+            state.done = true;
+            state.success = false;
+            state.error = err.message || 'WorkOS authorization failed';
+          }
+        })();
+
+        return c.json({
+          success: true,
+          data: {
+            sessionId,
+            userCode: device.user_code,
+            verificationUri: device.verification_uri,
+            verificationUriComplete: authUrl,
+          },
+        });
+      } catch (err: any) {
+        return c.json({ success: false, error: err.message }, 500);
+      }
+    }
+
+    // 2. Kilo Code (Device Authorization)
+    if (provider === 'kilo') {
+      try {
+        const kiloPlugin = (globalPluginRegistry.get('kilo') as KiloProviderPlugin) || new KiloProviderPlugin();
+        const device = await kiloPlugin.requestDeviceCode();
+        const sessionId = `oauth_kilo_${Date.now()}`;
+
+        const state: OAuthSessionState = {
+          id: sessionId,
+          provider: 'kilo',
+          deviceCode: device.device_code,
+          userCode: device.user_code,
+          verificationUri: device.verification_uri,
+          done: false,
+          success: false,
+          createdAt: Date.now(),
+        };
+        activeOAuthSessions.set(sessionId, state);
+
+        (async () => {
+          try {
+            const deadline = Date.now() + (device.expires_in || 300) * 1000;
+            const interval = (device.interval || 5) * 1000;
+            let tokenRes = null;
+
+            while (Date.now() < deadline) {
+              await new Promise((r) => setTimeout(r, interval));
+              try {
+                tokenRes = await kiloPlugin.exchangeDeviceToken(device.device_code);
+                if (tokenRes && tokenRes.access_token) break;
+              } catch {
+                // Pending authorization, continue polling
+              }
+            }
+
+            if (!tokenRes || !tokenRes.access_token) {
+              throw new Error('Kilo device authorization timed out or cancelled');
+            }
+
+            const accId = `acc_kilo_${Date.now()}`;
+            let email = 'kilo-user@gmail.com';
+            try {
+              const payload = JSON.parse(Buffer.from(tokenRes.access_token.split('.')[1], 'base64').toString());
+              if (payload.email) email = payload.email;
+            } catch {}
+
+            const newAccount: StoredAccount = {
+              id: accId,
+              providerId: 'kilo',
+              authType: 'oauth',
+              status: 'active',
+              credentials: {
+                accessToken: tokenRes.access_token,
+                email: email,
+                baseUrl: 'https://ai-gateway.kilo.ai/api/v1',
+              },
+              errorCount: 0,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+
+            globalAccountPool.addAccount(newAccount);
+            const plugin = globalPluginRegistry.get('kilo') as any;
+            if (plugin && typeof plugin.setAccount === 'function') {
+              plugin.setAccount(newAccount);
+            }
+            globalStorage.save();
+
+            state.done = true;
+            state.success = true;
+            state.email = email;
+            state.account = newAccount;
+          } catch (err: any) {
+            state.done = true;
+            state.success = false;
+            state.error = err.message || 'Kilo device authorization failed';
+          }
+        })();
+
+        return c.json({
+          success: true,
+          data: {
+            sessionId,
+            userCode: device.user_code,
+            verificationUri: device.verification_uri,
+            verificationUriComplete: device.verification_uri,
+          },
+        });
+      } catch (err: any) {
+        return c.json({ success: false, error: err.message }, 500);
+      }
+    }
+
+    // 3. Nous Research Portal Auth
+    if (provider === 'nous') {
+      try {
+        const nousPlugin = (globalPluginRegistry.get('nous') as NousProviderPlugin) || new NousProviderPlugin();
+        const auth = await nousPlugin.requestPortalAuth();
+        const sessionId = `oauth_nous_${Date.now()}`;
+
+        const userCode = auth.user_code || 'PORTAL_AUTH';
+        const verifyUri = auth.verification_uri || 'https://portal.nousresearch.com/manage-subscription';
+        const verifyUriComplete = auth.verification_uri_complete || (auth.user_code ? `${verifyUri}?user_code=${auth.user_code}` : auth.auth_url);
+
+        const state: OAuthSessionState = {
+          id: sessionId,
+          provider: 'nous',
+          deviceCode: auth.device_code || auth.session_id,
+          userCode: userCode,
+          verificationUri: verifyUri,
+          verificationUriComplete: verifyUriComplete,
+          done: false,
+          success: false,
+          createdAt: Date.now(),
+        };
+        activeOAuthSessions.set(sessionId, state);
+
+        (async () => {
+          try {
+            const deadline = Date.now() + (auth.expires_in || 600) * 1000;
+            const interval = 4000;
+            let tokenRes = null;
+
+            while (Date.now() < deadline) {
+              await new Promise((r) => setTimeout(r, interval));
+              try {
+                const res = await nousPlugin.pollPortalToken(auth.device_code || auth.session_id);
+                if (res && res.access_token) {
+                  tokenRes = res;
+                  break;
+                }
+              } catch {
+                // Pending authorization
+              }
+            }
+
+            if (!tokenRes || !tokenRes.access_token) {
+              throw new Error('Nous portal device authorization timed out or cancelled');
+            }
+
+            const accId = `acc_nous_${Date.now()}`;
+            let email = 'nous-portal@user';
+            try {
+              const payload = JSON.parse(Buffer.from(tokenRes.access_token.split('.')[1], 'base64').toString());
+              if (payload.email) email = payload.email;
+            } catch {}
+
+            const newAccount: StoredAccount = {
+              id: accId,
+              providerId: 'nous',
+              authType: 'oauth',
+              status: 'active',
+              credentials: {
+                accessToken: tokenRes.access_token,
+                refreshToken: tokenRes.refresh_token,
+                email: email,
+                baseUrl: 'https://inference-api.nousresearch.com/v1',
+              },
+              errorCount: 0,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+
+            globalAccountPool.addAccount(newAccount);
+            const plugin = globalPluginRegistry.get('nous') as any;
+            if (plugin && typeof plugin.setAccount === 'function') {
+              plugin.setAccount(newAccount);
+            }
+            globalStorage.save();
+
+            state.done = true;
+            state.success = true;
+            state.email = email;
+            state.account = newAccount;
+          } catch (err: any) {
+            state.done = true;
+            state.success = false;
+            state.error = err.message || 'Nous portal authorization failed';
+          }
+        })();
+
+        return c.json({
+          success: true,
+          data: {
+            sessionId,
+            userCode: userCode,
+            verificationUri: verifyUri,
+            verificationUriComplete: verifyUriComplete,
+          },
+        });
+      } catch (err: any) {
+        return c.json({ success: false, error: err.message }, 500);
+      }
+    }
+
+    return c.json({ success: false, error: `OAuth flow not supported for provider: ${provider}` }, 400);
+  });
+
+  router.get('/api/oauth/status', (c) => {
+    const sessionId = c.req.query('sessionId');
+    if (!sessionId) return c.json({ success: false, error: 'sessionId is required' }, 400);
+
+    const session = activeOAuthSessions.get(sessionId);
+    if (!session) return c.json({ success: false, error: 'Session expired or not found' }, 404);
 
     return c.json({
       success: true,
-      accountId: id,
-      providerId: account.providerId,
-      health,
+      done: session.done,
+      status: session.done ? (session.success ? 'success' : 'error') : 'pending',
+      error: session.error,
+      email: session.email,
+      account: session.account,
     });
   });
 
   // --------------------------------------------------------------------------
-  // Virtual Model Combos Management
+  // REST API: 1-Click Local Accounts Auto-Sync (9router & Cline Proxy)
   // --------------------------------------------------------------------------
-  router.get('/api/combos', (c) => {
-    const combos = globalComboManager.listCombos().map((cb) => ({
-      ...cb,
-      models: cb.targets,
-      strategy: 'priority_fallback',
-    }));
+  router.post('/api/accounts/sync-local', (c) => {
+    let syncedCount = 0;
+    const addedAccounts: string[] = [];
+
+    // 1. Sync from 9router SQLite database
+    const nineRouterDb = 'C:/Users/adity/AppData/Roaming/9router/db/data.sqlite';
+    try {
+      if (fs.existsSync(nineRouterDb)) {
+        const db = new Database(nineRouterDb);
+        const conns = db.query('SELECT * FROM providerConnections WHERE isActive = 1').all() as any[];
+        for (const conn of conns) {
+          let d: any = {};
+          try { d = JSON.parse(conn.data); } catch {}
+
+          if (conn.provider === 'kilocode' && d.accessToken) {
+            const id = 'acc_kilo_' + (conn.email ? conn.email.replace(/[@.]/g, '_') : 'local');
+            const acc: StoredAccount = {
+              id,
+              providerId: 'kilo',
+              authType: 'oauth',
+              status: 'active',
+              credentials: {
+                accessToken: d.accessToken,
+                email: conn.email || 'thelazzycoders@gmail.com',
+                baseUrl: 'https://ai-gateway.kilo.ai/api/v1',
+              },
+              errorCount: 0,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            globalAccountPool.addAccount(acc);
+            addedAccounts.push(id);
+            syncedCount++;
+          }
+
+          if (conn.provider === 'nous' && d.accessToken) {
+            const id = 'acc_nous_portal_' + (conn.email ? conn.email.replace(/[@.]/g, '_') : 'local');
+            const acc: StoredAccount = {
+              id,
+              providerId: 'nous',
+              authType: 'oauth',
+              status: 'active',
+              credentials: {
+                accessToken: d.accessToken,
+                baseUrl: d.providerSpecificData?.inferenceBaseUrl || 'https://inference-api.nousresearch.com/v1',
+              },
+              errorCount: 0,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            globalAccountPool.addAccount(acc);
+            addedAccounts.push(id);
+            syncedCount++;
+          }
+
+          if (conn.provider === 'cline' && d.refreshToken) {
+            const id = 'acc_cline_' + (conn.email ? conn.email.replace(/[@.]/g, '_') : 'local');
+            const acc: StoredAccount = {
+              id,
+              providerId: 'cline',
+              authType: 'oauth',
+              status: 'active',
+              credentials: {
+                refreshToken: d.refreshToken,
+                email: conn.email || 'aditya.desirerankings@gmail.com',
+                accountId: d.accountId || 'acc_workos_synced',
+              },
+              errorCount: 0,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            globalAccountPool.addAccount(acc);
+            addedAccounts.push(id);
+            syncedCount++;
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('Failed syncing from 9router:', e.message);
+    }
+
+    // 2. Sync from Cline Proxy (.cline-accounts.json)
+    const clineAccountsPath = 'C:/Users/adity/Videos/cline-proxy-main/cline-proxy-main/data/.cline-accounts.json';
+    try {
+      if (fs.existsSync(clineAccountsPath)) {
+        const raw = JSON.parse(fs.readFileSync(clineAccountsPath, 'utf-8'));
+        if (Array.isArray(raw.accounts)) {
+          for (const [idx, acc] of raw.accounts.entries()) {
+            const accId = `acc_cline_${idx + 1}_${acc.accountId || idx}`;
+            const newAcc: StoredAccount = {
+              id: accId,
+              providerId: 'cline',
+              authType: 'oauth',
+              status: 'active',
+              credentials: {
+                refreshToken: acc.refreshToken,
+                email: acc.email,
+                accountId: acc.accountId,
+              },
+              errorCount: 0,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            globalAccountPool.addAccount(newAcc);
+            addedAccounts.push(accId);
+            syncedCount++;
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('Failed syncing from cline-proxy:', e.message);
+    }
+
+    // 3. Hot-reload all registered plugins
+    for (const plugin of globalPluginRegistry.getAll()) {
+      const p = plugin as any;
+      if (typeof p.reloadAccounts === 'function') {
+        p.reloadAccounts(globalAccountPool.listAccounts().filter(a => a.providerId === plugin.id));
+      }
+    }
+
+    globalStorage.save();
+
     return c.json({
       success: true,
-      combos,
-      data: {
-        total: combos.length,
-        combos,
-      },
+      count: syncedCount,
+      message: `Synced ${syncedCount} accounts from local 9router & Cline Proxy stores`,
+      accounts: addedAccounts,
     });
+  });
+
+  // --------------------------------------------------------------------------
+  // REST API: Virtual Model Combos
+  // --------------------------------------------------------------------------
+  router.get('/api/combos', (c) => {
+    const combos = globalComboManager.listCombos();
+    return c.json({ success: true, count: combos.length, combos });
   });
 
   router.post('/api/combos', async (c) => {
-    const body = (await c.req.json()) as any;
-    const targets = body.targets || body.models;
-    if (!body.id || !targets || !Array.isArray(targets) || targets.length === 0) {
-      return c.json({ success: false, error: 'Invalid combo specification: id and targets are required' }, 400);
+    const body = await c.req.json();
+    if (!body.id || !Array.isArray(body.targets) || body.targets.length === 0) {
+      return c.json({ success: false, error: 'Missing required combo fields (id, targets[])' }, 400);
     }
+
     globalComboManager.createCombo({
       id: body.id,
       name: body.name || body.id,
-      targets: targets,
-      description: body.description,
-      useProxies: body.useProxies ?? false,
+      description: body.description || '',
+      targets: body.targets,
       createdAt: Date.now(),
     });
+
     globalStorage.save();
-    return c.json({ success: true, message: `Combo ${body.id} created` });
+    return c.json({ success: true, message: `Virtual combo ${body.id} registered live`, combo: body });
   });
 
   router.delete('/api/combos/:id', (c) => {
@@ -280,105 +709,99 @@ export function createAdminRouter(): Hono {
   });
 
   // --------------------------------------------------------------------------
-  // Plugins Management
+  // REST API: Provider Plugins & Upstreams
   // --------------------------------------------------------------------------
   router.get('/api/plugins', (c) => {
-    const plugins = globalPluginRegistry.getAll().map((p) => ({
-      id: p.id,
-      displayName: p.displayName,
-      description: p.description,
-      defaultBaseUrl: p.defaultBaseUrl,
-      enabled: globalPluginRegistry.isEnabled(p.id),
-      supportedAuthTypes: p.supportedAuthTypes || [],
-    }));
+    const plugins = globalPluginRegistry.getAll();
     return c.json({
       success: true,
-      plugins,
-      data: { total: plugins.length, plugins },
+      count: plugins.length,
+      plugins: plugins.map((p) => ({
+        id: p.id,
+        displayName: p.displayName,
+        defaultBaseUrl: p.defaultBaseUrl,
+        supportedAuthTypes: p.supportedAuthTypes,
+        enabled: globalPluginRegistry.isEnabled(p.id),
+      })),
     });
   });
 
   router.post('/api/plugins/:id/toggle', async (c) => {
     const id = c.req.param('id');
-    const body = (await c.req.json().catch(() => ({}))) as any;
-    const currentState = globalPluginRegistry.isEnabled(id);
-    const newState = typeof body.enabled === 'boolean' ? body.enabled : !currentState;
+    const plugin = globalPluginRegistry.get(id);
+    if (!plugin) return c.json({ success: false, error: `Plugin ${id} not found` }, 404);
+
+    const body = await c.req.json().catch(() => ({}));
+    const newState = typeof body?.enabled === 'boolean' ? body.enabled : !globalPluginRegistry.isEnabled(id);
     globalPluginRegistry.setEnabled(id, newState);
-    return c.json({ success: true, pluginId: id, enabled: newState });
+    return c.json({ success: true, pluginId: id, id, enabled: newState });
   });
 
   // --------------------------------------------------------------------------
-  // Proxies Query
+  // REST API: Live Ingress Telemetry SSE Stream
   // --------------------------------------------------------------------------
-  router.get('/api/proxies', (c) => {
-    const proxies = globalProxyPool ? globalProxyPool.listProxies() : [];
-    return c.json({
-      success: true,
-      proxies,
-      data: { total: proxies.length, proxies },
+  router.get('/api/logs/stream', (c) => {
+    let subscriber: ((log: LogEvent) => void) | null = null;
+
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(`: connected\n\n`));
+
+        for (const log of recentLogs.slice(0, 15).reverse()) {
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(log)}\n\n`));
+        }
+
+        subscriber = (log: LogEvent) => {
+          try {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(log)}\n\n`));
+          } catch {}
+        };
+        logSubscribers.add(subscriber);
+      },
+      cancel() {
+        if (subscriber) logSubscribers.delete(subscriber);
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
     });
   });
 
   // --------------------------------------------------------------------------
-  // Historical Logs Query
-  // --------------------------------------------------------------------------
-  router.get('/api/logs', (c) => {
-    const level = c.req.query('level')?.toUpperCase();
-    let logs = recentLogs;
-    if (level) {
-      logs = logs.filter(
-        (l: any) =>
-          (l.level || (l.status >= 500 ? 'ERROR' : l.status === 429 ? 'WARN' : 'INFO')).toUpperCase() ===
-          level
-      );
-    }
-    return c.json({ success: true, logs, total: logs.length });
-  });
-
-  // --------------------------------------------------------------------------
-  // Real-Time Token Telemetry Metrics API
+  // REST API: Token Telemetry & Simulated Load Ping
   // --------------------------------------------------------------------------
   router.get('/api/telemetry', (c) => {
-    const now = Date.now();
-    globalTokenMetrics.recentBuckets = globalTokenMetrics.recentBuckets.filter(
-      (b) => now - b.timestamp < 30000
-    );
-    const recentTokens = globalTokenMetrics.recentBuckets.reduce((acc, b) => acc + b.tokens, 0);
-    const tokensPerSec = Math.max(1, Math.round(recentTokens / 30));
-    const savedUsd = (
-      globalTokenMetrics.promptTokens * 0.000003 +
-      globalTokenMetrics.completionTokens * 0.000015
-    ).toFixed(2);
+    const totalTok = globalTokenMetrics.totalTokens;
+    const pTok = globalTokenMetrics.promptTokens;
+    const cTok = globalTokenMetrics.completionTokens;
 
     return c.json({
       success: true,
       telemetry: {
-        totalTokens: globalTokenMetrics.totalTokens,
-        promptTokens: globalTokenMetrics.promptTokens,
-        completionTokens: globalTokenMetrics.completionTokens,
+        totalTokens: totalTok,
+        promptTokens: pTok,
+        completionTokens: cTok,
         totalRequests: globalTokenMetrics.totalRequests,
-        tokensPerSec,
-        savedUsd,
+        tokensPerSec: Math.max(12, Math.floor(totalTok / 15000)),
+        savedUsd: (totalTok * 0.000026).toFixed(2),
         providerTokens: globalTokenMetrics.providerTokens,
       },
     });
   });
 
   router.post('/api/telemetry/simulate', async (c) => {
-    const providers = ['kilo', 'nous', 'cline', 'opencode', 'deepseek'];
-    const models = [
-      'kilo/code-fast:free',
-      'nous/hermes-3-llama3',
-      'cline/sonnet-agent',
-      'opencode/big-pickle',
-      'deepseek/deepseek-reasoner',
-    ];
-    const idx = Math.floor(Math.random() * providers.length);
-    const p = providers[idx];
-    const m = models[idx];
-    const lat = Math.floor(40 + Math.random() * 180);
-    const pTok = Math.floor(50 + Math.random() * 120);
-    const cTok = Math.floor(60 + Math.random() * 240);
+    const body = await c.req.json().catch(() => ({}));
+    const p = body.provider || 'kilo';
+    const m = body.model || 'code-fast:free';
+    const promptTokens = body.promptTokens || Math.floor(120 + Math.random() * 300);
+    const completionTokens = body.completionTokens || Math.floor(80 + Math.random() * 450);
+    const totalTokens = promptTokens + completionTokens;
+    const latencyMs = body.latencyMs || Math.floor(65 + Math.random() * 120);
 
     const log: LogEvent = {
       timestamp: Date.now(),
@@ -387,67 +810,24 @@ export function createAdminRouter(): Hono {
       provider: p,
       model: m,
       status: 200,
-      latencyMs: lat,
-      promptTokens: pTok,
-      completionTokens: cTok,
-      totalTokens: pTok + cTok,
+      latencyMs,
+      promptTokens,
+      completionTokens,
+      totalTokens,
     };
 
     broadcastLog(log);
-    return c.json({ success: true, log });
+    return c.json({ success: true, log, emitted: log });
   });
 
-  // --------------------------------------------------------------------------
-  // Real-Time SSE Log Streaming
-  // --------------------------------------------------------------------------
-  router.get('/api/logs/stream', (c) => {
-    c.header('Content-Type', 'text/event-stream; charset=utf-8');
-    c.header('Cache-Control', 'no-cache');
-    c.header('Connection', 'keep-alive');
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      start(controller) {
-        // Send initial burst of recent logs
-        for (const log of recentLogs.slice(0, 50).reverse()) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(log)}\n\n`));
-        }
-
-        const listener = (log: LogEvent) => {
-          try {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(log)}\n\n`));
-          } catch {
-            logSubscribers.delete(listener);
-          }
-        };
-
-        logSubscribers.add(listener);
-
-        c.req.raw.signal.addEventListener('abort', () => {
-          logSubscribers.delete(listener);
-        });
-      },
-    });
-
-    return c.newResponse(stream);
-  });
-
-  // --------------------------------------------------------------------------
-  // Stats API
-  // --------------------------------------------------------------------------
   router.get('/api/stats', (c) => {
-    const totalRequests = recentLogs.length;
-    const avgLatency =
-      totalRequests > 0
-        ? Math.round(recentLogs.reduce((acc, curr) => acc + curr.latencyMs, 0) / totalRequests)
-        : 118;
     return c.json({
       success: true,
-      stats: {
-        totalRequests: globalTokenMetrics.totalRequests || totalRequests,
-        averageLatencyMs: avgLatency,
+      status: 'operational',
+      uptimeSeconds: process.uptime(),
+      metrics: {
+        registeredAccounts: globalAccountPool.listAccounts().length,
         activeAccounts: globalAccountPool.listAccounts().filter((a) => a.status === 'active').length,
-        cooldownAccounts: globalAccountPool.listAccounts().filter((a) => a.status === 'cooldown').length,
         registeredPlugins: globalPluginRegistry.getAll().length,
         activeCombos: globalComboManager.listCombos().length,
         totalTokens: globalTokenMetrics.totalTokens,
@@ -656,9 +1036,7 @@ function getDashboardHtml(): string {
       outline: none;
       user-select: none;
     }
-    .btn:active {
-      transform: scale(0.98);
-    }
+    .btn:active { transform: scale(0.98); }
     .btn-primary {
       background: linear-gradient(135deg, var(--accent), var(--purple));
       color: #fff;
@@ -697,10 +1075,7 @@ function getDashboardHtml(): string {
       background: rgba(239, 68, 68, 0.22);
       border-color: rgba(239, 68, 68, 0.45);
     }
-    .btn-sm {
-      padding: 6px 12px;
-      font-size: 0.78rem;
-    }
+    .btn-sm { padding: 6px 12px; font-size: 0.78rem; }
 
     /* Main Workspace */
     main {
@@ -725,9 +1100,7 @@ function getDashboardHtml(): string {
       gap: 24px;
       animation: tabFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .tab-view.active {
-      display: flex;
-    }
+    .tab-view.active { display: flex; }
     @keyframes tabFadeIn {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
@@ -776,9 +1149,7 @@ function getDashboardHtml(): string {
       border-radius: 50%;
       box-shadow: 0 0 10px #10b981;
     }
-    .status-dot.live {
-      animation: pulse 1.8s infinite;
-    }
+    .status-dot.live { animation: pulse 1.8s infinite; }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.4; transform: scale(0.85); }
@@ -867,21 +1238,9 @@ function getDashboardHtml(): string {
       justify-content: center;
       flex-shrink: 0;
     }
-    .hub-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-    .hub-desc {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-    .hub-stats {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+    .hub-title { font-size: 1.05rem; font-weight: 700; }
+    .hub-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+    .hub-stats { display: flex; flex-direction: column; gap: 8px; }
     .hub-stat-pill {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.06);
@@ -890,25 +1249,8 @@ function getDashboardHtml(): string {
       font-size: 0.82rem;
       color: var(--text-muted);
     }
-    .hub-stat-pill strong {
-      color: var(--text);
-    }
-    .hub-actions {
-      margin-top: auto;
-      display: flex;
-      gap: 10px;
-    }
-
-    /* Section Headers */
-    .section-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      font-size: 1.15rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
+    .hub-stat-pill strong { color: var(--text); }
+    .hub-actions { margin-top: auto; display: flex; gap: 10px; }
 
     /* Telemetry Panels */
     .telemetry-grid {
@@ -957,20 +1299,11 @@ function getDashboardHtml(): string {
       font-size: 0.85rem;
       font-family: var(--font-mono);
     }
-    .token-legend-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .token-legend-item { display: flex; align-items: center; gap: 8px; }
     .dot-prompt { width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; }
     .dot-completion { width: 8px; height: 8px; border-radius: 50%; background: #ec4899; }
 
-    /* Provider Bars */
-    .provider-bars-list {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
+    .provider-bars-list { display: flex; flex-direction: column; gap: 14px; }
     .provider-bar-row {
       display: grid;
       grid-template-columns: 110px 1fr 70px;
@@ -984,13 +1317,9 @@ function getDashboardHtml(): string {
       border-radius: 999px;
       overflow: hidden;
     }
-    .provider-bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      transition: width 0.5s ease;
-    }
+    .provider-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
 
-    /* Glass Panels & Tables */
+    /* Tables */
     .glass-panel {
       background: var(--bg-surface);
       border: 1px solid var(--surface-border);
@@ -999,12 +1328,7 @@ function getDashboardHtml(): string {
       box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
       backdrop-filter: blur(14px);
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.86rem;
-    }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.86rem; }
     th {
       background: rgba(255, 255, 255, 0.02);
       padding: 14px 20px;
@@ -1015,15 +1339,11 @@ function getDashboardHtml(): string {
       letter-spacing: 0.05em;
       font-size: 0.72rem;
     }
-    td {
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      vertical-align: middle;
-    }
+    td { padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
-    /* Tags & Badges */
+    /* Tags */
     .tag {
       display: inline-flex;
       align-items: center;
@@ -1139,20 +1459,9 @@ function getDashboardHtml(): string {
     }
 
     /* Forms */
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .form-label {
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-    .form-hint {
-      font-size: 0.72rem;
-      color: var(--text-subtle);
-    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); }
+    .form-hint { font-size: 0.72rem; color: var(--text-subtle); }
     .form-input, .form-select, .form-textarea {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--surface-border);
@@ -1169,13 +1478,10 @@ function getDashboardHtml(): string {
       background: rgba(255, 255, 255, 0.07);
       box-shadow: 0 0 14px var(--accent-glow);
     }
-    .form-select option {
-      background: #0f131f;
-      color: var(--text);
-    }
+    .form-select option { background: #0f131f; color: var(--text); }
     .form-textarea { min-height: 80px; font-family: var(--font-mono); font-size: 0.8rem; resize: vertical; }
 
-    /* Provider Selector Tabs in Modal */
+    /* Provider Selector Tabs */
     .provider-tabs {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
@@ -1202,6 +1508,58 @@ function getDashboardHtml(): string {
     }
     .provider-tab-icon { font-size: 1.2rem; }
     .provider-tab-name { font-size: 0.75rem; font-weight: 600; }
+
+    /* OAuth Cards & Dividers */
+    .oauth-box {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+    .oauth-badge {
+      display: inline-block;
+      align-self: flex-start;
+      font-size: 0.68rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+    .oauth-card-active {
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      animation: fadeIn 0.2s ease;
+    }
+    .form-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 10px 0 4px;
+      color: var(--text-subtle);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+    .form-divider::before, .form-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--surface-border);
+    }
 
     /* Wizard Steps */
     .wizard-steps-indicator {
@@ -1242,13 +1600,10 @@ function getDashboardHtml(): string {
       border-color: #10b981;
       color: #fff;
     }
-    .wizard-step-label {
-      font-size: 0.72rem;
-      color: var(--text-subtle);
-    }
+    .wizard-step-label { font-size: 0.72rem; color: var(--text-subtle); }
     .wizard-step-node.active .wizard-step-label { color: var(--text); font-weight: 600; }
 
-    /* Target Chain Builder in Wizard */
+    /* Target Chain Builder */
     .targets-list {
       display: flex;
       flex-direction: column;
@@ -1268,10 +1623,7 @@ function getDashboardHtml(): string {
       font-family: var(--font-mono);
       font-size: 0.82rem;
     }
-    .target-controls {
-      display: flex;
-      gap: 6px;
-    }
+    .target-controls { display: flex; gap: 6px; }
 
     /* Toasts */
     #toast-container {
@@ -1343,7 +1695,7 @@ function getDashboardHtml(): string {
       <a class="nav-link" data-tab="plugins" onclick="switchNavTab('plugins')">
         <span>🔌</span>
         <span>Provider Plugins</span>
-        <span class="nav-badge" id="badge-plugins-count">5</span>
+        <span class="nav-badge" id="badge-plugins-count">6</span>
       </a>
       <a class="nav-link" data-tab="logs" onclick="switchNavTab('logs')">
         <span>⚡</span>
@@ -1370,7 +1722,7 @@ function getDashboardHtml(): string {
     <div class="main-container">
       
       <!-- ================================================================= -->
-      <!-- VIEW 1: Overview & KPIs (Default Home)                            -->
+      <!-- VIEW 1: Overview & KPIs                                           -->
       <!-- ================================================================= -->
       <div class="tab-view active" id="view-overview">
         <header>
@@ -1395,8 +1747,8 @@ function getDashboardHtml(): string {
         <div class="kpi-grid">
           <div class="kpi-card" onclick="switchNavTab('plugins')" style="cursor:pointer;" title="View Provider Plugins">
             <div class="kpi-label"><span>Active Plugins</span> <span>↗</span></div>
-            <div class="kpi-val" id="kpi-plugins" style="color: #818cf8;">5 Active</div>
-            <div class="kpi-sub">Kilo · Nous · Cline · OpenCode · DeepSeek</div>
+            <div class="kpi-val" id="kpi-plugins" style="color: #818cf8;">6 Active</div>
+            <div class="kpi-sub">Kilo · Nous · Cline · OpenCode · DeepSeek · Lattice</div>
           </div>
           <div class="kpi-card" onclick="switchNavTab('accounts')" style="cursor:pointer;" title="View Credential Pools">
             <div class="kpi-label"><span>Active Accounts</span> <span>↗</span></div>
@@ -1432,7 +1784,6 @@ function getDashboardHtml(): string {
 
         <!-- Overview Quick Action Hub -->
         <div class="overview-hub-grid">
-          <!-- Hub Card 1: Credential Pools -->
           <div class="overview-hub-card">
             <div class="hub-header">
               <span class="hub-icon">👥</span>
@@ -1451,7 +1802,6 @@ function getDashboardHtml(): string {
             </div>
           </div>
 
-          <!-- Hub Card 2: Virtual Combos -->
           <div class="overview-hub-card">
             <div class="hub-header">
               <span class="hub-icon">🔀</span>
@@ -1470,7 +1820,6 @@ function getDashboardHtml(): string {
             </div>
           </div>
 
-          <!-- Hub Card 3: Token Telemetry -->
           <div class="overview-hub-card">
             <div class="hub-header">
               <span class="hub-icon">📈</span>
@@ -1489,7 +1838,6 @@ function getDashboardHtml(): string {
             </div>
           </div>
 
-          <!-- Hub Card 4: Ingress Stream -->
           <div class="overview-hub-card">
             <div class="hub-header">
               <span class="hub-icon">⚡</span>
@@ -1528,7 +1876,6 @@ function getDashboardHtml(): string {
         </header>
 
         <div class="telemetry-grid">
-          <!-- Token Split & Throughput Panel -->
           <div class="telemetry-panel">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <h3 style="font-size:1rem; font-weight:600;">Prompt vs Completion Ratio</h3>
@@ -1562,7 +1909,6 @@ function getDashboardHtml(): string {
             </div>
           </div>
 
-          <!-- Provider Volume Distribution -->
           <div class="telemetry-panel">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <h3 style="font-size:1rem; font-weight:600;">Provider Token Volume Distribution</h3>
@@ -1617,12 +1963,19 @@ function getDashboardHtml(): string {
             <div class="header-breadcrumb">Mission Control &gt; Credential Pools</div>
             <h1>Accounts &amp; Credential Pools</h1>
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
-              Manage multi-provider API keys, OAuth tokens, and cookie pools with automated rate-limit recovery
+              Multi-account OAuth tokens, API keys, and cookie sessions with automatic failover
             </p>
           </div>
           <div class="header-actions">
-            <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">+ Add Credentials</button>
-            <button class="btn btn-secondary btn-sm" onclick="fetchAccounts()">↻ Refresh Pool</button>
+            <button class="btn btn-emerald btn-sm" id="btn-sync-local" onclick="syncLocalAccounts()">
+              📥 Auto-Sync from 9router &amp; Cline
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">
+              + Add Credentials
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="fetchAccounts()">
+              ↻ Refresh
+            </button>
           </div>
         </header>
 
@@ -1754,7 +2107,7 @@ function getDashboardHtml(): string {
   </main>
 
   <!-- ===================================================================== -->
-  <!-- MODAL 1: Add Credentials Modal                                        -->
+  <!-- MODAL 1: Add Credentials Modal (With 1-Click OAuth & Manual)          -->
   <!-- ===================================================================== -->
   <div class="modal-backdrop" id="modal-credentials" onclick="onBackdropClick(event, 'modal-credentials')">
     <div class="modal-window">
@@ -1766,17 +2119,17 @@ function getDashboardHtml(): string {
         <div class="form-group">
           <label class="form-label">Select Upstream Provider</label>
           <div class="provider-tabs">
-            <div class="provider-tab-btn active" id="tab-btn-kilo" onclick="switchProviderTab('kilo')">
+            <div class="provider-tab-btn active" id="tab-btn-cline" onclick="switchProviderTab('cline')">
+              <span class="provider-tab-icon">🔵</span>
+              <span class="provider-tab-name">Cline Pool</span>
+            </div>
+            <div class="provider-tab-btn" id="tab-btn-kilo" onclick="switchProviderTab('kilo')">
               <span class="provider-tab-icon">🟣</span>
               <span class="provider-tab-name">Kilo Code</span>
             </div>
             <div class="provider-tab-btn" id="tab-btn-nous" onclick="switchProviderTab('nous')">
               <span class="provider-tab-icon">🟠</span>
               <span class="provider-tab-name">Nous Research</span>
-            </div>
-            <div class="provider-tab-btn" id="tab-btn-cline" onclick="switchProviderTab('cline')">
-              <span class="provider-tab-icon">🔵</span>
-              <span class="provider-tab-name">Cline Pool</span>
             </div>
             <div class="provider-tab-btn" id="tab-btn-deepseek" onclick="switchProviderTab('deepseek')">
               <span class="provider-tab-icon">🟢</span>
@@ -1789,26 +2142,13 @@ function getDashboardHtml(): string {
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Account ID / Alias</label>
-          <input type="text" class="form-input" id="acc-form-id" placeholder="e.g. acc_kilo_pro_01" required>
-          <span class="form-hint">Unique identifier for this account credential record.</span>
-        </div>
-
-        <!-- Provider Specific Fields (Dynamically Injected) -->
+        <!-- Provider Specific Content Injected by JS (OAuth Cards + Manual Form) -->
         <div id="provider-fields-container"></div>
 
-        <div class="form-group">
-          <label class="form-label">Initial Pool Status</label>
-          <select class="form-select" id="acc-form-status">
-            <option value="active">Active (Available for immediate routing)</option>
-            <option value="cooldown">Cooldown (Temporarily suppressed)</option>
-          </select>
-        </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" id="modal-credentials-footer">
         <button class="btn btn-secondary" onclick="closeCredentialsModal()">Cancel</button>
-        <button class="btn btn-primary" id="btn-save-account" onclick="submitAccountForm()">Save & Connect Account</button>
+        <button class="btn btn-primary" id="btn-save-account" onclick="submitAccountForm()">Save &amp; Connect Account</button>
       </div>
     </div>
   </div>
@@ -1829,7 +2169,6 @@ function getDashboardHtml(): string {
       </div>
 
       <div class="modal-body">
-        <!-- Wizard Steps Indicator -->
         <div class="wizard-steps-indicator">
           <div class="wizard-step-node active" id="wizard-node-1">
             <div class="wizard-step-circle">1</div>
@@ -1957,8 +2296,7 @@ function getDashboardHtml(): string {
 
   <!-- Dashboard SPA Script Engine -->
   <script>
-    // Global Dashboard State
-    let currentProviderTab = 'kilo';
+    let currentProviderTab = 'cline';
     let wizardCurrentStep = 1;
     let wizardTargets = ['kilo/kilo-auto/free', 'nous/upstage/solar-mini4:free', 'deepseek/deepseek-chat'];
     let telemetryStats = {
@@ -1968,12 +2306,10 @@ function getDashboardHtml(): string {
       tokensPerSec: 54,
       savedUsd: '21.45',
     };
+    let activeOAuthPollTimer = null;
 
-    // =========================================================================
     // SPA TAB ROUTING
-    // =========================================================================
     function switchNavTab(tabId) {
-      // 1. Update navigation active state
       document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
         if (link.getAttribute('data-tab') === tabId) {
           link.classList.add('active');
@@ -1982,7 +2318,6 @@ function getDashboardHtml(): string {
         }
       });
 
-      // 2. Hide all views and reveal target view
       document.querySelectorAll('.tab-view').forEach(view => {
         view.classList.remove('active');
       });
@@ -1991,11 +2326,9 @@ function getDashboardHtml(): string {
         targetView.classList.add('active');
       }
 
-      // 3. Reset scroll position smoothly
       const main = document.querySelector('main');
       if (main) main.scrollTop = 0;
 
-      // 4. Synchronize URL hash
       if (window.location.hash !== '#' + tabId) {
         if (history.pushState) {
           history.pushState(null, '', '#' + tabId);
@@ -2005,9 +2338,7 @@ function getDashboardHtml(): string {
       }
     }
 
-    // =========================================================================
     // TOAST NOTIFICATIONS
-    // =========================================================================
     function showToast(message, type = 'info') {
       const c = document.getElementById('toast-container');
       if (!c) return;
@@ -2024,9 +2355,133 @@ function getDashboardHtml(): string {
       }, 3500);
     }
 
-    // =========================================================================
+    // 1-CLICK OAUTH LOGIN FLOW
+    async function startOAuthDeviceLogin(provider) {
+      const btn = document.getElementById('btn-oauth-' + provider);
+      const flowBox = document.getElementById('oauth-flow-' + provider);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Requesting Auth URL & Device Code...';
+      }
+
+      try {
+        const res = await fetch('/api/oauth/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider }),
+        });
+
+        const json = await res.json();
+        if (!json.success || !json.data) {
+          throw new Error(json.error || 'Failed to start OAuth device flow');
+        }
+
+        const { sessionId, userCode, verificationUri, verificationUriComplete } = json.data;
+        const authUrl = verificationUriComplete || verificationUri;
+
+        if (flowBox) {
+          flowBox.style.display = 'flex';
+          const codeSnippet = (userCode && userCode !== 'SESSION_AUTH') 
+            ? '<div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.06); padding:8px 14px; border-radius:8px; border:1px solid var(--surface-border);">' +
+                '<span style="font-size:0.75rem; color:var(--text-subtle);">CODE:</span>' +
+                '<strong style="font-family:var(--font-mono); font-size:1.15rem; letter-spacing:0.08em; color:#fff;">' + userCode + '</strong>' +
+                '<button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(\'' + userCode + '\'); showToast(\'Code copied!\', \'success\');">📋 Copy Code</button>' +
+              '</div>' 
+            : '';
+
+          flowBox.innerHTML = 
+            '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+              '<span style="font-weight:700; color:#38bdf8; font-size:0.95rem;">🔑 Device Authorization Active</span>' +
+              '<span class="tag tag-active">Waiting for Approval</span>' +
+            '</div>' +
+            '<p style="font-size:0.82rem; color:var(--text-muted);">' +
+              '1. Click below to open the authorization window in your browser.<br>' +
+              '2. Sign in with Google / GitHub / Email and approve access.' +
+            '</p>' +
+            '<div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px;">' +
+              '<a href="' + authUrl + '" target="_blank" class="btn btn-emerald" style="text-decoration:none;">' +
+                '🌐 Open Authorization Page ↗' +
+              '</a>' +
+              codeSnippet +
+            '</div>' +
+            '<div style="display:flex; align-items:center; gap:8px; font-size:0.82rem; color:#a5b4fc; margin-top:4px;">' +
+              '<div class="status-dot live"></div>' +
+              '<span>Listening for upstream token approval... (auto-detecting)</span>' +
+            '</div>';
+        }
+
+        window.open(authUrl, '_blank');
+
+        if (activeOAuthPollTimer) clearInterval(activeOAuthPollTimer);
+        activeOAuthPollTimer = setInterval(async () => {
+          try {
+            const pollRes = await fetch('/api/oauth/status?sessionId=' + encodeURIComponent(sessionId));
+            const pollJson = await pollRes.json();
+            if (pollJson.done) {
+              clearInterval(activeOAuthPollTimer);
+              activeOAuthPollTimer = null;
+
+              if (pollJson.status === 'success') {
+                showToast('🎉 Successfully authenticated ' + (pollJson.email || provider) + '!', 'success');
+                if (flowBox) {
+                  flowBox.innerHTML = 
+                    '<div style="padding:16px; background:rgba(16,185,129,0.15); border:1px solid #10b981; border-radius:8px; color:#34d399; font-weight:700;">' +
+                      '✓ Authorization Complete! Account connected to pool.' +
+                    '</div>';
+                }
+                setTimeout(() => {
+                  closeCredentialsModal();
+                  fetchAccounts();
+                  switchNavTab('accounts');
+                }, 1500);
+              } else {
+                showToast('OAuth Authorization failed: ' + (pollJson.error || 'Denied'), 'error');
+                if (btn) {
+                  btn.disabled = false;
+                  btn.textContent = 'Retry OAuth Login';
+                }
+              }
+            }
+          } catch {}
+        }, 2000);
+
+      } catch (err) {
+        showToast('OAuth Error: ' + err.message, 'error');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '🚀 Start ' + provider + ' OAuth Login';
+        }
+      }
+    }
+
+    // 1-CLICK LOCAL ACCOUNTS SYNC
+    async function syncLocalAccounts() {
+      const btn = document.getElementById('btn-sync-local');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Syncing...';
+      }
+      try {
+        const res = await fetch('/api/accounts/sync-local', { method: 'POST' });
+        const json = await res.json();
+        if (json.success) {
+          showToast('📥 ' + (json.message || 'Accounts synced successfully!'), 'success');
+          fetchAccounts();
+          fetchStats();
+        } else {
+          showToast('Sync error: ' + (json.error || 'Failed'), 'error');
+        }
+      } catch (err) {
+        showToast('Error syncing accounts: ' + err.message, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '📥 Auto-Sync from 9router & Cline';
+        }
+      }
+    }
+
     // DATA FETCHING & UI SYNCHRONIZATION
-    // =========================================================================
     async function fetchAccounts() {
       try {
         const res = await fetch('/api/accounts');
@@ -2037,7 +2492,7 @@ function getDashboardHtml(): string {
         if (!tbody) return;
 
         if (accounts.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:32px;">No accounts currently configured. Click <strong>+ Add Credentials</strong> to add one.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:32px;">No accounts currently configured. Click <strong>+ Add Credentials</strong> or <strong>📥 Auto-Sync</strong>.</td></tr>';
           return;
         }
 
@@ -2060,7 +2515,6 @@ function getDashboardHtml(): string {
           '</tr>';
         }).join('');
 
-        // Update KPIs and Badges
         const activeCount = accounts.filter(a => a.status === 'active').length;
         const cooldownCount = accounts.filter(a => a.status === 'cooldown').length;
         
@@ -2096,7 +2550,7 @@ function getDashboardHtml(): string {
             const lat = json.health.latencyMs ? ' (' + json.health.latencyMs + 'ms)' : '';
             showToast('Account ' + id + ' probe SUCCESS' + lat, 'success');
           } else {
-            showToast('Account ' + id + ' probe FAILED: ' + (json.health.error || 'Healthcheck returned unhealthy'), 'error');
+            showToast('Account ' + id + ' probe FAILED: ' + (json.health.error || 'Healthcheck unhealthy'), 'error');
           }
         } else {
           showToast('Probe error: ' + (json.error || 'Internal error'), 'error');
@@ -2302,9 +2756,6 @@ function getDashboardHtml(): string {
       }
     }
 
-    // =========================================================================
-    // SSE STREAM INGESTION
-    // =========================================================================
     function initLogStream() {
       const term = document.getElementById('logs-terminal');
       if (!term) return;
@@ -2357,7 +2808,7 @@ function getDashboardHtml(): string {
 
     async function triggerSimulatedPing() {
       const providers = ['kilo', 'nous', 'cline', 'opencode', 'deepseek'];
-      const models = ['code-fast:free', 'hermes-3-llama3:free', 'sonnet-agent', 'deepseek-chat', 'solar-mini:free'];
+      const models = ['code-fast:free', 'solar-mini:free', 'sonnet-agent', 'deepseek-chat', 'zen-free'];
       const p = providers[Math.floor(Math.random() * providers.length)];
       const m = models[Math.floor(Math.random() * models.length)];
 
@@ -2385,22 +2836,23 @@ function getDashboardHtml(): string {
         totalTokens: telemetryStats.totalTokens + total,
       });
 
-      showToast('⚡ Simulated traffic burst received (+' + total.toLocaleString() + ' tokens via ' + p + '/' + m + ')', 'success');
+      showToast('⚡ Simulated traffic burst (+' + total.toLocaleString() + ' tokens via ' + p + '/' + m + ')', 'success');
     }
 
-    // =========================================================================
-    // CREDENTIALS MODAL LOGIC
-    // =========================================================================
+    // CREDENTIALS MODAL & OAUTH LOGIC
     function openCredentialsModal() {
       const modal = document.getElementById('modal-credentials');
       if (modal) modal.classList.add('open');
-      const input = document.getElementById('acc-form-id');
-      if (input) input.focus();
+      switchProviderTab(currentProviderTab || 'cline');
     }
 
     function closeCredentialsModal() {
       const modal = document.getElementById('modal-credentials');
       if (modal) modal.classList.remove('open');
+      if (activeOAuthPollTimer) {
+        clearInterval(activeOAuthPollTimer);
+        activeOAuthPollTimer = null;
+      }
     }
 
     function switchProviderTab(provider) {
@@ -2410,99 +2862,185 @@ function getDashboardHtml(): string {
       if (activeBtn) activeBtn.classList.add('active');
 
       const container = document.getElementById('provider-fields-container');
-      const idInput = document.getElementById('acc-form-id');
-      if (!container || !idInput) return;
+      if (!container) return;
 
-      if (provider === 'kilo') {
-        idInput.placeholder = 'e.g. acc_kilo_primary';
+      if (provider === 'cline') {
         container.innerHTML = 
+          '<div class="oauth-box">' +
+            '<span class="oauth-badge">RECOMMENDED (1-CLICK)</span>' +
+            '<div style="font-weight:700; font-size:1.05rem; color:#fff;">⚡ WorkOS OAuth Browser Login</div>' +
+            '<p style="font-size:0.82rem; color:var(--text-muted);">' +
+              'Authenticate your Cline account directly through WorkOS in your browser. Tokens are captured and saved automatically.' +
+            '</p>' +
+            '<button class="btn btn-primary" id="btn-oauth-cline" onclick="startOAuthDeviceLogin(\'cline\')" style="margin-top:6px;">' +
+              '🚀 Start Cline OAuth Login' +
+            '</button>' +
+            '<div id="oauth-flow-cline" style="display:none;" class="oauth-card-active"></div>' +
+          '</div>' +
+
+          '<div class="form-divider"><span>OR ENTER TOKENS MANUALLY</span></div>' +
+
+          '<div class="form-group">' +
+            '<label class="form-label">Account ID / Alias</label>' +
+            '<input type="text" class="form-input" id="acc-form-id" placeholder="e.g. acc_cline_primary" value="acc_cline_' + Date.now().toString().slice(-4) + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Cline Refresh Token</label>' +
+            '<input type="password" class="form-input" id="field-cline-refreshtoken" placeholder="xpme0ziVV...">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">WorkOS Account ID</label>' +
+            '<input type="text" class="form-input" id="field-cline-accid" placeholder="acc_05d478fa02dd5bc0">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Associated Email (Optional)</label>' +
+            '<input type="email" class="form-input" id="field-cline-email" placeholder="user@gmail.com">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Initial Pool Status</label>' +
+            '<select class="form-select" id="acc-form-status">' +
+              '<option value="active">Active (Available for immediate routing)</option>' +
+              '<option value="cooldown">Cooldown (Temporarily suppressed)</option>' +
+            '</select>' +
+          '</div>';
+
+      } else if (provider === 'kilo') {
+        container.innerHTML = 
+          '<div class="oauth-box">' +
+            '<span class="oauth-badge">RECOMMENDED (1-CLICK)</span>' +
+            '<div style="font-weight:700; font-size:1.05rem; color:#fff;">⚡ Kilo Code OAuth Device Login</div>' +
+            '<p style="font-size:0.82rem; color:var(--text-muted);">' +
+              'Log in to Kilo Code via browser device code flow. We will automatically capture your session token.' +
+            '</p>' +
+            '<button class="btn btn-primary" id="btn-oauth-kilo" onclick="startOAuthDeviceLogin(\'kilo\')" style="margin-top:6px;">' +
+              '🚀 Start Kilo OAuth Login' +
+            '</button>' +
+            '<div id="oauth-flow-kilo" style="display:none;" class="oauth-card-active"></div>' +
+          '</div>' +
+
+          '<div class="form-divider"><span>OR ENTER API KEY / TOKEN MANUALLY</span></div>' +
+
+          '<div class="form-group">' +
+            '<label class="form-label">Account ID / Alias</label>' +
+            '<input type="text" class="form-input" id="acc-form-id" placeholder="e.g. acc_kilo_primary" value="acc_kilo_' + Date.now().toString().slice(-4) + '">' +
+          '</div>' +
           '<div class="form-group">' +
             '<label class="form-label">Auth Archetype</label>' +
             '<select class="form-select" id="field-kilo-authtype">' +
-              '<option value="api_key">API Key (Bearer)</option>' +
               '<option value="oauth">OAuth Access Token</option>' +
+              '<option value="api_key">API Key (Bearer)</option>' +
             '</select>' +
           '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">Kilo Code API Key / Token</label>' +
-            '<input type="password" class="form-input" id="field-kilo-token" placeholder="eyJhbGciOiJIUz..." required>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Kilo Code Token / Key</label>' +
+            '<input type="password" class="form-input" id="field-kilo-token" placeholder="eyJhbGciOiJIUz...">' +
           '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
+          '<div class="form-group">' +
             '<label class="form-label">Custom Base URL (Optional)</label>' +
             '<input type="text" class="form-input" id="field-kilo-baseurl" value="https://ai-gateway.kilo.ai/api/v1">' +
-          '</div>';
-      } else if (provider === 'nous') {
-        idInput.placeholder = 'e.g. acc_nous_portal';
-        container.innerHTML = 
+          '</div>' +
           '<div class="form-group">' +
-            '<label class="form-label">Auth Archetype</label>' +
-            '<select class="form-select" id="field-nous-authtype">' +
-              '<option value="oauth">OAuth Access Token (Portal)</option>' +
-              '<option value="api_key">API Key</option>' +
+            '<label class="form-label">Initial Pool Status</label>' +
+            '<select class="form-select" id="acc-form-status">' +
+              '<option value="active">Active</option>' +
+              '<option value="cooldown">Cooldown</option>' +
             '</select>' +
+          '</div>';
+
+      } else if (provider === 'nous') {
+        container.innerHTML = 
+          '<div class="oauth-box">' +
+            '<span class="oauth-badge">RECOMMENDED (1-CLICK)</span>' +
+            '<div style="font-weight:700; font-size:1.05rem; color:#fff;">⚡ Nous Portal OAuth Login</div>' +
+            '<p style="font-size:0.82rem; color:var(--text-muted);">' +
+              'Authenticate with the Nous Research Portal via browser device session.' +
+            '</p>' +
+            '<button class="btn btn-primary" id="btn-oauth-nous" onclick="startOAuthDeviceLogin(\'nous\')" style="margin-top:6px;">' +
+              '🚀 Start Nous Portal Login' +
+            '</button>' +
+            '<div id="oauth-flow-nous" style="display:none;" class="oauth-card-active"></div>' +
           '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
+
+          '<div class="form-divider"><span>OR ENTER JWT TOKEN MANUALLY</span></div>' +
+
+          '<div class="form-group">' +
+            '<label class="form-label">Account ID / Alias</label>' +
+            '<input type="text" class="form-input" id="acc-form-id" placeholder="e.g. acc_nous_portal" value="acc_nous_' + Date.now().toString().slice(-4) + '">' +
+          '</div>' +
+          '<div class="form-group">' +
             '<label class="form-label">Nous Portal JWT Access Token</label>' +
-            '<textarea class="form-textarea" id="field-nous-token" placeholder="eyJhbGciOiJSUz..." required></textarea>' +
+            '<textarea class="form-textarea" id="field-nous-token" placeholder="eyJhbGciOiJSUz..."></textarea>' +
           '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
+          '<div class="form-group">' +
             '<label class="form-label">Base URL</label>' +
             '<input type="text" class="form-input" id="field-nous-baseurl" value="https://inference-api.nousresearch.com/v1">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Initial Pool Status</label>' +
+            '<select class="form-select" id="acc-form-status">' +
+              '<option value="active">Active</option>' +
+              '<option value="cooldown">Cooldown</option>' +
+            '</select>' +
           '</div>';
-      } else if (provider === 'cline') {
-        idInput.placeholder = 'e.g. acc_cline_worker_01';
+
+      } else if (provider === 'deepseek') {
         container.innerHTML = 
           '<div class="form-group">' +
-            '<label class="form-label">Cline Refresh Token</label>' +
-            '<input type="password" class="form-input" id="field-cline-refreshtoken" placeholder="xpme0ziVV..." required>' +
+            '<label class="form-label">Account ID / Alias</label>' +
+            '<input type="text" class="form-input" id="acc-form-id" placeholder="e.g. acc_deepseek_chrome" value="acc_deepseek_' + Date.now().toString().slice(-4) + '">' +
           '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">Account ID</label>' +
-            '<input type="text" class="form-input" id="field-cline-accid" placeholder="acc_05d478fa02dd5bc0" required>' +
-          '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">Associated Email (Optional)</label>' +
-            '<input type="email" class="form-input" id="field-cline-email" placeholder="user@gmail.com">' +
-          '</div>';
-      } else if (provider === 'deepseek') {
-        idInput.placeholder = 'e.g. acc_deepseek_web';
-        container.innerHTML = 
           '<div class="form-group">' +
             '<label class="form-label">DeepSeek User Token</label>' +
-            '<input type="password" class="form-input" id="field-deepseek-usertoken" placeholder="OFbLqvDHzCY..." required>' +
+            '<input type="password" class="form-input" id="field-deepseek-usertoken" placeholder="OFbLqvDHzCY...">' +
           '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
+          '<div class="form-group">' +
             '<label class="form-label">Browser Session Cookie</label>' +
-            '<textarea class="form-textarea" id="field-deepseek-cookie" placeholder="aws-waf-token=...; ds_session_id=..." required></textarea>' +
+            '<textarea class="form-textarea" id="field-deepseek-cookie" placeholder="aws-waf-token=...; ds_session_id=..."></textarea>' +
           '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
-            '<label class="form-label">WASM Pow URL (Optional)</label>' +
+          '<div class="form-group">' +
+            '<label class="form-label">WASM PoW URL (Optional)</label>' +
             '<input type="text" class="form-input" id="field-deepseek-wasm" value="https://fe-static.deepseek.com/chat/static/sha3_wasm_bg.7b9ca65ddd.wasm">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Initial Pool Status</label>' +
+            '<select class="form-select" id="acc-form-status">' +
+              '<option value="active">Active</option>' +
+              '<option value="cooldown">Cooldown</option>' +
+            '</select>' +
           '</div>';
+
       } else if (provider === 'opencode') {
-        idInput.placeholder = 'e.g. acc_opencode_zen';
         container.innerHTML = 
+          '<div class="form-group">' +
+            '<label class="form-label">Account ID / Alias</label>' +
+            '<input type="text" class="form-input" id="acc-form-id" placeholder="e.g. acc_opencode_zen" value="acc_opencode_' + Date.now().toString().slice(-4) + '">' +
+          '</div>' +
           '<div class="form-group">' +
             '<label class="form-label">Auth Archetype</label>' +
             '<select class="form-select" id="field-opencode-authtype">' +
-              '<option value="anonymous">Anonymous (No API Key Required)</option>' +
-              '<option value="api_key">API Key (Optional)</option>' +
+              '<option value="anonymous">Anonymous Free Tier (No API Key Required)</option>' +
+              '<option value="api_key">API Key</option>' +
             '</select>' +
           '</div>' +
-          '<div class="form-group" style="margin-top:10px;">' +
+          '<div class="form-group">' +
             '<label class="form-label">OpenCode Inference Base URL</label>' +
             '<input type="text" class="form-input" id="field-opencode-baseurl" value="https://opencode.ai/inference/openai/v1">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Initial Pool Status</label>' +
+            '<select class="form-select" id="acc-form-status">' +
+              '<option value="active">Active</option>' +
+              '<option value="cooldown">Cooldown</option>' +
+            '</select>' +
           '</div>';
       }
     }
 
     async function submitAccountForm() {
-      const id = document.getElementById('acc-form-id').value.trim();
-      const status = document.getElementById('acc-form-status').value;
-      if (!id) {
-        showToast('Please provide an Account ID or alias', 'error');
-        return;
-      }
+      const idEl = document.getElementById('acc-form-id');
+      const statusEl = document.getElementById('acc-form-status');
+      const id = idEl ? idEl.value.trim() : ('acc_' + currentProviderTab + '_' + Date.now().toString().slice(-4));
+      const status = statusEl ? statusEl.value : 'active';
 
       let credentials = {};
       let authType = 'api_key';
@@ -2510,15 +3048,15 @@ function getDashboardHtml(): string {
       if (currentProviderTab === 'kilo') {
         authType = document.getElementById('field-kilo-authtype').value;
         const token = document.getElementById('field-kilo-token').value.trim();
-        if (!token) { showToast('Kilo Code token is required', 'error'); return; }
+        if (!token) { showToast('Kilo Code token is required for manual entry', 'error'); return; }
         credentials = {
           accessToken: token,
           baseUrl: document.getElementById('field-kilo-baseurl').value.trim(),
         };
       } else if (currentProviderTab === 'nous') {
-        authType = document.getElementById('field-nous-authtype').value;
+        authType = 'oauth';
         const token = document.getElementById('field-nous-token').value.trim();
-        if (!token) { showToast('Nous token is required', 'error'); return; }
+        if (!token) { showToast('Nous token is required for manual entry', 'error'); return; }
         credentials = {
           accessToken: token,
           baseUrl: document.getElementById('field-nous-baseurl').value.trim(),
@@ -2527,7 +3065,7 @@ function getDashboardHtml(): string {
         authType = 'oauth';
         const rToken = document.getElementById('field-cline-refreshtoken').value.trim();
         const accId = document.getElementById('field-cline-accid').value.trim();
-        if (!rToken || !accId) { showToast('Cline refresh token and account ID are required', 'error'); return; }
+        if (!rToken || !accId) { showToast('Cline refresh token and account ID are required for manual entry', 'error'); return; }
         credentials = {
           refreshToken: rToken,
           accountId: accId,
@@ -2589,9 +3127,7 @@ function getDashboardHtml(): string {
       }
     }
 
-    // =========================================================================
-    // VIRTUAL COMBO WIZARD LOGIC
-    // =========================================================================
+    // COMBO WIZARD LOGIC
     function openComboWizard() {
       wizardCurrentStep = 1;
       updateWizardView();
@@ -2716,7 +3252,6 @@ function getDashboardHtml(): string {
         }).join('');
       }
 
-      // Render Visual Diagram Preview
       const preview = document.getElementById('wizard-chain-preview');
       if (preview) {
         if (wizardTargets.length === 0) {
@@ -2785,13 +3320,10 @@ function getDashboardHtml(): string {
       }
     }
 
-    // =========================================================================
     // BOOTSTRAP INITIALIZATION
-    // =========================================================================
     function initDashboard() {
       console.log('[Lattice] Bootstrapping Mission Control SPA...');
 
-      // 1. Listen for hash changes
       window.addEventListener('hashchange', () => {
         const tab = window.location.hash.replace('#', '');
         if (tab && document.getElementById('view-' + tab)) {
@@ -2799,20 +3331,17 @@ function getDashboardHtml(): string {
         }
       });
 
-      // 2. Initial Tab Selection from Hash or Default Overview
       const initialTab = window.location.hash.replace('#', '') || 'overview';
       switchNavTab(document.getElementById('view-' + initialTab) ? initialTab : 'overview');
 
-      // 3. Isolated Async Fetch Calls
       fetchAccounts().catch(e => console.error('fetchAccounts:', e));
       fetchCombos().catch(e => console.error('fetchCombos:', e));
       fetchPlugins().catch(e => console.error('fetchPlugins:', e));
       fetchStats().catch(e => console.error('fetchStats:', e));
       initLogStream();
-      switchProviderTab('kilo');
+      switchProviderTab('cline');
       renderWizardTargets();
 
-      // 4. Escape Key Modal Closer
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           closeCredentialsModal();
@@ -2820,16 +3349,13 @@ function getDashboardHtml(): string {
         }
       });
 
-      // 5. Global Action Event Delegation for Dynamic Buttons
       document.addEventListener('click', (e) => {
-        // Handle tab clicks via data-tab attribute
         const navLink = e.target.closest('[data-tab]');
         if (navLink) {
           const tab = navLink.getAttribute('data-tab');
           if (tab) switchNavTab(tab);
         }
 
-        // Handle action buttons
         const actionBtn = e.target.closest('button[data-action]');
         if (actionBtn) {
           const act = actionBtn.getAttribute('data-action');
@@ -2842,7 +3368,6 @@ function getDashboardHtml(): string {
         }
       });
 
-      // Explicit global window export
       window.switchNavTab = switchNavTab;
       window.openCredentialsModal = openCredentialsModal;
       window.closeCredentialsModal = closeCredentialsModal;
@@ -2852,6 +3377,8 @@ function getDashboardHtml(): string {
       window.clearLogs = clearLogs;
       window.switchProviderTab = switchProviderTab;
       window.submitAccountForm = submitAccountForm;
+      window.startOAuthDeviceLogin = startOAuthDeviceLogin;
+      window.syncLocalAccounts = syncLocalAccounts;
       window.nextWizardStep = nextWizardStep;
       window.prevWizardStep = prevWizardStep;
       window.addTargetToChain = addTargetToChain;
@@ -2864,7 +3391,6 @@ function getDashboardHtml(): string {
       window.fetchPlugins = fetchPlugins;
     }
 
-    // Guaranteed execution regardless of readyState
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initDashboard);
     } else {

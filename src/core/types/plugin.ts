@@ -27,6 +27,9 @@ export interface StoredAccount {
     apiKey?: string;
     cookies?: Record<string, string> | string;
     organizationId?: string;
+    email?: string;
+    baseUrl?: string;
+    accountId?: string;
     customData?: Record<string, unknown>;
   };
   status: AccountStatus;
