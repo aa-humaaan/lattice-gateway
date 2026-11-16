@@ -18,6 +18,7 @@ import type {
 } from '../core/types/canonical';
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
+import { serializeOpenAIMessages } from '../engine/dialect/serializer';
 
 // ============================================================================
 // Types & Interfaces
@@ -522,7 +523,7 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       headers,
       body: JSON.stringify({
         model,
-        messages: req.messages,
+        messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
         temperature: req.temperature,
         max_tokens: req.maxTokens,
         tools: tools.length > 0 ? tools : undefined,
@@ -660,7 +661,7 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       headers,
       body: JSON.stringify({
         model,
-        messages: req.messages,
+        messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
         temperature: req.temperature,
         max_tokens: req.maxTokens,
         tools: tools.length > 0 ? tools : undefined,

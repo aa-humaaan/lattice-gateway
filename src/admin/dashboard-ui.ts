@@ -1,4 +1,4 @@
-import { ICONS } from './icons';
+import { ICONS, PROVIDER_LOGOS } from './icons';
 
 export function getDashboardHtml(): string {
   return `<!DOCTYPE html>
@@ -895,7 +895,8 @@ export function getDashboardHtml(): string {
       padding: 20px;
     }
 
-    .modal-backdrop.open {
+    .modal-backdrop.open,
+    .modal-backdrop.active {
       display: flex;
     }
 
@@ -1290,6 +1291,100 @@ export function getDashboardHtml(): string {
     .chevron-icon.expanded {
       transform: rotate(90deg);
     }
+
+    /* Providers Grid & Cards (Matching 9Router Proxy Reference) */
+    .providers-section {
+      margin-bottom: 28px;
+    }
+    .providers-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .providers-section-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .providers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .provider-box {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s ease;
+      cursor: pointer;
+      position: relative;
+    }
+    .provider-box:hover {
+      background: var(--bg-surface-hover);
+      border-color: var(--border-muted);
+      transform: translateY(-1px);
+    }
+    .provider-box-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .provider-box-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--text-primary);
+    }
+    .provider-box-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .provider-box-name {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .provider-box-status {
+      font-size: 0.76rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .provider-box-status.connected {
+      color: var(--emerald-text);
+      font-weight: 500;
+    }
+    .provider-box-status.disabled {
+      color: var(--text-tertiary);
+    }
+    .provider-box-status.disconnected {
+      color: var(--text-tertiary);
+    }
+    .provider-box-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
   </style>
 </head>
 <body>
@@ -1310,6 +1405,11 @@ export function getDashboardHtml(): string {
       <a class="nav-item active" data-tab="overview" onclick="switchNavTab('overview')">
         ${ICONS.activity}
         <span>Overview &amp; KPIs</span>
+      </a>
+      <a class="nav-item" data-tab="providers" onclick="switchNavTab('providers')">
+        ${ICONS.layers}
+        <span>Providers</span>
+        <span class="nav-badge emerald" id="badge-providers-count">5 Connected</span>
       </a>
       <a class="nav-item" data-tab="models" onclick="switchNavTab('models')">
         ${ICONS.cpu}
@@ -1512,6 +1612,72 @@ export function getDashboardHtml(): string {
             <button class="btn btn-secondary btn-sm" onclick="switchNavTab('combos')">Configure Combos</button>
             <button class="btn btn-primary btn-sm" onclick="openComboWizard()">Combo Wizard</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- VIEW: Providers (9Router Reference Replica)                         -->
+    <!-- =================================================================== -->
+    <div class="tab-view" id="view-providers">
+      <div class="view-header">
+        <div class="view-title-group">
+          <h1>Providers</h1>
+          <p>Manage your AI provider connections, API keys, and OAuth device authentications</p>
+        </div>
+        <div class="header-actions" style="display:flex; align-items:center; gap:8px;">
+          <div class="search-box" style="width:220px;">
+            ${ICONS.search}
+            <input type="text" class="search-input" id="providers-search" placeholder="Search providers..." oninput="filterProvidersCards()">
+          </div>
+          <select class="form-select" id="providers-category-filter" style="width:auto; padding:5px 10px;" onchange="filterProvidersCards()">
+            <option value="all">All</option>
+            <option value="connected">Connected</option>
+            <option value="oauth">OAuth</option>
+            <option value="custom">Custom</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" data-action="test-all-providers">
+            ${ICONS.play}
+            <span>Test All</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Custom Providers Section -->
+      <div class="providers-section">
+        <div class="providers-section-header">
+          <div class="providers-section-title">
+            Custom Providers (OpenAI/Anthropic Compatible)
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary btn-sm" data-action="add-anthropic" style="background:#e06c4b; border-color:#e06c4b;">
+              ${ICONS.plus}
+              <span>Add Anthropic Compatible</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" data-action="add-openai">
+              ${ICONS.plus}
+              <span>Add OpenAI Compatible</span>
+            </button>
+          </div>
+        </div>
+        <div class="providers-grid" id="custom-providers-grid">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- OAuth Providers Section -->
+      <div class="providers-section">
+        <div class="providers-section-header">
+          <div class="providers-section-title">
+            OAuth Providers
+          </div>
+          <button class="btn btn-secondary btn-sm" data-action="test-all-providers">
+            ${ICONS.play}
+            <span>Test All</span>
+          </button>
+        </div>
+        <div class="providers-grid" id="oauth-providers-grid">
+          <!-- Dynamically populated -->
         </div>
       </div>
     </div>
@@ -2214,6 +2380,155 @@ export function getDashboardHtml(): string {
     let expandedProviders = new Set(['kilo', 'cline']);
     let quotaFilter = 'all';
     let quotaData = null;
+    let allAccountsData = [];
+    const PROVIDER_LOGOS_MAP = ${JSON.stringify(PROVIDER_LOGOS)};
+
+    const OAUTH_PROVIDERS_CONFIG = [
+      { id: 'claude', name: 'Claude Code', canOAuth: true, category: 'oauth' },
+      { id: 'antigravity', name: 'Antigravity', canOAuth: false, category: 'oauth', disabled: true },
+      { id: 'qoder', name: 'Qoder', canOAuth: false, category: 'oauth', disabled: true },
+      { id: 'codex', name: 'OpenAI Codex', canOAuth: true, category: 'oauth' },
+      { id: 'qoder-cn', name: 'Qoder CN', canOAuth: false, category: 'oauth' },
+      { id: 'copilot', name: 'GitHub Copilot', canOAuth: true, category: 'oauth' },
+      { id: 'cursor', name: 'Cursor IDE', canOAuth: true, category: 'oauth' },
+      { id: 'kilo', name: 'Kilo Code', canOAuth: true, category: 'oauth', tag: 'Free' },
+      { id: 'cline', name: 'Cline', canOAuth: true, category: 'oauth', tag: 'WorkOS' },
+      { id: 'minimax', name: 'MiniMax Code', canOAuth: true, category: 'oauth' },
+      { id: 'minimax-global', name: 'MiniMax Code (Global)', canOAuth: true, category: 'oauth' },
+      { id: 'clinepass', name: 'ClinePass', canOAuth: false, category: 'oauth', disabled: true },
+      { id: 'codebuddy', name: 'CodeBuddy', canOAuth: true, category: 'oauth' },
+      { id: 'codebuddy-cn', name: 'CodeBuddy CN', canOAuth: true, category: 'oauth' },
+      { id: 'muse', name: 'Muse (Meta Model API)', canOAuth: true, category: 'oauth' },
+      { id: 'zai', name: 'Zai GLM Coding', canOAuth: true, category: 'oauth' },
+      { id: 'nous', name: 'Nous Research', canOAuth: true, category: 'oauth', tag: 'Hermes' },
+      { id: 'opencode', name: 'OpenCode Zen', canOAuth: false, category: 'oauth', tag: 'Keyless' },
+      { id: 'deepseek', name: 'DeepSeek Web', canOAuth: false, category: 'oauth', tag: 'Web Pool' },
+    ];
+
+    const CUSTOM_PROVIDERS_CONFIG = [
+      { id: 'unorouter', name: 'Unorouter', type: 'custom', disabled: true },
+      { id: 'agnes', name: 'Agnes', type: 'custom', connectedCount: 1, tag: 'Chat' },
+    ];
+
+    function renderProvidersView() {
+      const searchInput = document.getElementById('providers-search');
+      const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
+      const catSelect = document.getElementById('providers-category-filter');
+      const category = catSelect ? catSelect.value : 'all';
+
+      // 1. Render Custom Providers
+      const customGrid = document.getElementById('custom-providers-grid');
+      if (customGrid) {
+        let customHtml = '';
+        const customList = CUSTOM_PROVIDERS_CONFIG.filter(p => {
+          if (search && !p.name.toLowerCase().includes(search) && !p.id.toLowerCase().includes(search)) return false;
+          if (category === 'oauth') return false;
+          if (category === 'connected' && (!p.connectedCount || p.connectedCount === 0)) return false;
+          return true;
+        });
+
+        if (customList.length === 0) {
+          customHtml = '<div style="grid-column: 1/-1; padding: 16px; text-align: center; color: var(--text-tertiary);">No custom providers matching filter.</div>';
+        } else {
+          customHtml = customList.map(p => {
+            const isConnected = p.connectedCount && p.connectedCount > 0;
+            const statusHtml = p.disabled
+              ? '<span class="provider-box-status disabled"><span style="font-size:0.7rem; font-weight:700;">[II]</span> Disabled</span>'
+              : isConnected
+              ? '<span class="provider-box-status connected"><span class="status-dot emerald"></span> ' + p.connectedCount + ' Connected</span>'
+              : '<span class="provider-box-status disconnected">No connections</span>';
+            const tagHtml = p.tag ? '<span class="badge-tag zinc" style="font-size:0.65rem;">' + p.tag + '</span>' : '';
+
+            return '<div class="provider-box" data-action="open-credentials" data-provider="' + p.id + '">' +
+              '<div class="provider-box-left">' +
+                '<div class="provider-box-icon">' + (PROVIDER_LOGOS_MAP[p.id] || '${ICONS.layers}') + '</div>' +
+                '<div class="provider-box-meta">' +
+                  '<div class="provider-box-name">' + p.name + '</div>' +
+                  '<div style="display:flex; align-items:center; gap:6px;">' + statusHtml + tagHtml + '</div>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        }
+        customGrid.innerHTML = customHtml;
+      }
+
+      // 2. Render OAuth Providers
+      const oauthGrid = document.getElementById('oauth-providers-grid');
+      if (oauthGrid) {
+        let oauthHtml = '';
+        const accountsByProvider = {};
+        for (const a of allAccountsData) {
+          if (a.status === 'active') {
+            accountsByProvider[a.providerId] = (accountsByProvider[a.providerId] || 0) + 1;
+          }
+        }
+
+        const oauthList = OAUTH_PROVIDERS_CONFIG.filter(p => {
+          if (search && !p.name.toLowerCase().includes(search) && !p.id.toLowerCase().includes(search)) return false;
+          if (category === 'custom') return false;
+          const conn = accountsByProvider[p.id] || 0;
+          if (category === 'connected' && conn === 0) return false;
+          return true;
+        });
+
+        if (oauthList.length === 0) {
+          oauthHtml = '<div style="grid-column: 1/-1; padding: 16px; text-align: center; color: var(--text-tertiary);">No OAuth providers matching filter.</div>';
+        } else {
+          oauthHtml = oauthList.map(p => {
+            const count = accountsByProvider[p.id] || 0;
+            const isConnected = count > 0;
+            const statusHtml = p.disabled
+              ? '<span class="provider-box-status disabled"><span style="font-size:0.7rem; font-weight:700;">[II]</span> Disabled</span>'
+              : isConnected
+              ? '<span class="provider-box-status connected"><span class="status-dot emerald"></span> ' + count + ' Connected</span>'
+              : '<span class="provider-box-status disconnected">No connections</span>';
+
+            const tagHtml = p.tag ? '<span class="badge-tag emerald" style="font-size:0.65rem;">' + p.tag + '</span>' : '';
+            const actionBtn = p.canOAuth
+              ? '<button class="btn btn-secondary btn-sm" data-action="start-oauth" data-provider="' + p.id + '" style="font-size:0.72rem; padding:4px 8px;">OAuth</button>'
+              : isConnected
+              ? '<button class="btn btn-secondary btn-sm" data-action="test-provider" data-provider="' + p.id + '" style="font-size:0.72rem; padding:4px 8px;">Test</button>'
+              : '<button class="btn btn-secondary btn-sm" data-action="open-credentials" data-provider="' + p.id + '" style="font-size:0.72rem; padding:4px 8px;">Connect</button>';
+
+            return '<div class="provider-box" id="provider-card-' + p.id + '" data-action="select-provider" data-provider="' + p.id + '">' +
+              '<div class="provider-box-left">' +
+                '<div class="provider-box-icon">' + (PROVIDER_LOGOS_MAP[p.id] || '${ICONS.cpu}') + '</div>' +
+                '<div class="provider-box-meta">' +
+                  '<div class="provider-box-name">' + p.name + '</div>' +
+                  '<div style="display:flex; align-items:center; gap:6px;">' + statusHtml + tagHtml + '</div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="provider-box-right">' +
+                actionBtn +
+              '</div>' +
+            '</div>';
+          }).join('');
+        }
+        oauthGrid.innerHTML = oauthHtml;
+      }
+    }
+
+    function filterProvidersCards() {
+      renderProvidersView();
+    }
+
+    async function testAllProviders() {
+      showToast('Testing all active provider connections...', 'info');
+      try {
+        const res = await fetch('/api/providers/test-all', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Health checks complete: ' + data.healthyCount + ' / ' + data.testedCount + ' providers healthy', 'success');
+          fetchAccounts();
+          renderProvidersView();
+        } else {
+          showToast('Test failed: ' + (data.error || 'Server error'), 'error');
+        }
+      } catch (err) {
+        showToast('Network error testing providers: ' + err.message, 'error');
+      }
+    }
 
     // Toast feedback system
     function showToast(message, type = 'info') {
@@ -2246,6 +2561,7 @@ export function getDashboardHtml(): string {
         history.replaceState(null, '', '#' + tabId);
       }
 
+      if (tabId === 'providers') renderProvidersView();
       if (tabId === 'models' && allModels.length === 0) fetchModels();
       if (tabId === 'harnesses' && allHarnesses.length === 0) fetchHarnesses();
       if (tabId === 'telemetry') fetchTelemetry();
@@ -2352,14 +2668,14 @@ export function getDashboardHtml(): string {
             (m.description ? '<p style="font-size:0.78rem; color:var(--text-secondary);">' + m.description + '</p>' : '') +
             '<div class="model-id-box">' +
               '<span>' + m.id + '</span>' +
-              '<button class="copy-btn" onclick="copyToClipboard(\\\'' + m.id + '\\\', \\\'Copied model ID!\\\')" title="Copy Model ID">' +
+              '<button class="copy-btn" data-action="copy-model-id" data-id="' + m.id + '" title="Copy Model ID">' +
                 '${ICONS.copy}' +
               '</button>' +
             '</div>' +
             '<div class="model-specs">' +
               '<span>Context: <strong>' + m.contextWindowFormatted + '</strong></span>' +
               '<div class="model-probe-status" id="probe-status-' + m.id.replace(/[^a-zA-Z0-9_-]/g, '_') + '">' +
-                '<button class="btn btn-secondary btn-sm" onclick="probeModelLive(\\'' + m.id + '\\')">' +
+                '<button class="btn btn-secondary btn-sm" data-action="probe-model" data-id="' + m.id + '">' +
                   '${ICONS.play}' +
                   '<span>1-Click Test</span>' +
                 '</button>' +
@@ -2452,20 +2768,20 @@ export function getDashboardHtml(): string {
             '<div class="harness-desc">' + h.description + '</div>' +
             '<div class="harness-path-box" title="' + h.targetPath + '">' + h.targetPath + '</div>' +
             '<div class="harness-actions">' +
-              '<button class="btn btn-primary btn-sm" id="btn-setup-' + safeId + '" onclick="setupSingleHarness(\\'' + h.id + '\\')">' +
+              '<button class="btn btn-primary btn-sm" id="btn-setup-' + safeId + '" data-action="setup-harness" data-id="' + h.id + '">' +
                 '${ICONS.zap}' +
                 '<span>1-Click Setup</span>' +
               '</button>' +
-              '<button class="btn btn-secondary btn-sm" onclick="toggleSnippetBox(\\'' + safeId + '\\')">' +
+              '<button class="btn btn-secondary btn-sm" data-action="toggle-snippet" data-id="' + safeId + '">' +
                 '${ICONS.code}' +
                 '<span>View Snippet</span>' +
               '</button>' +
-              '<button class="btn btn-secondary btn-sm" onclick="copyToClipboard(\\'' + encodeURIComponent(h.configSnippet) + '\\', \\'Copied snippet!\\', true)" title="Copy configuration snippet">' +
+              '<button class="btn btn-secondary btn-sm" data-action="copy-snippet-code" data-id="' + safeId + '" title="Copy configuration snippet">' +
                 '${ICONS.copy}' +
               '</button>' +
             '</div>' +
             '<div class="snippet-box" id="snippet-box-' + safeId + '" style="display:none;">' +
-              '<button class="btn btn-secondary btn-sm snippet-copy" onclick="copySnippetRaw(\\'' + safeId + '\\')">' +
+              '<button class="btn btn-secondary btn-sm snippet-copy" data-action="copy-snippet-code" data-id="' + safeId + '">' +
                 '${ICONS.copy} Copy' +
               '</button>' +
               '<code id="snippet-raw-' + safeId + '">' + escapeHtml(h.configSnippet) + '</code>' +
@@ -2543,6 +2859,13 @@ export function getDashboardHtml(): string {
         const res = await fetch('/api/accounts');
         const json = await res.json();
         if (json.success && Array.isArray(json.accounts)) {
+          allAccountsData = json.accounts;
+          renderProvidersView();
+          const pBadge = document.getElementById('badge-providers-count');
+          if (pBadge) {
+            const activeCount = json.accounts.filter(a => a.status === 'active').length;
+            pBadge.textContent = activeCount + ' Connected';
+          }
           const tbody = document.getElementById('accounts-table-body');
           if (tbody) {
             tbody.innerHTML = json.accounts.map(a => 
@@ -2555,8 +2878,8 @@ export function getDashboardHtml(): string {
                 '<td style="font-family:var(--font-mono); font-size:0.75rem;">' + (a.credentials.email || a.credentials.apiKey || a.credentials.accessToken || 'configured') + '</td>' +
                 '<td>' +
                   '<div style="display:flex; gap:6px;">' +
-                    '<button class="btn btn-secondary btn-sm" onclick="testAccount(\\'' + a.id + '\\')">Test</button>' +
-                    '<button class="btn btn-danger btn-sm" onclick="deleteAccount(\\'' + a.id + '\\')">Delete</button>' +
+                    '<button class="btn btn-secondary btn-sm" data-action="test-account" data-id="' + a.id + '">Test</button>' +
+                    '<button class="btn btn-danger btn-sm" data-action="delete-account" data-id="' + a.id + '">Delete</button>' +
                   '</div>' +
                 '</td>' +
               '</tr>'
@@ -2630,7 +2953,7 @@ export function getDashboardHtml(): string {
                   (c.targets || []).map(t => '<span class="badge-tag zinc">' + t + '</span>').join('') +
                 '</div></td>' +
                 '<td>' +
-                  '<button class="btn btn-danger btn-sm" onclick="deleteCombo(\\'' + encodeURIComponent(c.id) + '\\')">Delete</button>' +
+                  '<button class="btn btn-danger btn-sm" data-action="delete-combo" data-id="' + encodeURIComponent(c.id) + '">Delete</button>' +
                 '</td>' +
               '</tr>'
             ).join('');
@@ -2674,7 +2997,7 @@ export function getDashboardHtml(): string {
                 '<td>' + (p.supportedAuthTypes || []).join(', ') + '</td>' +
                 '<td><span class="status-pill ' + (p.enabled ? 'emerald' : 'zinc') + '">' + (p.enabled ? 'Enabled' : 'Disabled') + '</span></td>' +
                 '<td>' +
-                  '<button class="btn btn-secondary btn-sm" onclick="togglePlugin(\\'' + p.id + '\\')">' +
+                  '<button class="btn btn-secondary btn-sm" data-action="toggle-plugin" data-id="' + p.id + '">' +
                     (p.enabled ? 'Disable' : 'Enable') +
                   '</button>' +
                 '</td>' +
@@ -2879,7 +3202,7 @@ export function getDashboardHtml(): string {
           const chevronSvg = '<span class="' + chevronClass + '">${ICONS.chevronRight}</span>';
           const pBadge = '<span class="badge-tag zinc" style="margin-left:6px;">' + (p.models?.length || 0) + ' models</span>';
 
-          html += '<tr class="accordion-row" onclick="toggleProviderAccordion(\\'' + p.id + '\\')" style="background: var(--bg-surface-elevated); font-weight: 600;">' +
+          html += '<tr class="accordion-row" data-action="toggle-accordion" data-id="' + p.id + '" style="background: var(--bg-surface-elevated); font-weight: 600; cursor: pointer;">' +
             '<td><div style="display:flex; align-items:center; gap:8px;">' + chevronSvg + '<span>' + p.name + '</span>' + pBadge + '</div></td>' +
             '<td style="text-align: right; font-family: var(--font-mono); color: var(--cyan-text);">' + p.promptTokens.toLocaleString() + '</td>' +
             '<td style="text-align: right; font-family: var(--font-mono); color: #60a5fa;">' + p.cachedTokens.toLocaleString() + '</td>' +
@@ -3109,7 +3432,7 @@ export function getDashboardHtml(): string {
         }
 
         const actionBtn = card.inCooldown || card.status === 'cooldown'
-          ? '<button class="btn btn-emerald btn-sm" onclick="resetQuotaCooldown(\\'' + card.accountId + '\\')" style="margin-top:6px;">${ICONS.play} Reset Cooldown</button>'
+          ? '<button class="btn btn-emerald btn-sm" data-action="reset-quota" data-id="' + card.accountId + '" style="margin-top:6px;">${ICONS.play} Reset Cooldown</button>'
           : '';
 
         cardsHtml += '<div class="quota-card">' +
@@ -3174,15 +3497,25 @@ export function getDashboardHtml(): string {
     // =========================================================================
     // Credentials Modal & Provider Fields
     // =========================================================================
-    function openCredentialsModal() {
+    function openCredentialsModal(preselectProvider) {
       const modal = document.getElementById('modal-credentials');
-      if (modal) modal.classList.add('open');
-      switchProviderTab(currentProviderTab);
+      if (modal) {
+        modal.classList.add('open');
+        modal.classList.add('active');
+      }
+      if (preselectProvider) {
+        switchProviderTab(preselectProvider);
+      } else {
+        switchProviderTab(currentProviderTab || 'cline');
+      }
     }
 
     function closeCredentialsModal() {
       const modal = document.getElementById('modal-credentials');
-      if (modal) modal.classList.remove('open');
+      if (modal) {
+        modal.classList.remove('open');
+        modal.classList.remove('active');
+      }
     }
 
     function switchProviderTab(provider) {
@@ -3199,7 +3532,7 @@ export function getDashboardHtml(): string {
           '<div style="background:var(--bg-canvas); border:1px solid var(--border-subtle); border-radius:6px; padding:12px; margin-bottom:12px;">' +
             '<div style="font-weight:600; font-size:0.85rem; color:var(--text-primary); margin-bottom:4px;">1-Click Kilo Device Authorization</div>' +
             '<p style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:10px;">Click below to launch official Kilo device authorization in your browser.</p>' +
-            '<button type="button" class="btn btn-emerald btn-sm" onclick="startOAuthDeviceLogin(\\'kilo\\')">Start OAuth Device Login</button>' +
+            '<button type="button" class="btn btn-emerald btn-sm" data-action="start-oauth" data-provider="kilo">Start OAuth Device Login</button>' +
             '<div id="oauth-status-kilo" style="margin-top:8px; font-size:0.75rem; font-family:var(--font-mono);"></div>' +
           '</div>' +
           '<div style="display:flex; align-items:center; gap:8px; margin: 12px 0 8px;">' +
@@ -3224,7 +3557,7 @@ export function getDashboardHtml(): string {
           '<div style="background:var(--bg-canvas); border:1px solid var(--border-subtle); border-radius:6px; padding:12px; margin-bottom:12px;">' +
             '<div style="font-weight:600; font-size:0.85rem; color:var(--text-primary); margin-bottom:4px;">1-Click WorkOS Device Authorization</div>' +
             '<p style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:10px;">Click below to launch official WorkOS device authentication in your default browser.</p>' +
-            '<button type="button" class="btn btn-emerald btn-sm" onclick="startOAuthDeviceLogin(\\'cline\\')">Start OAuth Device Login</button>' +
+            '<button type="button" class="btn btn-emerald btn-sm" data-action="start-oauth" data-provider="cline">Start OAuth Device Login</button>' +
             '<div id="oauth-status-cline" style="margin-top:8px; font-size:0.75rem; font-family:var(--font-mono);"></div>' +
           '</div>' +
           '<div style="display:flex; align-items:center; gap:8px; margin: 12px 0 8px;">' +
@@ -3245,7 +3578,7 @@ export function getDashboardHtml(): string {
           '<div style="background:var(--bg-canvas); border:1px solid var(--border-subtle); border-radius:6px; padding:12px; margin-bottom:12px;">' +
             '<div style="font-weight:600; font-size:0.85rem; color:var(--text-primary); margin-bottom:4px;">1-Click Nous Portal Device Auth</div>' +
             '<p style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:10px;">Click below to launch official Nous Portal session authentication.</p>' +
-            '<button type="button" class="btn btn-emerald btn-sm" onclick="startOAuthDeviceLogin(\\'nous\\')">Start OAuth Device Login</button>' +
+            '<button type="button" class="btn btn-emerald btn-sm" data-action="start-oauth" data-provider="nous">Start OAuth Device Login</button>' +
             '<div id="oauth-status-nous" style="margin-top:8px; font-size:0.75rem; font-family:var(--font-mono);"></div>' +
           '</div>' +
           '<div style="display:flex; align-items:center; gap:8px; margin: 12px 0 8px;">' +
@@ -3396,7 +3729,10 @@ export function getDashboardHtml(): string {
     // =========================================================================
     function openComboWizard() {
       const modal = document.getElementById('modal-combo-wizard');
-      if (modal) modal.classList.add('open');
+      if (modal) {
+        modal.classList.add('open');
+        modal.classList.add('active');
+      }
       wizardCurrentStep = 1;
       wizardTargets = ['kilo/particle-ai/particle-1:free', 'kilo/code-fast:free'];
       updateWizardView();
@@ -3404,7 +3740,10 @@ export function getDashboardHtml(): string {
 
     function closeComboWizard() {
       const modal = document.getElementById('modal-combo-wizard');
-      if (modal) modal.classList.remove('open');
+      if (modal) {
+        modal.classList.remove('open');
+        modal.classList.remove('active');
+      }
     }
 
     function updateWizardView() {
@@ -3580,12 +3919,102 @@ export function getDashboardHtml(): string {
       initLogStream();
       switchProviderTab('cline');
       renderWizardTargets();
+      renderProvidersView();
 
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           closeCredentialsModal();
           closeComboWizard();
           closeRequestDetailModal();
+        }
+      });
+
+      // Global Event Delegation for all interactive UI triggers
+      document.addEventListener('click', (e) => {
+        // Navigation tabs
+        const navItem = e.target.closest('.nav-item');
+        if (navItem && navItem.getAttribute('data-tab')) {
+          switchNavTab(navItem.getAttribute('data-tab'));
+          return;
+        }
+
+        // Action elements
+        const actionEl = e.target.closest('[data-action]');
+        if (!actionEl) return;
+        const action = actionEl.getAttribute('data-action');
+        const id = actionEl.getAttribute('data-id');
+        const provider = actionEl.getAttribute('data-provider');
+
+        switch (action) {
+          case 'setup-harness':
+            if (id) setupSingleHarness(id);
+            break;
+          case 'setup-all-harnesses':
+            setupAllHarnesses();
+            break;
+          case 'probe-model':
+            if (id) probeModelLive(id);
+            break;
+          case 'copy-model-id':
+            if (id) copyToClipboard(id, 'Copied model ID!');
+            break;
+          case 'toggle-snippet':
+            if (id) toggleSnippetBox(id);
+            break;
+          case 'copy-snippet-code':
+            if (id) copySnippetRaw(id);
+            break;
+          case 'test-account':
+            if (id) testAccount(id);
+            break;
+          case 'delete-account':
+            if (id) deleteAccount(id);
+            break;
+          case 'delete-combo':
+            if (id) deleteCombo(id);
+            break;
+          case 'toggle-plugin':
+            if (id) togglePlugin(id);
+            break;
+          case 'toggle-accordion':
+            if (id) toggleProviderAccordion(id);
+            break;
+          case 'reset-quota':
+            if (id) resetQuotaCooldown(id);
+            break;
+          case 'start-oauth':
+            if (provider) startOAuthDeviceLogin(provider);
+            break;
+          case 'open-credentials':
+            openCredentialsModal(provider);
+            break;
+          case 'close-credentials':
+            closeCredentialsModal();
+            break;
+          case 'open-combo-wizard':
+            openComboWizard();
+            break;
+          case 'close-combo-wizard':
+            closeComboWizard();
+            break;
+          case 'add-anthropic':
+            openCredentialsModal('anthropic');
+            break;
+          case 'add-openai':
+            openCredentialsModal('openai');
+            break;
+          case 'test-all-providers':
+            testAllProviders();
+            break;
+          case 'test-provider':
+            if (provider) testAccount('acc_' + provider);
+            break;
+          case 'select-provider':
+            if (provider) openCredentialsModal(provider);
+            break;
+          case 'sync-local':
+            syncLocalAccounts();
+            break;
         }
       });
 
@@ -3636,6 +4065,9 @@ export function getDashboardHtml(): string {
       window.filterQuotas = filterQuotas;
       window.resetQuotaCooldown = resetQuotaCooldown;
       window.renderQuotasView = renderQuotasView;
+      window.renderProvidersView = renderProvidersView;
+      window.filterProvidersCards = filterProvidersCards;
+      window.testAllProviders = testAllProviders;
     }
 
     if (document.readyState === 'loading') {

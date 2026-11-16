@@ -73,6 +73,276 @@ function getRoamingAppData(): string {
   return path.join(os.homedir(), '.config');
 }
 
+export function getOpenCodeCatalogModels(): Record<string, {
+  name: string;
+  attachment?: boolean;
+  reasoning?: boolean;
+  tool_call?: boolean;
+  limit: { context: number; output: number };
+}> {
+  return {
+    // Virtual Combos
+    "1m-free": {
+      name: "Lattice 1M Free ($0 Auto-Failover)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "lattice/1m-free": {
+      name: "Lattice 1M Free ($0 Auto-Failover)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "code-flagship": {
+      name: "Lattice Code Flagship (Auto-Failover)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 200000, output: 8192 },
+    },
+    "lattice/code-flagship": {
+      name: "Lattice Code Flagship (Auto-Failover)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 200000, output: 8192 },
+    },
+    "fast-free": {
+      name: "Lattice Fast Free 0$ Tier",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 4096 },
+    },
+    "lattice/fast-free": {
+      name: "Lattice Fast Free 0$ Tier",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 4096 },
+    },
+
+    // 1M Context Window Frontier Free Models
+    "kilo/particle-ai/particle-1:free": {
+      name: "Particle 1 (1M Context Free)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "kilo/baidu/ernie-5.5-flash-preview:free": {
+      name: "Baidu Ernie 5.5 Flash (1M Context Free)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "kilo/nvidia/nemotron-3.5-lightning:free": {
+      name: "NVIDIA Nemotron 3.5 Lightning (1M Context Free)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 16384 },
+    },
+    "kilo/inclusionai/ling-3.2-flash:free": {
+      name: "InclusionAI Ling 3.2 Flash (1M Context Free)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "cline-free/step-5-preview": {
+      name: "StepFun Step-5 Preview (1M Context Free)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "muse-spark-1.3-contributor-free": {
+      name: "Muse Spark 1.3 Contributor (1M Context Free)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "nemotron-3.5-lightning-free": {
+      name: "Nemotron 3.5 Lightning Zen Free (1M Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 16384 },
+    },
+    "nous/qwen/qwen4-max": {
+      name: "Nous Qwen 4 Max (1M Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "nous/google/gemini-4-hydrogen": {
+      name: "Google Gemini 4 Hydrogen (1M Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+    "nous/google/gemini-3.8-flash": {
+      name: "Google Gemini 3.8 Flash (1M Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 1048576, output: 8192 },
+    },
+
+    // 200k Context Window Flagship Models
+    "kilo/claude-3-7-sonnet": {
+      name: "Claude 3.7 Sonnet (200k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 200000, output: 8192 },
+    },
+    "kilo/claude-3-5-sonnet": {
+      name: "Claude 3.5 Sonnet (200k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 200000, output: 8192 },
+    },
+    "cline/sonnet-agent": {
+      name: "Cline Sonnet Agent (200k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 200000, output: 8192 },
+    },
+    "cline-free/mimo-v2.6-flash": {
+      name: "Xiaomi Mimo v2.6 Flash Free (200k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 200000, output: 32768 },
+    },
+    "mimo-v2.6-flash-free": {
+      name: "Mimo v2.6 Flash Zen Free (200k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 200000, output: 32768 },
+    },
+    "nous/anthropic/claude-sonnet-5.5": {
+      name: "Claude Sonnet 5.5 Preview (200k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 200000, output: 8192 },
+    },
+
+    // Fast Coding & Frontier Reasoning Free Models
+    "kilo/code-fast:free": {
+      name: "Kilo Code Fast Free (128k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "kilo/qwen-2.5-coder:free": {
+      name: "Qwen 2.5 Coder 32B Free",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "kilo/deepseek-r1:free": {
+      name: "DeepSeek R1 Reasoning Free",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "kilo/kilo-auto/free": {
+      name: "Kilo Auto Smart Router Free",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "kilo/nvidia/nemotron-3.5-super-vl:free": {
+      name: "NVIDIA Nemotron 3.5 Super VL Free",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 4096 },
+    },
+    "kilo/liquid/lfm-3-1.7b:free": {
+      name: "Liquid LFM 3 1.7B Free (32k Context)",
+      attachment: true,
+      reasoning: false,
+      tool_call: true,
+      limit: { context: 32768, output: 4096 },
+    },
+    "big-pickle": {
+      name: "Big Pickle Zen Free (128k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "deepseek-v4.1-flash-free": {
+      name: "DeepSeek v4.1 Flash Zen Free (128k Context)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "nous/upstage/solar-mini4:free": {
+      name: "Upstage Solar Mini 4 Free",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "nous/stepfun/step-3.7-flash:free": {
+      name: "StepFun Step 3.7 Flash Free",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "nous/meituan/longcat-2.5:free": {
+      name: "Meituan LongCat 2.5 Free",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "nous/deepseek-v3": {
+      name: "DeepSeek V3 (Nous Gateway)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "deepseek/deepseek-chat": {
+      name: "DeepSeek Chat (V3)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+    "deepseek/deepseek-reasoner": {
+      name: "DeepSeek Reasoner (R1)",
+      attachment: true,
+      reasoning: true,
+      tool_call: true,
+      limit: { context: 128000, output: 8192 },
+    },
+  };
+}
+
 export function getHarnessDefinitions(): Record<string, {
   name: string;
   category: string;
@@ -104,25 +374,10 @@ export function getHarnessDefinitions(): Record<string, {
               "baseURL": "http://127.0.0.1:4000/v1",
               "apiKey": "sk-lattice-master"
             },
-            "models": {
-              "lattice/1m-free": {
-                "name": "Lattice 1M Free ($0)",
-                "attachment": true,
-                "reasoning": true,
-                "tool_call": true,
-                "limit": { "context": 1048576, "output": 8192 }
-              },
-              "lattice/code-flagship": {
-                "name": "Lattice Code Flagship",
-                "attachment": true,
-                "reasoning": true,
-                "tool_call": true,
-                "limit": { "context": 200000, "output": 8192 }
-              }
-            }
+            "models": getOpenCodeCatalogModels()
           }
         },
-        "model": "lattice/lattice/1m-free"
+        "model": "lattice/1m-free"
       }, null, 2),
       configure: (targetPath: string) => {
         let current = safeReadJson(targetPath) || {
@@ -137,28 +392,13 @@ export function getHarnessDefinitions(): Record<string, {
             baseURL: "http://127.0.0.1:4000/v1",
             apiKey: "sk-lattice-master"
           },
-          models: {
-            "lattice/1m-free": {
-              name: "Lattice 1M Free ($0)",
-              attachment: true,
-              reasoning: true,
-              tool_call: true,
-              limit: { context: 1048576, output: 8192 }
-            },
-            "lattice/code-flagship": {
-              name: "Lattice Code Flagship",
-              attachment: true,
-              reasoning: true,
-              tool_call: true,
-              limit: { context: 200000, output: 8192 }
-            }
-          }
+          models: getOpenCodeCatalogModels()
         };
-        if (!current.model) {
-          current.model = "lattice/lattice/1m-free";
+        if (!current.model || current.model.includes('lattice/lattice/')) {
+          current.model = "lattice/1m-free";
         }
         const { backupPath } = safeWriteJson(targetPath, current);
-        return { backupPath, message: `Merged Lattice Gateway provider into OpenCode config at ${targetPath}` };
+        return { backupPath, message: `Merged full Lattice Gateway model catalog (${Object.keys(getOpenCodeCatalogModels()).length} models) into OpenCode config at ${targetPath}` };
       }
     },
 

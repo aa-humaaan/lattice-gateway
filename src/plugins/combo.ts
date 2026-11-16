@@ -120,15 +120,27 @@ export class LatticeComboPlugin implements ProviderPlugin {
         };
 
         const stream = await plugin.executeStream(targetReq, signal);
-        // Wrap stream to replace target model with combo.id in stream_start event
+        // Wrap stream to replace target model with combo.id in stream_start event and gracefully handle mid-stream drops
         const comboId = combo.id;
         return (async function* () {
-          for await (const event of stream) {
-            if (event.type === 'stream_start') {
-              yield { ...event, model: comboId };
-            } else {
-              yield event;
+          try {
+            for await (const event of stream) {
+              if (event.type === 'stream_start') {
+                yield { ...event, model: comboId };
+              } else {
+                yield event;
+              }
             }
+          } catch (streamErr: any) {
+            logger.error(`[LatticeCombo] Mid-stream error on target ${target}: ${streamErr.message || streamErr}`);
+            yield {
+              type: 'stream_error',
+              error: {
+                message: streamErr.message || 'Upstream connection closed mid-stream',
+                type: 'upstream_error',
+                code: 'stream_failed',
+              },
+            };
           }
         })();
       } catch (err: any) {

@@ -15,6 +15,7 @@ import type {
 } from '../core/types/canonical';
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
+import { serializeOpenAIMessages } from '../engine/dialect/serializer';
 
 export interface ChromeSessionExport {
   userToken?: string;
@@ -472,7 +473,7 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
     return {
       model,
-      messages: req.messages,
+      messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
       temperature: req.temperature,
       stream,
     };

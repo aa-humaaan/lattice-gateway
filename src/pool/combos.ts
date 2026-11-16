@@ -70,7 +70,19 @@ export class ComboManager {
   }
 
   getCombo(id: string): VirtualCombo | undefined {
-    return this.combos.get(id);
+    if (!id) return undefined;
+    if (this.combos.has(id)) return this.combos.get(id);
+
+    // Normalize redundant prefixes, e.g. "lattice/lattice/1m-free" -> "lattice/1m-free"
+    const cleaned = id.replace(/^(lattice\/)+/, 'lattice/');
+    if (this.combos.has(cleaned)) return this.combos.get(cleaned);
+
+    // Try prepending "lattice/" if bare, e.g. "1m-free" -> "lattice/1m-free"
+    if (!cleaned.startsWith('lattice/') && this.combos.has(`lattice/${cleaned}`)) {
+      return this.combos.get(`lattice/${cleaned}`);
+    }
+
+    return undefined;
   }
 
   deleteCombo(id: string): boolean {
@@ -82,7 +94,7 @@ export class ComboManager {
   }
 
   isCombo(modelId: string): boolean {
-    return this.combos.has(modelId);
+    return !!this.getCombo(modelId);
   }
 
   listAsModels(): ModelDescriptor[] {

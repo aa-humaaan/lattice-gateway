@@ -18,6 +18,7 @@ import { createXMLToolInterceptor } from '../engine/dialect/xml-tool-interceptor
 import { GatewayError } from './types/errors';
 import { ProviderPlugin } from './types/plugin';
 import { createAdminRouter, broadcastLog } from '../admin/admin-router';
+import { globalComboManager } from '../pool/combos';
 
 export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void {
   const { config, plugins } = context;
@@ -136,29 +137,48 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     }
 
     // Check alias mapping first
-    const resolvedModel = MODEL_ALIASES[modelId] || modelId;
+    const aliased = MODEL_ALIASES[modelId] || modelId;
 
     // In single-provider environments (e.g. M1 mock provider dev/test),
     // route directly to the active provider.
     if (plugins.size === 1) {
-      return { plugin: plugins.values().next().value!, resolvedModel };
+      return { plugin: plugins.values().next().value!, resolvedModel: aliased };
+    }
+
+    // Handle client harnesses (e.g. OpenCode) prefixing the provider name "lattice/"
+    let targetModel = aliased;
+    if (targetModel.startsWith('lattice/')) {
+      const remainder = targetModel.slice('lattice/'.length);
+      const [firstSub] = remainder.split('/');
+
+      // If remainder has a known sub-provider prefix or another lattice prefix:
+      // e.g. "lattice/kilo/..." -> "kilo/...", "lattice/lattice/..." -> "lattice/..."
+      if (plugins.has(firstSub) || firstSub === 'cline-free') {
+        targetModel = remainder;
+      } else {
+        // Also check if remainder is a known model in the active catalog (e.g. "lattice/big-pickle")
+        const modelMap = await getModelPluginMap();
+        if (modelMap.has(remainder) && (!plugins.has('lattice') || !globalComboManager.isCombo(targetModel))) {
+          targetModel = remainder;
+        }
+      }
     }
 
     // 1. Direct provider prefix match: "providerId/modelName"
-    const [providerId] = resolvedModel.split('/');
+    const [providerId] = targetModel.split('/');
     if (plugins.has(providerId)) {
-      return { plugin: plugins.get(providerId)!, resolvedModel };
+      return { plugin: plugins.get(providerId)!, resolvedModel: targetModel };
     }
 
     // 2. Direct plugin ID match (e.g. "mock", "kilo")
-    if (plugins.has(resolvedModel)) {
-      return { plugin: plugins.get(resolvedModel)!, resolvedModel };
+    if (plugins.has(targetModel)) {
+      return { plugin: plugins.get(targetModel)!, resolvedModel: targetModel };
     }
 
     // 3. Catalog lookup: check if any active plugin provides this model
     const modelMap = await getModelPluginMap();
-    if (modelMap.has(resolvedModel)) {
-      return { plugin: modelMap.get(resolvedModel)!, resolvedModel };
+    if (modelMap.has(targetModel)) {
+      return { plugin: modelMap.get(targetModel)!, resolvedModel: targetModel };
     }
     if (modelMap.has(modelId)) {
       return { plugin: modelMap.get(modelId)!, resolvedModel: modelId };
@@ -168,7 +188,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     throw new GatewayError(
       404,
       'model_not_found',
-      `No active provider found for model: ${modelId} (resolved as ${resolvedModel})`
+      `No active provider found for model: ${modelId} (resolved as ${targetModel})`
     );
   }
 

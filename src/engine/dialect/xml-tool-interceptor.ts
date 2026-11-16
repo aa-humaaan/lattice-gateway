@@ -135,6 +135,9 @@ export class XMLToolInterceptorHandler {
     emit: (event: CanonicalStreamEvent) => void
   ): void {
     if (event.type !== 'text_delta') {
+      if (event.type === 'tool_call_start' || event.type === 'tool_call_delta') {
+        this.hasEmittedToolCalls = true;
+      }
       if (event.type === 'stream_end') {
         this.flushBuffer(emit);
         if (this.hasEmittedToolCalls && event.stopReason === 'stop') {

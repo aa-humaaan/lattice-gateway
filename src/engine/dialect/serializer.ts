@@ -1,6 +1,7 @@
 import {
   CanonicalResponse,
   CanonicalStopReason,
+  CanonicalMessage,
 } from '../../core/types/canonical';
 import {
   OpenAIChatCompletionResponse,
@@ -268,4 +269,141 @@ export function serializeOpenAIResponse(
         : {}),
     },
   };
+}
+
+/**
+ * Serializes internal CanonicalMessage array to standard OpenAI-compatible messages array.
+ * Robustly converts assistant tool_use, tool results, thinking blocks, and multi-part content.
+ */
+export function serializeOpenAIMessages(
+  messages: CanonicalMessage[],
+  systemPrompt?: string
+): any[] {
+  const result: any[] = [];
+
+  if (systemPrompt && systemPrompt.trim()) {
+    const hasInitialSystem = messages.length > 0 && messages[0].role === 'system';
+    if (!hasInitialSystem) {
+      result.push({ role: 'system', content: systemPrompt.trim() });
+    }
+  }
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      const text = typeof msg.content === 'string'
+        ? msg.content
+        : Array.isArray(msg.content)
+          ? msg.content.map((p) => ('text' in p ? p.text : '')).join('\n')
+          : String(msg.content ?? '');
+      result.push({ role: 'system', content: text, ...(msg.name ? { name: msg.name } : {}) });
+      continue;
+    }
+
+    if (msg.role === 'user') {
+      if (typeof msg.content === 'string') {
+        result.push({ role: 'user', content: msg.content, ...(msg.name ? { name: msg.name } : {}) });
+      } else if (Array.isArray(msg.content)) {
+        const hasImages = msg.content.some((p) => p.type === 'image');
+        if (!hasImages) {
+          const text = msg.content.map((p) => (p.type === 'text' ? p.text : '')).join('\n');
+          result.push({ role: 'user', content: text, ...(msg.name ? { name: msg.name } : {}) });
+        } else {
+          const parts = msg.content.map((p) => {
+            if (p.type === 'text') return { type: 'text', text: p.text };
+            if (p.type === 'image') {
+              const url = p.source.type === 'base64'
+                ? `data:${p.source.mediaType};base64,${p.source.data}`
+                : p.source.data;
+              return { type: 'image_url', image_url: { url } };
+            }
+            return { type: 'text', text: '' };
+          });
+          result.push({ role: 'user', content: parts, ...(msg.name ? { name: msg.name } : {}) });
+        }
+      }
+      continue;
+    }
+
+    if (msg.role === 'assistant') {
+      if (typeof msg.content === 'string') {
+        result.push({ role: 'assistant', content: msg.content, ...(msg.name ? { name: msg.name } : {}) });
+        continue;
+      }
+
+      if (Array.isArray(msg.content)) {
+        let textAccumulator = '';
+        let reasoningAccumulator = '';
+        const toolCalls: any[] = [];
+
+        for (const part of msg.content) {
+          if (part.type === 'text') {
+            textAccumulator += part.text;
+          } else if (part.type === 'thinking') {
+            reasoningAccumulator += part.thinking;
+          } else if (part.type === 'tool_use') {
+            toolCalls.push({
+              id: part.id,
+              type: 'function',
+              function: {
+                name: part.name,
+                arguments: typeof part.input === 'string'
+                  ? part.input
+                  : JSON.stringify(part.input ?? {}),
+              },
+            });
+          }
+        }
+
+        const assistantMsg: any = {
+          role: 'assistant',
+          content: textAccumulator || (toolCalls.length === 0 ? '' : null),
+        };
+        if (reasoningAccumulator) {
+          assistantMsg.reasoning_content = reasoningAccumulator;
+        }
+        if (toolCalls.length > 0) {
+          assistantMsg.tool_calls = toolCalls;
+        }
+        if (msg.name) {
+          assistantMsg.name = msg.name;
+        }
+        result.push(assistantMsg);
+        continue;
+      }
+
+      result.push({ role: 'assistant', content: null, ...(msg.name ? { name: msg.name } : {}) });
+      continue;
+    }
+
+    if (msg.role === 'tool') {
+      let textContent = '';
+      let toolCallId = msg.toolCallId;
+
+      if (typeof msg.content === 'string') {
+        textContent = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === 'tool_result') {
+            if (!toolCallId && part.toolCallId) toolCallId = part.toolCallId;
+            if (typeof part.content === 'string') {
+              textContent += part.content;
+            } else if (Array.isArray(part.content)) {
+              textContent += part.content.map((c) => ('text' in c ? c.text : '')).join('\n');
+            }
+          } else if (part.type === 'text') {
+            textContent += part.text;
+          }
+        }
+      }
+
+      result.push({
+        role: 'tool',
+        tool_call_id: toolCallId || 'call_default',
+        content: textContent,
+      });
+      continue;
+    }
+  }
+
+  return result;
 }

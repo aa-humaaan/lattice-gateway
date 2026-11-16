@@ -14,6 +14,7 @@ import type {
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
 import { parseXMLToolCall, applyXMLToolInterceptor } from '../engine/dialect/xml-tool-interceptor';
+import { serializeOpenAIMessages } from '../engine/dialect/serializer';
 import { logger } from '../utils/logger';
 
 export const KILO_DEFAULT_BASE_URL = 'https://ai-gateway.kilo.ai/api/v1';
@@ -552,10 +553,10 @@ export class KiloProviderPlugin implements ProviderPlugin {
       headers,
       body: JSON.stringify({
         model,
-        messages: req.messages,
+        messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
         temperature: req.temperature,
         max_tokens: req.maxTokens,
-        tools: req.tools,
+        tools: req.tools && req.tools.length > 0 ? req.tools : undefined,
         tool_choice: req.toolChoice,
         stream: false,
       }),
@@ -681,10 +682,10 @@ export class KiloProviderPlugin implements ProviderPlugin {
       headers,
       body: JSON.stringify({
         model,
-        messages: req.messages,
+        messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
         temperature: req.temperature,
         max_tokens: req.maxTokens,
-        tools: req.tools,
+        tools: req.tools && req.tools.length > 0 ? req.tools : undefined,
         tool_choice: req.toolChoice,
         stream: true,
       }),
@@ -716,6 +717,9 @@ export class KiloProviderPlugin implements ProviderPlugin {
       yield { type: 'stream_start', id: reqId, model: reqModel, created: timestamp };
 
       let streamEnded = false;
+      let hasToolCalls = false;
+      let stopReason: 'stop' | 'tool_calls' | 'length' = 'stop';
+
       for await (const sse of parseSSEStream(res.body!)) {
         if (sse.data === '[DONE]') {
           streamEnded = true;
@@ -724,7 +728,14 @@ export class KiloProviderPlugin implements ProviderPlugin {
 
         try {
           const parsed = JSON.parse(sse.data);
-          const delta = parsed.choices?.[0]?.delta;
+          const choice = parsed.choices?.[0];
+          const delta = choice?.delta;
+
+          if (choice?.finish_reason) {
+            if (choice.finish_reason === 'tool_calls') stopReason = 'tool_calls';
+            else if (choice.finish_reason === 'length') stopReason = 'length';
+            else if (choice.finish_reason === 'stop') stopReason = 'stop';
+          }
 
           if (delta?.content) {
             yield { type: 'text_delta', delta: delta.content };
@@ -736,6 +747,7 @@ export class KiloProviderPlugin implements ProviderPlugin {
             };
           }
           if (delta?.tool_calls && Array.isArray(delta.tool_calls)) {
+            hasToolCalls = true;
             for (const tc of delta.tool_calls) {
               const idx = tc.index ?? 0;
               if (tc.id && tc.function?.name) {
@@ -770,7 +782,11 @@ export class KiloProviderPlugin implements ProviderPlugin {
         }
       }
 
-      yield { type: 'stream_end', stopReason: 'stop' };
+      if (hasToolCalls) {
+        stopReason = 'tool_calls';
+      }
+
+      yield { type: 'stream_end', stopReason };
     }
 
     return applyXMLToolInterceptor(rawStreamGenerator());

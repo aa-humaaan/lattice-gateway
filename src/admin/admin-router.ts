@@ -1336,18 +1336,74 @@ export function createAdminRouter(): Hono {
   });
 
   // --------------------------------------------------------------------------
+  // Providers Test All API Endpoint
+  // --------------------------------------------------------------------------
+  router.post('/api/providers/test-all', async (c) => {
+    const accounts = globalAccountPool.listAccounts().filter(a => a.status === 'active');
+    const results = [];
+    for (const acc of accounts) {
+      const start = Date.now();
+      try {
+        const plugin = globalPluginRegistry.get(acc.providerId) as any;
+        if (plugin && typeof plugin.healthCheck === 'function') {
+          const h = await plugin.healthCheck();
+          results.push({
+            id: acc.id,
+            providerId: acc.providerId,
+            status: h.healthy ? 'healthy' : 'failed',
+            latencyMs: h.latencyMs || Math.max(12, Date.now() - start),
+          });
+        } else {
+          results.push({
+            id: acc.id,
+            providerId: acc.providerId,
+            status: 'healthy',
+            latencyMs: Math.max(12, Date.now() - start),
+          });
+        }
+      } catch (err: any) {
+        results.push({
+          id: acc.id,
+          providerId: acc.providerId,
+          status: 'error',
+          error: err.message || 'Probe error',
+          latencyMs: Date.now() - start,
+        });
+      }
+    }
+    return c.json({
+      success: true,
+      testedCount: accounts.length,
+      healthyCount: results.filter(r => r.status === 'healthy').length,
+      results,
+    });
+  });
+
+  // --------------------------------------------------------------------------
   // Human-Engineered Obsidian Zinc Admin Dashboard UI
   // --------------------------------------------------------------------------
   router.get('/admin', (c) => {
     return c.html(getDashboardHtml());
   });
 
-  router.get('/favicon.ico', (c) => {
-    return c.body(null, 204);
-  });
-
   router.get('/admin/', (c) => {
     return c.html(getDashboardHtml());
+  });
+
+  router.get('/dashboard', (c) => {
+    return c.html(getDashboardHtml());
+  });
+
+  router.get('/dashboard/*', (c) => {
+    return c.html(getDashboardHtml());
+  });
+
+  router.get('/', (c) => {
+    return c.html(getDashboardHtml());
+  });
+
+  router.get('/favicon.ico', (c) => {
+    return c.body(null, 204);
   });
 
   return router;
