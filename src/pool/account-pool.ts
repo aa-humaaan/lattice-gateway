@@ -68,6 +68,20 @@ export class AccountPoolManager {
     }
   }
 
+  clearCooldown(accountId: string): boolean {
+    const acc = this.accounts.get(accountId);
+    if (acc) {
+      acc.status = 'active';
+      acc.cooldownUntil = undefined;
+      acc.cooldownReason = undefined;
+      acc.errorCount = 0;
+      acc.updatedAt = Date.now();
+      logger.info(`[AccountPool] Account ${accountId} cooldown manually cleared -> restored to active`);
+      return true;
+    }
+    return false;
+  }
+
   reportRateLimit(accountId: string, retryAfterSeconds = 30, reason?: string): void {
     const acc = this.accounts.get(accountId);
     if (acc) {

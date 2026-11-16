@@ -19,11 +19,12 @@ export class ComboManager {
       id: 'lattice/1m-free',
       name: 'Lattice 1M Context Free Tier ($0 Auto-Failover)',
       targets: [
-        'kilo/nvidia/nemotron-3.5-super-vl:free',
         'kilo/particle-ai/particle-1:free',
         'kilo/baidu/ernie-5.5-flash-preview:free',
         'kilo/nvidia/nemotron-3.5-lightning:free',
         'kilo/inclusionai/ling-3.2-flash:free',
+        'cline-free/step-5-preview',
+        'muse-spark-1.3-contributor-free',
         'kilo/kilo-auto/free',
       ],
       description: 'Zero-cost 1,000,000+ token context window cascade with instant rate-limit failover across top free providers',

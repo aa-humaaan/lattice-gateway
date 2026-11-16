@@ -13,6 +13,8 @@ export interface EnrichedModelCatalogItem {
   ownedBy: string;
   contextWindow: number;
   contextWindowFormatted: string;
+  maxOutputTokens?: number;
+  maxOutputTokensFormatted?: string;
   supportsThinking: boolean;
   supportsTools: boolean;
   supportsStreaming: boolean;
@@ -24,8 +26,12 @@ export interface EnrichedModelCatalogItem {
 
 export function formatContextWindow(tokens: number): string {
   if (tokens >= 1_000_000) {
+    if (tokens === 1_048_576) return '1M tokens';
     const m = (tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 2);
     return `${m}M tokens`;
+  }
+  if (tokens % 1024 === 0) {
+    return `${tokens / 1024}k tokens`;
   }
   if (tokens >= 1_000) {
     const k = Math.round(tokens / 1_000);
@@ -34,10 +40,27 @@ export function formatContextWindow(tokens: number): string {
   return `${tokens.toLocaleString()} tokens`;
 }
 
-// Canonical inventory of all 31 verified zero-cost free models across upstreams
+export function formatOutputTokens(tokens?: number): string {
+  if (!tokens) return '8k tokens';
+  if (tokens >= 1_000_000) {
+    if (tokens === 1_048_576) return '1M tokens';
+    const m = (tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 2);
+    return `${m}M tokens`;
+  }
+  if (tokens % 1024 === 0) {
+    return `${tokens / 1024}k tokens`;
+  }
+  if (tokens >= 1_000) {
+    const k = Math.round(tokens / 1_000);
+    return `${k}k tokens`;
+  }
+  return `${tokens.toLocaleString()} tokens`;
+}
+
+// Canonical inventory of verified zero-cost free models across upstreams
 export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
   // --------------------------------------------------------------------------
-  // Kilo Code Free Models (15 models, 4 with 1M context)
+  // Kilo Code Free Models (16 models, 4 with 1M context)
   // --------------------------------------------------------------------------
   {
     id: 'kilo/particle-ai/particle-1:free',
@@ -46,6 +69,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'particle-ai',
     contextWindow: 1_048_576,
     contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 16_384,
+    maxOutputTokensFormatted: '16k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -66,6 +91,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'baidu',
     contextWindow: 1_024_000,
     contextWindowFormatted: '1M tokens (1,024,000)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -86,6 +113,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'nvidia',
     contextWindow: 1_000_000,
     contextWindowFormatted: '1M tokens (1,000,000)',
+    maxOutputTokens: 16_384,
+    maxOutputTokensFormatted: '16k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -106,6 +135,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'inclusionai',
     contextWindow: 1_048_576,
     contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -126,6 +157,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'nvidia',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 4_096,
+    maxOutputTokensFormatted: '4k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -145,81 +178,29 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'nvidia',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
     isFree: true,
-    tags: ['Massive 550B', 'Reasoning', 'Free'],
+    tags: ['Massive', 'Reasoning', 'Free'],
     badges: [
-      { text: '550B MoE', color: 'zinc' },
+      { text: 'Massive', color: 'zinc' },
       { text: 'Reasoning', color: 'amber' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'Massive mixture-of-experts architecture delivering flagship-grade reasoning.',
-  },
-  {
-    id: 'kilo/deepseek-r1:free',
-    name: 'DeepSeek R1 Free (via Kilo)',
-    providerId: 'kilo',
-    ownedBy: 'deepseek',
-    contextWindow: 128_000,
-    contextWindowFormatted: '128k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['Reasoning (R1)', 'Thinking', 'Free'],
-    badges: [
-      { text: 'Reasoning (R1)', color: 'amber' },
-      { text: 'Free', color: 'emerald' },
-    ],
-    description: 'Frontier reasoning model with transparent chain-of-thought distillation.',
-  },
-  {
-    id: 'kilo/deepseek-v3:free',
-    name: 'DeepSeek V3 Free (via Kilo)',
-    providerId: 'kilo',
-    ownedBy: 'deepseek',
-    contextWindow: 128_000,
-    contextWindowFormatted: '128k tokens',
-    supportsThinking: false,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['Coding', 'Chat', 'Free'],
-    badges: [
-      { text: 'Coding', color: 'zinc' },
-      { text: 'Chat', color: 'zinc' },
-      { text: 'Free', color: 'emerald' },
-    ],
-    description: 'High-speed general purpose chat and coding model with 671B parameters.',
-  },
-  {
-    id: 'kilo/qwen/qwen-2.5-72b-instruct:free',
-    name: 'Qwen 2.5 72B Instruct Free',
-    providerId: 'kilo',
-    ownedBy: 'qwen',
-    contextWindow: 128_000,
-    contextWindowFormatted: '128k tokens',
-    supportsThinking: false,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['Coding', 'Qwen 72B', 'Free'],
-    badges: [
-      { text: 'Coding', color: 'zinc' },
-      { text: 'Qwen 72B', color: 'zinc' },
-      { text: 'Free', color: 'emerald' },
-    ],
-    description: 'Alibaba flagship dense open model for code syntax and system instruction.',
+    description: 'Massive 550B parameter frontier model with deep domain reasoning.',
   },
   {
     id: 'kilo/qwen-2.5-coder:free',
     name: 'Kilo Qwen 2.5 Coder Free',
     providerId: 'kilo',
     ownedBy: 'kilo',
-    contextWindow: 128_000,
+    contextWindow: 131_072,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -230,7 +211,70 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
       { text: 'Fast', color: 'coral' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'Specialized coding model with high benchmark scores in TypeScript, Python, Rust.',
+    description: 'Specialized code completion and generation engine optimized for software engineering.',
+  },
+  {
+    id: 'kilo/qwen/qwen-2.5-72b-instruct:free',
+    name: 'Qwen 2.5 72B Instruct Free',
+    providerId: 'kilo',
+    ownedBy: 'qwen',
+    contextWindow: 131_072,
+    contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['General', 'Instruct', 'Free'],
+    badges: [
+      { text: '72B High Quality', color: 'amber' },
+      { text: 'Instruct', color: 'zinc' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'Alibaba Qwen 2.5 72B instruct model with exceptional reasoning and knowledge breadth.',
+  },
+  {
+    id: 'kilo/deepseek-r1:free',
+    name: 'DeepSeek R1 Free (via Kilo)',
+    providerId: 'kilo',
+    ownedBy: 'deepseek',
+    contextWindow: 128_000,
+    contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Reasoning', 'R1', 'Free'],
+    badges: [
+      { text: 'Reasoning', color: 'amber' },
+      { text: 'R1 Chain', color: 'coral' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'Frontier open-weights reasoning model with explicit visible chain-of-thought tokens.',
+  },
+  {
+    id: 'kilo/deepseek-v3:free',
+    name: 'DeepSeek V3 Free (via Kilo)',
+    providerId: 'kilo',
+    ownedBy: 'deepseek',
+    contextWindow: 128_000,
+    contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Coding', 'V3', 'Free'],
+    badges: [
+      { text: 'Coding', color: 'zinc' },
+      { text: 'V3 Speed', color: 'coral' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'High-speed DeepSeek V3 general chat and coding engine with zero subscription fees.',
   },
   {
     id: 'kilo/cohere/north-mini-code:free',
@@ -239,17 +283,40 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'cohere',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 4_096,
+    maxOutputTokensFormatted: '4k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
     isFree: true,
-    tags: ['Coding', 'Mini', 'Free'],
+    tags: ['Coding', 'Compact', 'Free'],
     badges: [
-      { text: 'Coding', color: 'zinc' },
-      { text: 'Mini', color: 'zinc' },
+      { text: 'Compact', color: 'zinc' },
+      { text: 'Coding', color: 'coral' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'Compact code completion model tuned for quick syntax generation.',
+    description: 'Cohere specialized code intelligence model optimized for compact code edits.',
+  },
+  {
+    id: 'kilo/stepfun/step-3.7-flash:free',
+    name: 'StepFun Step 3.7 Flash Free',
+    providerId: 'kilo',
+    ownedBy: 'stepfun',
+    contextWindow: 128_000,
+    contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Fast', 'Reasoning', 'Free'],
+    badges: [
+      { text: 'Flash', color: 'coral' },
+      { text: 'Reasoning', color: 'amber' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'Fast Chinese & English bilingual reasoning model with sub-second response times.',
   },
   {
     id: 'kilo/code-fast:free',
@@ -258,6 +325,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'kilo',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -275,8 +344,10 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     name: 'Liquid LFM 3 1.7B Free',
     providerId: 'kilo',
     ownedBy: 'liquid',
-    contextWindow: 128_000,
-    contextWindowFormatted: '128k tokens',
+    contextWindow: 32_768,
+    contextWindowFormatted: '32k tokens',
+    maxOutputTokens: 4_096,
+    maxOutputTokensFormatted: '4k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -287,7 +358,7 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
       { text: '1.7B Tiny', color: 'zinc' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'Liquid neural network architecture with constant memory scaling.',
+    description: 'Liquid neural network architecture with constant memory scaling (32k context, 4k output).',
   },
   {
     id: 'kilo/free-model:free',
@@ -296,6 +367,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'kilo',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -314,6 +387,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'kilo',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -327,7 +402,7 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
   },
 
   // --------------------------------------------------------------------------
-  // Cline Pooled Accounts Free Models (3 models, 1 with 1M context)
+  // Cline Pooled Accounts Free Models (5 models, 2 with 1M context)
   // --------------------------------------------------------------------------
   {
     id: 'cline-free/step-5-preview',
@@ -336,6 +411,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'cline',
     contextWindow: 1_000_000,
     contextWindowFormatted: '1M tokens (1,000,000)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -353,8 +430,10 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     name: 'Cline Free Mimo V2.6 Flash',
     providerId: 'cline',
     ownedBy: 'cline',
-    contextWindow: 128_000,
-    contextWindowFormatted: '128k tokens',
+    contextWindow: 200_000,
+    contextWindowFormatted: '200k tokens',
+    maxOutputTokens: 32_000,
+    maxOutputTokensFormatted: '32k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -362,9 +441,10 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     tags: ['Fast', 'Free'],
     badges: [
       { text: 'Fast', color: 'coral' },
+      { text: '200k Context', color: 'emerald' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'Lightweight high-speed model routed through active WorkOS device pools.',
+    description: 'Lightweight high-speed model with verified 200k context window and 32k output limit.',
   },
   {
     id: 'cline-free/solar-mini4',
@@ -373,6 +453,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'cline',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 4_096,
+    maxOutputTokensFormatted: '4k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -382,92 +464,142 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
       { text: 'Fast', color: 'coral' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'High performance small language model with fast generation speed.',
+    description: 'Upstage Solar Mini 4 model routed through active WorkOS device pools.',
   },
-
-  // --------------------------------------------------------------------------
-  // DeepSeek Web Pool Models (4 models)
-  // --------------------------------------------------------------------------
   {
-    id: 'deepseek/deepseek-reasoner',
-    name: 'DeepSeek R1 Reasoner (Web Pool)',
-    providerId: 'deepseek',
-    ownedBy: 'deepseek',
-    contextWindow: 64_000,
-    contextWindowFormatted: '64k tokens',
+    id: 'reflection/beam-free',
+    name: 'Cline Free Beam 1.0 (1M Context)',
+    providerId: 'cline',
+    ownedBy: 'reflection',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 131_072,
+    maxOutputTokensFormatted: '128k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
     isFree: true,
-    tags: ['Reasoning (R1)', 'Thinking', 'Web Pool', 'Free'],
+    tags: ['1M Context', 'Reasoning', 'Free'],
     badges: [
-      { text: 'Reasoning (R1)', color: 'amber' },
-      { text: 'Thinking', color: 'amber' },
-      { text: 'Web Pool', color: 'zinc' },
+      { text: '1M Context', color: 'emerald' },
+      { text: '128k Output', color: 'cyan' },
+      { text: 'Reasoning', color: 'amber' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'DeepSeek R1 full reasoning inference routed via zero-cost authenticated browser cookies.',
+    description: 'WorkOS pooled Reflection Beam 1.0 free model with 1,048,576 context and massive 128k generation limit.',
   },
   {
-    id: 'deepseek/deepseek-chat',
-    name: 'DeepSeek V3 Chat (Web Pool)',
-    providerId: 'deepseek',
-    ownedBy: 'deepseek',
-    contextWindow: 64_000,
-    contextWindowFormatted: '64k tokens',
+    id: 'poolside/laguna-s-2.1-free',
+    name: 'Cline Free Laguna S 2.1',
+    providerId: 'cline',
+    ownedBy: 'poolside',
+    contextWindow: 256_000,
+    contextWindowFormatted: '256k tokens',
+    maxOutputTokens: 32_768,
+    maxOutputTokensFormatted: '32k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
     isFree: true,
-    tags: ['Fast', 'Chat (V3)', 'Web Pool', 'Free'],
+    tags: ['Fast', 'Coding', 'Free'],
     badges: [
-      { text: 'Fast', color: 'coral' },
-      { text: 'Chat (V3)', color: 'zinc' },
-      { text: 'Web Pool', color: 'zinc' },
+      { text: '256k Context', color: 'emerald' },
+      { text: 'Coding', color: 'zinc' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'DeepSeek V3 fast chat engine with instant cookie authentication.',
+    description: 'Poolside Laguna S 2.1 model for high-efficiency code editing via Cline free pool.',
   },
+
+  // --------------------------------------------------------------------------
+  // DeepSeek Web Pool Free Models (4 models)
+  // --------------------------------------------------------------------------
   {
-    id: 'deepseek/deepseek-r1',
-    name: 'DeepSeek R1 (Thinking)',
+    id: 'deepseek/deepseek-chat',
+    name: 'DeepSeek Chat (Web Session Pool)',
     providerId: 'deepseek',
     ownedBy: 'deepseek',
     contextWindow: 64_000,
     contextWindowFormatted: '64k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Web Pool', 'General', 'Free'],
+    badges: [
+      { text: 'Web Pool', color: 'cyan' },
+      { text: 'General', color: 'zinc' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'Direct browser cookie session pool with automatic WAF bypass and rotating headers.',
+  },
+  {
+    id: 'deepseek/deepseek-reasoner',
+    name: 'DeepSeek Reasoner R1 (Web Session Pool)',
+    providerId: 'deepseek',
+    ownedBy: 'deepseek',
+    contextWindow: 64_000,
+    contextWindowFormatted: '64k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
     isFree: true,
-    tags: ['Reasoning (R1)', 'Thinking', 'Free'],
+    tags: ['Web Pool', 'Reasoning', 'R1', 'Free'],
     badges: [
-      { text: 'Reasoning (R1)', color: 'amber' },
-      { text: 'Thinking', color: 'amber' },
+      { text: 'Web Pool', color: 'cyan' },
+      { text: 'Reasoning R1', color: 'amber' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'DeepSeek R1 standard gateway endpoint with structured think-block extraction.',
+    description: 'Reasoning model streaming live thought tokens through authentic Chrome extension session cookies.',
   },
   {
     id: 'deepseek/deepseek-v3',
-    name: 'DeepSeek V3',
+    name: 'DeepSeek V3 Web Direct',
     providerId: 'deepseek',
     ownedBy: 'deepseek',
     contextWindow: 64_000,
     contextWindowFormatted: '64k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
     isFree: true,
-    tags: ['Chat (V3)', 'Free'],
+    tags: ['Web Pool', 'Coding', 'Free'],
     badges: [
-      { text: 'Chat (V3)', color: 'zinc' },
+      { text: 'Web Pool', color: 'cyan' },
+      { text: 'Coding', color: 'zinc' },
       { text: 'Free', color: 'emerald' },
     ],
-    description: 'Direct V3 model endpoint for coding and system prompts.',
+    description: 'Direct V3 dialect mapping to free web session tokens with keep-alive streaming.',
+  },
+  {
+    id: 'deepseek/deepseek-r1',
+    name: 'DeepSeek R1 Web Direct',
+    providerId: 'deepseek',
+    ownedBy: 'deepseek',
+    contextWindow: 64_000,
+    contextWindowFormatted: '64k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Web Pool', 'Reasoning', 'Free'],
+    badges: [
+      { text: 'Web Pool', color: 'cyan' },
+      { text: 'Reasoning', color: 'amber' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'Full-depth R1 chain-of-thought execution via authenticated session pool.',
   },
 
   // --------------------------------------------------------------------------
-  // OpenCode Zen Keyless Models (4 models)
+  // OpenCode Zen Keyless Models (8 models, 3 with 1M context)
   // --------------------------------------------------------------------------
   {
     id: 'big-pickle',
@@ -476,6 +608,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'opencode',
     contextWindow: 200_000,
     contextWindowFormatted: '200k tokens',
+    maxOutputTokens: 32_000,
+    maxOutputTokensFormatted: '32k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -496,6 +630,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'opencode',
     contextWindow: 200_000,
     contextWindowFormatted: '200k tokens',
+    maxOutputTokens: 32_000,
+    maxOutputTokensFormatted: '32k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -515,6 +651,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'opencode',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 16_000,
+    maxOutputTokensFormatted: '16k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -535,6 +673,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'opencode',
     contextWindow: 262_144,
     contextWindowFormatted: '262k tokens',
+    maxOutputTokens: 16_384,
+    maxOutputTokensFormatted: '16k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -548,6 +688,91 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ],
     description: '262k quarter-million token context model completely free without API keys.',
   },
+  {
+    id: 'muse-spark-1.3-contributor-free',
+    name: 'OpenCode Muse Spark 1.3 (1M Context Free)',
+    providerId: 'opencode',
+    ownedBy: 'opencode',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 131_072,
+    maxOutputTokensFormatted: '128k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Keyless', '1M Context', 'Reasoning', 'Free'],
+    badges: [
+      { text: 'Keyless', color: 'cyan' },
+      { text: '1M Context', color: 'emerald' },
+      { text: '128k Output', color: 'cyan' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'OpenCode Zen contributor tier model featuring 1,048,576 token context and 128k output ceiling.',
+  },
+  {
+    id: 'muse-spark-1.2-contributor-free',
+    name: 'OpenCode Muse Spark 1.2 (1M Context Free)',
+    providerId: 'opencode',
+    ownedBy: 'opencode',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 131_072,
+    maxOutputTokensFormatted: '128k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Keyless', '1M Context', 'Reasoning', 'Free'],
+    badges: [
+      { text: 'Keyless', color: 'cyan' },
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'Ultra-stable Muse Spark 1.2 free model with full 1M context capacity.',
+  },
+  {
+    id: 'nemotron-3-ultra-free',
+    name: 'OpenCode Nemotron 3 Ultra (1M Context Free)',
+    providerId: 'opencode',
+    ownedBy: 'opencode',
+    contextWindow: 1_000_000,
+    contextWindowFormatted: '1M tokens (1,000,000)',
+    maxOutputTokens: 128_000,
+    maxOutputTokensFormatted: '128k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Keyless', '1M Context', 'Massive', 'Free'],
+    badges: [
+      { text: 'Keyless', color: 'cyan' },
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'NVIDIA Nemotron 3 Ultra 1M context anonymous model for large code repos.',
+  },
+  {
+    id: 'ling-3.0-flash-fin-free',
+    name: 'OpenCode Ling 3.0 Flash Fin (Free)',
+    providerId: 'opencode',
+    ownedBy: 'opencode',
+    contextWindow: 262_144,
+    contextWindowFormatted: '262k tokens',
+    maxOutputTokens: 32_768,
+    maxOutputTokensFormatted: '32k tokens',
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Keyless', 'Fast', 'Free'],
+    badges: [
+      { text: 'Keyless', color: 'cyan' },
+      { text: '262k Context', color: 'emerald' },
+      { text: 'Free', color: 'emerald' },
+    ],
+    description: 'Fast financial & analytical model with 262k context and zero key requirement.',
+  },
 
   // --------------------------------------------------------------------------
   // Nous Research Free Models (3 models)
@@ -559,6 +784,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'upstage',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 4_096,
+    maxOutputTokensFormatted: '4k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -577,6 +804,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'stepfun',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -595,6 +824,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'meituan',
     contextWindow: 128_000,
     contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: false,
     supportsTools: true,
     supportsStreaming: true,
@@ -608,6 +839,119 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
   },
 
   // --------------------------------------------------------------------------
+  // Groq Free Tier Models (3 models)
+  // --------------------------------------------------------------------------
+  {
+    id: 'groq/llama-3.3-70b-versatile',
+    name: 'Groq Llama 3.3 70B Versatile (Free Tier)',
+    providerId: 'groq',
+    ownedBy: 'meta',
+    contextWindow: 128_000,
+    contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 32_768,
+    maxOutputTokensFormatted: '32k tokens',
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Groq LPU', 'Ultra-Fast', 'Coding', 'Free'],
+    badges: [
+      { text: 'Groq LPU', color: 'amber' },
+      { text: '32k Output', color: 'cyan' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'Llama 3.3 70B served via Groq LPUs at 300+ tokens/sec with 128k context and 32k output limit.',
+  },
+  {
+    id: 'groq/llama-3.1-8b-instant',
+    name: 'Groq Llama 3.1 8B Instant (Free Tier)',
+    providerId: 'groq',
+    ownedBy: 'meta',
+    contextWindow: 128_000,
+    contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: false,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Groq LPU', 'Instant', 'Free'],
+    badges: [
+      { text: 'Groq Instant', color: 'coral' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'Lightning-fast 8B model with sub-50ms TTFT running on Groq free developer tier.',
+  },
+  {
+    id: 'groq/deepseek-r1-distill-llama-70b',
+    name: 'Groq DeepSeek R1 Distill 70B (Free Tier)',
+    providerId: 'groq',
+    ownedBy: 'deepseek',
+    contextWindow: 128_000,
+    contextWindowFormatted: '128k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['Groq LPU', 'Reasoning', 'R1', 'Free'],
+    badges: [
+      { text: 'Reasoning R1', color: 'amber' },
+      { text: 'Groq LPU', color: 'coral' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'Distilled DeepSeek R1 reasoning architecture accelerated by Groq hardware.',
+  },
+
+  // --------------------------------------------------------------------------
+  // Google Gemini Free Tier Models (2 models, both 1M context)
+  // --------------------------------------------------------------------------
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Google Gemini 2.0 Flash (Free Tier)',
+    providerId: 'gemini',
+    ownedBy: 'google',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Multimodal', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Multimodal', color: 'cyan' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'Google AI Studio zero-cost tier model with native 1,048,576 token context and multimodal capabilities.',
+  },
+  {
+    id: 'gemini-2.0-flash-thinking-exp',
+    name: 'Google Gemini 2.0 Flash Thinking (1M Context Free)',
+    providerId: 'gemini',
+    ownedBy: 'google',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 65_536,
+    maxOutputTokensFormatted: '64k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Reasoning', 'Thinking', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Reasoning', color: 'amber' },
+      { text: '64k Output', color: 'cyan' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'Experimental Gemini model with extended thinking reasoning traces and massive 64k token generation ceiling.',
+  },
+
+  // --------------------------------------------------------------------------
   // Lattice Virtual Combos (2 auto-failover cascades)
   // --------------------------------------------------------------------------
   {
@@ -617,6 +961,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'lattice',
     contextWindow: 1_048_576,
     contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 16_384,
+    maxOutputTokensFormatted: '16k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -628,7 +974,7 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
       { text: 'Virtual Combo', color: 'zinc' },
       { text: 'Free ($0)', color: 'emerald' },
     ],
-    description: 'Multi-target cascade auto-failing over across all 1M Kilo models with zero drops.',
+    description: 'Multi-target cascade auto-failing over across all 1M free models with zero drops.',
   },
   {
     id: 'lattice/fast-free',
@@ -637,6 +983,8 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
     ownedBy: 'lattice',
     contextWindow: 200_000,
     contextWindowFormatted: '200k tokens',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
     supportsThinking: true,
     supportsTools: true,
     supportsStreaming: true,
@@ -655,7 +1003,7 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
 export function getEnrichedModelsCatalog(): EnrichedModelCatalogItem[] {
   const modelMap = new Map<string, EnrichedModelCatalogItem>();
 
-  // 1. Seed with canonical 31 free models
+  // 1. Seed with canonical free models
   for (const m of CANONICAL_FREE_MODELS) {
     modelMap.set(m.id, m);
   }
@@ -665,7 +1013,8 @@ export function getEnrichedModelsCatalog(): EnrichedModelCatalogItem[] {
   for (const plugin of plugins) {
     if (typeof plugin.listModels === 'function') {
       try {
-        const pModels = plugin.listModels();
+        const pRes: any = plugin.listModels();
+        const pModels = Array.isArray(pRes) ? pRes : (plugin as any).cachedModels || [];
         for (const m of pModels) {
           if (!modelMap.has(m.id)) {
             const isFree = m.isFree || m.id.includes(':free') || m.id.includes('free');
@@ -683,6 +1032,8 @@ export function getEnrichedModelsCatalog(): EnrichedModelCatalogItem[] {
               ownedBy: m.ownedBy || plugin.id,
               contextWindow: m.contextWindow || 128_000,
               contextWindowFormatted: formatContextWindow(m.contextWindow || 128_000),
+              maxOutputTokens: m.maxOutputTokens || 8_192,
+              maxOutputTokensFormatted: formatOutputTokens(m.maxOutputTokens || 8_192),
               supportsThinking: !!m.supportsThinking,
               supportsTools: !!m.supportsTools,
               supportsStreaming: m.supportsStreaming !== false,
@@ -707,6 +1058,8 @@ export function getEnrichedModelsCatalog(): EnrichedModelCatalogItem[] {
         ownedBy: 'lattice',
         contextWindow: c.contextWindow || 200_000,
         contextWindowFormatted: formatContextWindow(c.contextWindow || 200_000),
+        maxOutputTokens: c.maxOutputTokens || 8_192,
+        maxOutputTokensFormatted: formatOutputTokens(c.maxOutputTokens || 8_192),
         supportsThinking: !!c.supportsThinking,
         supportsTools: !!c.supportsTools,
         supportsStreaming: true,
@@ -737,10 +1090,12 @@ export async function probeModel(modelId: string, prompt = 'Ping'): Promise<{
   let providerId = 'unknown';
 
   if (modelId.startsWith('kilo/')) providerId = 'kilo';
-  else if (modelId.startsWith('cline') || modelId.startsWith('cline-free/')) providerId = 'cline';
+  else if (modelId.startsWith('cline') || modelId.startsWith('cline-free/') || modelId.startsWith('reflection/') || modelId.startsWith('poolside/')) providerId = 'cline';
   else if (modelId.startsWith('deepseek')) providerId = 'deepseek';
-  else if (modelId.startsWith('opencode') || modelId === 'big-pickle' || modelId.includes('flash-free') || modelId.includes('lightning-free')) providerId = 'opencode';
+  else if (modelId.startsWith('opencode') || modelId === 'big-pickle' || modelId.includes('flash-free') || modelId.includes('lightning-free') || modelId.includes('muse-spark') || modelId.includes('nemotron-3-ultra') || modelId.includes('ling-3.0')) providerId = 'opencode';
   else if (modelId.startsWith('nous/')) providerId = 'nous';
+  else if (modelId.startsWith('groq/')) providerId = 'groq';
+  else if (modelId.startsWith('gemini')) providerId = 'gemini';
   else if (modelId.startsWith('lattice/')) providerId = 'lattice';
 
   const plugin = globalPluginRegistry.get(providerId);
