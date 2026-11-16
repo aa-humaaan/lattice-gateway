@@ -2356,9 +2356,19 @@ function getDashboardHtml(): string {
     }
 
     // 1-CLICK OAUTH LOGIN FLOW
+    let currentOAuthUserCode = '';
+    function copyOAuthUserCode() {
+      if (currentOAuthUserCode) {
+        navigator.clipboard.writeText(currentOAuthUserCode);
+        showToast('Code copied: ' + currentOAuthUserCode, 'success');
+      }
+    }
+    window.copyOAuthUserCode = copyOAuthUserCode;
+
     async function startOAuthDeviceLogin(provider) {
-      const btn = document.getElementById('btn-oauth-' + provider);
-      const flowBox = document.getElementById('oauth-flow-' + provider);
+      const prov = provider || selectedProvider || 'cline';
+      const btn = document.getElementById('btn-oauth-' + prov);
+      const flowBox = document.getElementById('oauth-flow-' + prov);
       if (btn) {
         btn.disabled = true;
         btn.textContent = 'Requesting Auth URL & Device Code...';
@@ -2368,7 +2378,7 @@ function getDashboardHtml(): string {
         const res = await fetch('/api/oauth/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider }),
+          body: JSON.stringify({ provider: prov }),
         });
 
         const json = await res.json();
@@ -2378,6 +2388,7 @@ function getDashboardHtml(): string {
 
         const { sessionId, userCode, verificationUri, verificationUriComplete } = json.data;
         const authUrl = verificationUriComplete || verificationUri;
+        currentOAuthUserCode = userCode || '';
 
         if (flowBox) {
           flowBox.style.display = 'flex';
@@ -2385,7 +2396,7 @@ function getDashboardHtml(): string {
             ? '<div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.06); padding:8px 14px; border-radius:8px; border:1px solid var(--surface-border);">' +
                 '<span style="font-size:0.75rem; color:var(--text-subtle);">CODE:</span>' +
                 '<strong style="font-family:var(--font-mono); font-size:1.15rem; letter-spacing:0.08em; color:#fff;">' + userCode + '</strong>' +
-                '<button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(\'' + userCode + '\'); showToast(\'Code copied!\', \'success\');">📋 Copy Code</button>' +
+                '<button type="button" class="btn btn-secondary btn-sm" onclick="copyOAuthUserCode()">📋 Copy Code</button>' +
               '</div>' 
             : '';
 
@@ -2872,7 +2883,7 @@ function getDashboardHtml(): string {
             '<p style="font-size:0.82rem; color:var(--text-muted);">' +
               'Authenticate your Cline account directly through WorkOS in your browser. Tokens are captured and saved automatically.' +
             '</p>' +
-            '<button class="btn btn-primary" id="btn-oauth-cline" onclick="startOAuthDeviceLogin(\'cline\')" style="margin-top:6px;">' +
+            '<button class="btn btn-primary" id="btn-oauth-cline" onclick="startOAuthDeviceLogin()" style="margin-top:6px;">' +
               '🚀 Start Cline OAuth Login' +
             '</button>' +
             '<div id="oauth-flow-cline" style="display:none;" class="oauth-card-active"></div>' +
@@ -2912,7 +2923,7 @@ function getDashboardHtml(): string {
             '<p style="font-size:0.82rem; color:var(--text-muted);">' +
               'Log in to Kilo Code via browser device code flow. We will automatically capture your session token.' +
             '</p>' +
-            '<button class="btn btn-primary" id="btn-oauth-kilo" onclick="startOAuthDeviceLogin(\'kilo\')" style="margin-top:6px;">' +
+            '<button class="btn btn-primary" id="btn-oauth-kilo" onclick="startOAuthDeviceLogin()" style="margin-top:6px;">' +
               '🚀 Start Kilo OAuth Login' +
             '</button>' +
             '<div id="oauth-flow-kilo" style="display:none;" class="oauth-card-active"></div>' +
@@ -2955,7 +2966,7 @@ function getDashboardHtml(): string {
             '<p style="font-size:0.82rem; color:var(--text-muted);">' +
               'Authenticate with the Nous Research Portal via browser device session.' +
             '</p>' +
-            '<button class="btn btn-primary" id="btn-oauth-nous" onclick="startOAuthDeviceLogin(\'nous\')" style="margin-top:6px;">' +
+            '<button class="btn btn-primary" id="btn-oauth-nous" onclick="startOAuthDeviceLogin()" style="margin-top:6px;">' +
               '🚀 Start Nous Portal Login' +
             '</button>' +
             '<div id="oauth-flow-nous" style="display:none;" class="oauth-card-active"></div>' +
