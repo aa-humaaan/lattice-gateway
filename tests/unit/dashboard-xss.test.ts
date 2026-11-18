@@ -130,6 +130,78 @@ describe('SEC-01: dashboard escapes client-supplied model names', () => {
     expectEscaped(document.created[0].innerHTML);
   });
 
+  it('harness cards escape names, categories, descriptions and paths', () => {
+    const document = makeDocument();
+    const render = new Function('document', 'escapeHtml',
+      `${escapeSrc}\n${extractFunction('renderHarnessGrid')}\nreturn renderHarnessGrid;`
+    )(document, escapeHtml);
+    render([{
+      id: PAYLOAD, name: PAYLOAD, category: PAYLOAD, protocol: 'http',
+      description: PAYLOAD, targetPath: PAYLOAD, configured: false, detected: false,
+      configSnippet: '',
+    }]);
+    expectEscaped(document.getElementById('harness-grid-container').innerHTML);
+  });
+
+  it('plugin rows escape display names, ids and base URLs', async () => {
+    const document = makeDocument();
+    const fetchStub = () => Promise.resolve({
+      json: () => Promise.resolve({
+        success: true,
+        plugins: [{
+          id: PAYLOAD, displayName: PAYLOAD, defaultBaseUrl: PAYLOAD,
+          supportedAuthTypes: [PAYLOAD], enabled: true,
+        }],
+      }),
+    });
+    const fetchPlugins = new Function('document', 'escapeHtml', 'fetchStub', 'allAccountsData', 'PROVIDER_LOGOS_MAP', 'allModels',
+      `${escapeSrc}\nconst fetch = fetchStub;\n${extractFunction('fetchPlugins')}\nreturn fetchPlugins;`
+    )(document, escapeHtml, fetchStub, [], {}, []);
+    await fetchPlugins();
+    expectEscaped(document.getElementById('plugins-table-body').innerHTML);
+  });
+
+  it('wizard target rows escape target names', () => {
+    const document = makeDocument();
+    const render = new Function('document', 'escapeHtml', 'allAccountsData', 'wizardTargets',
+      `${escapeSrc}\n${extractFunction('renderWizardTargets')}\nreturn renderWizardTargets;`
+    )(document, escapeHtml, [], [PAYLOAD]);
+    render();
+    expectEscaped(document.getElementById('wizard-targets-list').innerHTML);
+  });
+
+  it('sanitizes executable markup at the innerHTML boundary', () => {
+    const fnStart = script.indexOf('    function sanitizeDashboardHtml(html) {');
+    const fnEnd = script.indexOf('    const nativeInnerHTML =', fnStart);
+    const fnSrc = script.slice(fnStart, fnEnd);
+    const attrs = [
+      { name: 'onerror', value: 'alert(1)' },
+      { name: 'href', value: 'javascript:alert(1)' },
+      { name: 'class', value: 'safe' },
+    ];
+    const node = {
+      tagName: 'A',
+      attributes: attrs,
+      removeAttribute(name: string) {
+        const i = attrs.findIndex((a) => a.name === name);
+        if (i >= 0) attrs.splice(i, 1);
+      },
+      remove() {},
+    };
+    const document = { createElement: () => ({ content: { querySelectorAll: () => [node] } }) };
+    const nativeInnerHTML = {
+      set: (_el: unknown, value: string) => { /* template parse stand-in */ },
+      get: () => '<a class="safe">text</a>',
+    };
+    const sanitize = new Function('document', 'nativeInnerHTML',
+      `${fnSrc}\nreturn sanitizeDashboardHtml;`
+    )(document, nativeInnerHTML) as (v: string) => string;
+
+    sanitize('<a onerror="alert(1)" href="javascript:alert(1)" class="safe">text</a>');
+    expect(attrs.map((a) => a.name)).toEqual(['class']);
+    expect(sanitize('<img src=x onerror=alert(1)>')).not.toContain('onerror');
+  });
+
   it('serves the dashboard with a strict Content-Security-Policy', async () => {
     const app = createServer({ adminToken: 'admin-secret' });
     const res = await app.request('/admin');

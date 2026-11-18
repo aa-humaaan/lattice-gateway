@@ -2448,6 +2448,39 @@ export function getDashboardHtml(nonce?: string): string {
       });
     })();
 
+    // Last-resort boundary: every innerHTML assignment is cleaned of executable
+    // markup, so a missed interpolation cannot become active content even
+    // though the strict CSP would already block it.
+    function sanitizeDashboardHtml(html) {
+      const template = document.createElement('template');
+      nativeInnerHTML.set.call(template, String(html));
+      for (const node of template.content.querySelectorAll('*')) {
+        const tag = String(node.tagName || '').toUpperCase();
+        if (tag === 'SCRIPT' || tag === 'IFRAME' || tag === 'OBJECT' ||
+            tag === 'EMBED' || tag === 'BASE' || tag === 'META' || tag === 'LINK') {
+          if (node.remove) node.remove();
+          continue;
+        }
+        for (const attr of Array.from(node.attributes || [])) {
+          const name = String(attr.name).toLowerCase();
+          const value = String(attr.value).trim().toLowerCase();
+          if (name.startsWith('on') || name === 'srcdoc' ||
+              ((name === 'href' || name === 'src' || name === 'xlink:href') && value.startsWith('javascript:'))) {
+            node.removeAttribute(attr.name);
+          }
+        }
+      }
+      return nativeInnerHTML.get.call(template);
+    }
+    const nativeInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    if (nativeInnerHTML && nativeInnerHTML.set && nativeInnerHTML.get) {
+      Object.defineProperty(Element.prototype, 'innerHTML', {
+        configurable: true,
+        get: function () { return nativeInnerHTML.get.call(this); },
+        set: function (value) { nativeInnerHTML.set.call(this, sanitizeDashboardHtml(value)); }
+      });
+    }
+
     const CALLABLES = {
       addCustomTarget: addCustomTarget,
       clearLogs: clearLogs,
@@ -2730,7 +2763,7 @@ export function getDashboardHtml(nonce?: string): string {
           showToast('Probe OK (' + data.latencyMs + 'ms) for ' + modelId, 'success');
         } else {
           if (statusEl) {
-            statusEl.innerHTML = '<span class="status-pill coral"><span class="status-dot coral"></span> ' + (data.error || 'Failed') + '</span>';
+            statusEl.innerHTML = '<span class="status-pill coral"><span class="status-dot coral"></span> ' + escapeHtml(data.error || 'Failed') + '</span>';
           }
           showToast('Probe failed: ' + (data.error || 'Unknown error'), 'error');
         }
@@ -2783,16 +2816,16 @@ export function getDashboardHtml(nonce?: string): string {
               '<div class="harness-title-group">' +
                 '<div class="harness-icon">${ICONS.terminal}</div>' +
                 '<div>' +
-                  '<div class="harness-name">' + h.name + '</div>' +
-                  '<div class="harness-category">' + h.category + ' Â· ' + h.protocol.toUpperCase() + '</div>' +
+                  '<div class="harness-name">' + escapeHtml(h.name) + '</div>' +
+                  '<div class="harness-category">' + escapeHtml(h.category) + ' Â· ' + escapeHtml(h.protocol.toUpperCase()) + '</div>' +
                 '</div>' +
               '</div>' +
               statusBadge +
             '</div>' +
-            '<div class="harness-desc">' + h.description + '</div>' +
-            '<div class="harness-path-box" title="' + h.targetPath + '">' + h.targetPath + '</div>' +
+            '<div class="harness-desc">' + escapeHtml(h.description) + '</div>' +
+            '<div class="harness-path-box" title="' + escapeHtml(h.targetPath) + '">' + escapeHtml(h.targetPath) + '</div>' +
             '<div class="harness-actions">' +
-              '<button class="btn btn-primary btn-sm" id="btn-setup-' + safeId + '" data-action="setup-harness" data-id="' + h.id + '">' +
+              '<button class="btn btn-primary btn-sm" id="btn-setup-' + safeId + '" data-action="setup-harness" data-id="' + escapeHtml(h.id) + '">' +
                 '${ICONS.zap}' +
                 '<span>1-Click Setup</span>' +
               '</button>' +
@@ -3094,14 +3127,14 @@ export function getDashboardHtml(nonce?: string): string {
                 ? '<span class="status-pill emerald"><span class="status-dot emerald"></span> ' + pActiveAccounts.length + ' active</span>'
                 : '<span class="status-pill zinc"><span class="status-dot zinc"></span> 0 accounts</span>';
 
-              const authBadges = (p.supportedAuthTypes || []).map(t => 
-                '<span class="badge-tag zinc" style="font-size:0.68rem;">' + t + '</span>'
+              const authBadges = (p.supportedAuthTypes || []).map(t =>
+                '<span class="badge-tag zinc" style="font-size:0.68rem;">' + escapeHtml(t) + '</span>'
               ).join(' ');
 
               const icon = PROVIDER_LOGOS_MAP[p.id] || '${ICONS.layers}';
 
               const connectBtn = (p.id !== 'lattice-combo' && p.id !== 'lattice')
-                ? '<button class="btn btn-emerald btn-sm" data-call-click="openCredentialsModal(\\'' + p.id + '\\')">${ICONS.plus} Connect</button>'
+                ? '<button class="btn btn-emerald btn-sm" data-call-click="openCredentialsModal(\\'' + escapeHtml(p.id) + '\\')">${ICONS.plus} Connect</button>'
                 : '';
 
               return '<tr>' +
@@ -3109,18 +3142,18 @@ export function getDashboardHtml(nonce?: string): string {
                   '<div style="display:flex; align-items:center; gap:10px;">' +
                     '<div style="width:28px; height:28px; border-radius:6px; background:var(--bg-canvas); border:1px solid var(--border-subtle); display:flex; align-items:center; justify-content:center; color:var(--text-primary); flex-shrink:0;">' + icon + '</div>' +
                     '<div>' +
-                      '<div style="font-weight:600; color:var(--text-primary); font-size:0.88rem;">' + p.displayName + '</div>' +
-                      '<div style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-tertiary);">' + p.id + '</div>' +
+                      '<div style="font-weight:600; color:var(--text-primary); font-size:0.88rem;">' + escapeHtml(p.displayName) + '</div>' +
+                      '<div style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-tertiary);">' + escapeHtml(p.id) + '</div>' +
                     '</div>' +
                   '</div>' +
                 '</td>' +
-                '<td style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary);">' + p.defaultBaseUrl + '</td>' +
+                '<td style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary);">' + escapeHtml(p.defaultBaseUrl) + '</td>' +
                 '<td><div style="display:flex; flex-wrap:wrap; gap:4px;">' + (authBadges || '<span style="color:var(--text-tertiary); font-size:0.75rem;">None</span>') + '</div></td>' +
                 '<td>' + accountsCountStr + '</td>' +
                 '<td><span class="status-pill ' + (p.enabled ? 'emerald' : 'zinc') + '"><span class="status-dot ' + (p.enabled ? 'emerald' : 'zinc') + '"></span> ' + (p.enabled ? 'Active' : 'Disabled') + '</span></td>' +
                 '<td>' +
                   '<div style="display:flex; align-items:center; gap:6px;">' +
-                    '<button class="btn btn-secondary btn-sm" data-action="toggle-plugin" data-id="' + p.id + '">' +
+                    '<button class="btn btn-secondary btn-sm" data-action="toggle-plugin" data-id="' + escapeHtml(p.id) + '">' +
                       (p.enabled ? 'Disable' : 'Enable') +
                     '</button>' +
                     connectBtn +
@@ -3321,8 +3354,8 @@ export function getDashboardHtml(nonce?: string): string {
           const pct = Math.max(1, Math.round(((pStat.total || 0) / total) * 100));
           const color = pColors[p] || '#71717a';
           const name = pNames[p] || p;
-          trackHtml += '<div class="distribution-segment" style="width: ' + pct + '%; background: ' + color + ';" title="' + name + ': ' + pct + '% (' + (pStat.total || 0).toLocaleString() + ' tokens)"></div>';
-          legendHtml += '<div class="legend-item"><span class="legend-dot" style="background: ' + color + ';"></span><span>' + name + ': <strong>' + pct + '%</strong></span></div>';
+          trackHtml += '<div class="distribution-segment" style="width: ' + pct + '%; background: ' + color + ';" title="' + escapeHtml(name) + ': ' + pct + '% (' + (pStat.total || 0).toLocaleString() + ' tokens)"></div>';
+          legendHtml += '<div class="legend-item"><span class="legend-dot" style="background: ' + color + ';"></span><span>' + escapeHtml(name) + ': <strong>' + pct + '%</strong></span></div>';
         }
         track.innerHTML = trackHtml;
         legend.innerHTML = legendHtml;
@@ -3348,8 +3381,8 @@ export function getDashboardHtml(nonce?: string): string {
           chartHtml += '<div class="token-chart-row">' +
             '<div class="token-chart-header">' +
               '<div class="token-chart-provider-name">' +
-                '<span>' + p.name + '</span>' +
-                '<span class="badge-tag zinc" style="font-size:0.68rem; font-family:var(--font-mono);">' + p.id + '</span>' +
+                '<span>' + escapeHtml(p.name) + '</span>' +
+                '<span class="badge-tag zinc" style="font-size:0.68rem; font-family:var(--font-mono);">' + escapeHtml(p.id) + '</span>' +
                 '<span style="font-size:0.72rem; color:var(--text-tertiary); font-family:var(--font-mono);">' + sharePct + '% gateway volume</span>' +
               '</div>' +
               '<div class="token-chart-totals">' +
@@ -3387,8 +3420,8 @@ export function getDashboardHtml(nonce?: string): string {
           const chevronSvg = '<span class="' + chevronClass + '">${ICONS.chevronRight}</span>';
           const pBadge = '<span class="badge-tag zinc" style="margin-left:6px;">' + (p.models?.length || 0) + ' models</span>';
 
-          html += '<tr class="accordion-row" data-action="toggle-accordion" data-id="' + p.id + '" style="background: var(--bg-surface-elevated); font-weight: 600; cursor: pointer;">' +
-            '<td><div style="display:flex; align-items:center; gap:8px;">' + chevronSvg + '<span>' + p.name + '</span>' + pBadge + '</div></td>' +
+          html += '<tr class="accordion-row" data-action="toggle-accordion" data-id="' + escapeHtml(p.id) + '" style="background: var(--bg-surface-elevated); font-weight: 600; cursor: pointer;">' +
+            '<td><div style="display:flex; align-items:center; gap:8px;">' + chevronSvg + '<span>' + escapeHtml(p.name) + '</span>' + pBadge + '</div></td>' +
             '<td style="text-align: right; font-family: var(--font-mono); color: var(--cyan-text);">' + p.promptTokens.toLocaleString() + '</td>' +
             '<td style="text-align: right; font-family: var(--font-mono); color: #60a5fa;">' + p.cachedTokens.toLocaleString() + '</td>' +
             '<td style="text-align: right; font-family: var(--font-mono); color: var(--emerald-text);">' + p.completionTokens.toLocaleString() + '</td>' +
@@ -3402,7 +3435,7 @@ export function getDashboardHtml(nonce?: string): string {
               html += '<tr class="accordion-nested-row">' +
                 '<td style="padding-left: 36px;">' +
                   '<div style="display:flex; align-items:center; gap:6px;">' +
-                    '<span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-primary);">' + m.id + '</span>' +
+                    '<span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-primary);">' + escapeHtml(m.id) + '</span>' +
                     '<span class="badge-tag zinc" style="font-size: 0.65rem;">' + (m.contextWindowFormatted || '128k') + '</span>' +
                   '</div>' +
                 '</td>' +
@@ -4019,10 +4052,10 @@ export function getDashboardHtml(nonce?: string): string {
             pollOAuthStatus(sessionId, provider);
           }
         } else {
-          if (statusEl) statusEl.innerHTML = '<span style="color:var(--coral-text);">Failed: ' + (json.error || 'Upstream error') + '</span>';
+          if (statusEl) statusEl.innerHTML = '<span style="color:var(--coral-text);">Failed: ' + escapeHtml(json.error || 'Upstream error') + '</span>';
         }
       } catch (err) {
-        if (statusEl) statusEl.innerHTML = '<span style="color:var(--coral-text);">Network error: ' + err.message + '</span>';
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--coral-text);">Network error: ' + escapeHtml(err.message) + '</span>';
       }
     }
 
@@ -4157,7 +4190,7 @@ export function getDashboardHtml(nonce?: string): string {
             return '<div style="display:flex; align-items:center; justify-content:space-between; background:var(--bg-surface); border:1px solid var(--border-muted); border-radius:6px; padding:6px 10px;">' +
               '<div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; margin-right:8px;">' +
                 '<span class="badge-tag zinc" style="font-family:var(--font-mono); font-size:0.68rem; font-weight:700;">#' + (idx + 1) + ' ' + rankLabel + '</span>' +
-                '<span style="font-family:var(--font-mono); font-size:0.78rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + t + '</span>' +
+                '<span style="font-family:var(--font-mono); font-size:0.78rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(t) + '</span>' +
                 '<span class="badge-tag emerald" style="font-size:0.68rem; padding:1px 6px;">ðŸŸ¢ ' + activeCount + ' acct' + (activeCount === 1 ? '' : 's') + '</span>' +
               '</div>' +
               '<div style="display:flex; align-items:center; gap:4px;">' +
@@ -4281,22 +4314,22 @@ export function getDashboardHtml(nonce?: string): string {
 
         const isFree = m.isFree || m.id.includes(':free');
         const freeBadge = isFree ? '<span class="badge-tag emerald" style="font-size:0.68rem; padding:1px 6px;">Free</span>' : '';
-        const provBadge = '<span class="badge-tag zinc" style="font-size:0.68rem; padding:1px 6px; font-family:var(--font-mono);">' + m.providerId + '</span>';
+        const provBadge = '<span class="badge-tag zinc" style="font-size:0.68rem; padding:1px 6px; font-family:var(--font-mono);">' + escapeHtml(m.providerId) + '</span>';
 
         return '<div style="display:flex; align-items:center; justify-content:space-between; background:var(--bg-canvas); border:1px solid ' + (inChain ? 'var(--emerald-border)' : 'var(--border-subtle)') + '; border-radius:6px; padding:7px 10px;">' +
           '<div style="display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; margin-right:8px;">' +
             '<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
-              '<span style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">' + (m.name || m.id) + '</span>' +
+              '<span style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">' + escapeHtml(m.name || m.id) + '</span>' +
               provBadge +
               freeBadge +
               '<span class="badge-tag cyan" style="font-size:0.68rem; padding:1px 6px;">' + ctxText + '</span>' +
             '</div>' +
             '<div style="display:flex; align-items:center; gap:10px; margin-top:1px;">' +
-              '<span style="font-family:var(--font-mono); font-size:0.72rem; color:var(--cyan-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + m.id + '</span>' +
+              '<span style="font-family:var(--font-mono); font-size:0.72rem; color:var(--cyan-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(m.id) + '</span>' +
               depthText +
             '</div>' +
           '</div>' +
-          '<button class="btn ' + (inChain ? 'btn-secondary' : 'btn-primary') + ' btn-sm" data-target="' + m.id + '" data-call-click="toggleTargetInChain(this.dataset.target)" style="white-space:nowrap; font-size:0.75rem; padding:4px 10px;">' +
+          '<button class="btn ' + (inChain ? 'btn-secondary' : 'btn-primary') + ' btn-sm" data-target="' + escapeHtml(m.id) + '" data-call-click="toggleTargetInChain(this.dataset.target)" style="white-space:nowrap; font-size:0.75rem; padding:4px 10px;">' +
             (inChain ? 'âœ“ Added' : '+ Add') +
           '</button>' +
         '</div>';
