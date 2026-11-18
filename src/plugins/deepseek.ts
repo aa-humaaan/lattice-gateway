@@ -251,9 +251,15 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
   getActiveAccounts(): StoredAccount[] {
     const now = Date.now();
-    return this.accounts.filter(
-      (a) => a.status === 'active' && (!a.cooldownUntil || a.cooldownUntil <= now)
-    );
+    return this.accounts.filter((a) => {
+      // A cooldown is a deadline, not a permanent state. Recover the account
+      // once it has elapsed so it can be selected again.
+      if (a.status === 'cooldown' && a.cooldownUntil && a.cooldownUntil <= now) {
+        a.status = 'active';
+        a.cooldownUntil = undefined;
+      }
+      return a.status === 'active' && (!a.cooldownUntil || a.cooldownUntil <= now);
+    });
   }
 
   getActiveAccount(): StoredAccount | undefined {
@@ -284,30 +290,27 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
   async solveChallenge(): Promise<string> {
     const base = this.defaultBaseUrl;
-    try {
-      const chalRes = await fetch(`${base}/api/v1/session/challenge`, {
-        method: 'POST',
-        headers: { Connection: 'close' },
-      });
-      if (chalRes.ok) {
-        const chalData = (await chalRes.json()) as any;
-        const verifyRes = await fetch(`${base}/api/v1/session/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Connection: 'close' },
-          body: JSON.stringify({
-            challenge: chalData.challenge,
-            solution: 'solved_nonce_proof',
-          }),
-        });
-        if (verifyRes.ok) {
-          const verifyData = (await verifyRes.json()) as any;
-          return verifyData.session_token || 'ds_session_cookie_mock';
-        }
-      }
-    } catch {
-      // Fallback
+    const chalRes = await fetch(`${base}/api/v1/session/challenge`, {
+      method: 'POST',
+      headers: { Connection: 'close' },
+    });
+    if (!chalRes.ok) throw new Error('DeepSeek session challenge failed');
+    const chalData = (await chalRes.json()) as any;
+    const verifyRes = await fetch(`${base}/api/v1/session/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Connection: 'close' },
+      body: JSON.stringify({
+        challenge: chalData.challenge,
+        solution: 'solved_nonce_proof',
+      }),
+    });
+    if (!verifyRes.ok) throw new Error('DeepSeek session verification failed');
+    const verifyData = (await verifyRes.json()) as any;
+    const token = verifyData.session_token;
+    if (typeof token !== 'string' || !token) {
+      throw new Error('DeepSeek session verification returned no session token');
     }
-    return 'ds_session_cookie_mock';
+    return token;
   }
 
   async listModels(): Promise<ModelDescriptor[]> {
