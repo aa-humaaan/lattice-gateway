@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../utils/logger';
 import { globalAccountPool } from './account-pool';
@@ -69,7 +69,8 @@ export class LatticeStorage {
         proxies: globalProxyPool.listProxies(),
         updatedAt: Date.now(),
       };
-      writeFileSync(this.filePath, JSON.stringify(payload, null, 2), 'utf-8');
+      writeFileSync(this.filePath, JSON.stringify(payload, null, 2), { encoding: 'utf-8', mode: 0o600 });
+      try { chmodSync(this.filePath, 0o600); } catch { /* Windows may not expose POSIX modes. */ }
     } catch (err) {
       logger.error(`[Storage] Failed to save state to ${this.filePath}:`, err);
     }

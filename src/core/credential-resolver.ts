@@ -4,7 +4,7 @@ import { globalSecretStore, type SecretStore } from './secret-store';
 /** Only imported accounts keep their secrets exclusively in the secret store. */
 export const IMPORTED_ACCOUNT_PREFIX = 'acc_import_';
 
-const OVERLAY_KEYS = [
+export const OVERLAY_KEYS = [
   'accessToken',
   'refreshToken',
   'apiKey',
@@ -25,7 +25,13 @@ export function createCredentialResolver(store: SecretStore): CredentialResolver
     credentialsFor(account) {
       const base = account?.credentials ?? {};
       const overlay: Record<string, unknown> = {};
-      if (!account || !account.id.startsWith(IMPORTED_ACCOUNT_PREFIX)) return base;
+      if (!account) return base;
+      const secretBacked =
+        account.id.startsWith(IMPORTED_ACCOUNT_PREFIX) ||
+        base.customData?.secretBacked === true;
+      if (!secretBacked) return base;
+      // Imported and manually added accounts resolve secrets at use time, so
+      // credential material never has to live in lattice-store.json.
       for (const key of OVERLAY_KEYS) {
         const value = store.get(account.id, key);
         if (value !== undefined) overlay[key] = value;
