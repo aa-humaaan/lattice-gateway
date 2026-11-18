@@ -23,6 +23,7 @@ import {
   observeEnabledPluginCatalogs,
   probeModel,
 } from './models-catalog';
+import { buildLiveFreeCatalog } from './live-catalog';
 import { getGlobalModelPassportStore } from '../core/model-passports';
 import { globalSessionAffinityStore } from '../core/session-affinity';
 import { detectAllHarnesses, configureHarness } from './harness-manager';
@@ -797,16 +798,13 @@ export function createAdminRouter(): Hono {
   // REST API: Free Models Catalog & Probing (R2)
   // --------------------------------------------------------------------------
   router.get('/api/models', async (c) => {
-    await observeEnabledPluginCatalogs();
-    const allModels = getEnrichedModelsCatalog();
     const includeUnavailable = c.req.query('all') === 'true';
-    const models = includeUnavailable ? allModels : allModels.filter((m) => m.available !== false);
-    return c.json({
-      success: true,
-      count: models.length,
-      models,
-      hiddenCount: allModels.length - models.length,
-    });
+    if (includeUnavailable) {
+      const allModels = getEnrichedModelsCatalog();
+      return c.json({ success: true, count: allModels.length, models: allModels, source: 'static' });
+    }
+    const models = await buildLiveFreeCatalog();
+    return c.json({ success: true, count: models.length, models, source: 'live', hiddenCount: 0 });
   });
 
   router.get('/api/model-passports', (c) => {

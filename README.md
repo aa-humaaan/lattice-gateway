@@ -113,6 +113,8 @@ Model passports learn from traffic instead of guesses. A real tool call, thinkin
 
 Account rotation is deliberately narrow: a rate limit (429) or an authentication rejection (401/403) may switch accounts because those responses prove the upstream never processed the request. A network error, timeout, abort, or 5xx fails fast instead — retrying another account after an ambiguous failure could repeat a tool call or a charge.
 
+Free Models are fetched **live** from each connected provider's `/v1/models` endpoint. Providers with no active account are never queried. Only models the provider marks free appear — no paid models, no static catalogue. `GET /api/models` is the live view; `?all=true` is a static diagnostic view.
+
 ### 10. Receipts and Durable Account Health
 Run `bun run why <request-id-or-prefix>` to see exactly what happened to one request: outcome, provider, model, latency, and token accounting, with estimates labelled. Account cooldowns now survive a restart in `data/account-health.json` with Healthy → Cooling → HalfOpen states, written atomically off the request path and never containing secrets.
 
@@ -162,7 +164,7 @@ In `~/.claude/settings.json`:
 
 ## 🧪 Testing & Verification
 
-Project Lattice is tested by **708 automated tests** spanning 88 test files:
+Project Lattice is tested by **714 automated tests** spanning 90 test files:
 ```bash
 bun test
 ```

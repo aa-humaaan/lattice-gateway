@@ -75,10 +75,9 @@ describe('Admin Dashboard Rebuild (Milestone 1)', () => {
     // Every model in the default view must be marked available.
     expect(json.models.every((m: any) => m.available === true)).toBeTrue();
 
-    // Verify Lattice Virtual Combos
+    // Virtual combos live in the combos view, not the live free-model catalog.
     const lattice1m = json.models.find((m: any) => m.id === 'lattice/1m-free');
-    expect(lattice1m).toBeDefined();
-    expect(lattice1m.contextWindow).toBe(1048576);
+    expect(lattice1m).toBeUndefined();
   });
 
   it('POST /api/models/probe executes live probe and measures latency', async () => {

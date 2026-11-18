@@ -36,7 +36,8 @@ export class LatticeStorage {
         return;
       }
       const raw = readFileSync(this.filePath, 'utf-8');
-      const data: PersistentData = JSON.parse(raw);
+      // PowerShell's UTF8 encoder writes a BOM; strip it so JSON.parse works.
+      const data: PersistentData = JSON.parse(raw.replace(/^\ufeff/, ''));
 
       if (Array.isArray(data.accounts)) {
         for (const acc of data.accounts) {
