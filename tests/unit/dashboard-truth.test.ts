@@ -35,4 +35,12 @@ describe('dashboard truth', () => {
     const src = html();
     expect(src).toMatch(/available !== false/);
   });
+
+  test('the deferred KPI placeholders are fed by live fetches', () => {
+    const src = html();
+    expect(src).toMatch(/usage-dist-summary'\);\s*if \(sum\) sum\.textContent = 'Total: ' \+ \(stats\.totalTokens/);
+    expect(src).toMatch(/quota-sum-total'\);\s*if \(elTot\) elTot\.textContent = summary\.totalAccounts/);
+    expect(src).toContain('fetchUsageStats().catch(() => {})');
+    expect(src).toContain('fetchQuotas().catch(() => {})');
+  });
 });
