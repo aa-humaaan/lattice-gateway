@@ -53,7 +53,7 @@ Instead of running 4 separate fragmented daemons on different ports (`3457`, `20
 | **Kilo Code** | OAuth, API Key, Org ID | `kilo/claude-3-7-sonnet`, `kilo/code-fast:free`, `kilo/qwen-2.5-coder:free` | `:free` tagged tier & Org ID policies |
 | **Nous Research** | Portal OAuth, `sk-nous` keys | `nous/hermes-3-llama3`, `nous/hermes-3-llama-3.1-405b`, `nous/deepseek-v3` | Flagship Hermes agentic reasoning |
 | **Cline Pool** | WorkOS OAuth, API Key | `cline/claude-3-7-sonnet`, `cline/sonnet-agent`, `cline-free/mimo-v2.6-flash` | Natural language 429 Retry-After parsing |
-| **OpenCode Zen** | API Key (added via dashboard OAuth) | `big-pickle`, `mimo-v2.6-flash-free`, `deepseek-v4.1-flash-free` | Gate tools injection; live `/v1/models` sync (no uTLS or proxy rotation in this build) |
+| **OpenCode Zen** | Keyless (Connect → "Connect keyless") or API Key | `big-pickle`, `mimo-v2.6-flash-free`, `deepseek-v4.1-flash-free` | Connect from the Plugins table. Keyless registers an active anonymous account and mints sessions; paste a key to use your own account. |
 | **DeepSeek Web** | Chrome Session / Cookies | `deepseek/deepseek-reasoner`, `deepseek/deepseek-chat` | Thinking token (`<think>`) preservation |
 
 ### 3. Virtual Model Combos (Intelligent 429 Fallback)
@@ -164,7 +164,7 @@ In `~/.claude/settings.json`:
 
 ## 🧪 Testing & Verification
 
-Project Lattice is tested by **714 automated tests** spanning 90 test files:
+Project Lattice is tested by **719 automated tests** spanning 92 test files:
 ```bash
 bun test
 ```

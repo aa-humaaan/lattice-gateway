@@ -2978,9 +2978,7 @@ export function getDashboardHtml(): string {
             tbody.innerHTML = json.plugins.map(p => {
               const pAccounts = allAccountsData.filter(a => a.providerId === p.id);
               const pActiveAccounts = pAccounts.filter(a => a.status === 'active');
-              const accountsCountStr = p.id === 'opencode'
-                ? '<span class="status-pill zinc"><span class="status-dot emerald"></span> Keyless</span>'
-                : (p.id === 'lattice-combo' || p.id === 'lattice')
+              const accountsCountStr = (p.id === 'lattice-combo' || p.id === 'lattice')
                 ? '<span class="status-pill zinc">Virtual Cascade</span>'
                 : pActiveAccounts.length > 0
                 ? '<span class="status-pill emerald"><span class="status-dot emerald"></span> ' + pActiveAccounts.length + ' active</span>'
@@ -2992,7 +2990,7 @@ export function getDashboardHtml(): string {
 
               const icon = PROVIDER_LOGOS_MAP[p.id] || '${ICONS.layers}';
 
-              const connectBtn = (p.id !== 'lattice-combo' && p.id !== 'lattice' && p.id !== 'opencode')
+              const connectBtn = (p.id !== 'lattice-combo' && p.id !== 'lattice')
                 ? '<button class="btn btn-emerald btn-sm" onclick="openCredentialsModal(\\'' + p.id + '\\')">${ICONS.plus} Connect</button>'
                 : '';
 
@@ -3792,12 +3790,21 @@ export function getDashboardHtml(): string {
           '</div>';
       } else if (provider === 'opencode') {
         container.innerHTML = '' +
-          '<div style="background:var(--emerald-bg); border:1px solid var(--emerald-border); border-radius:6px; padding:12px;">' +
-            '<div style="font-weight:600; color:var(--emerald-text); font-size:0.85rem;">Zero-Auth Keyless Mode Active</div>' +
+          '<div style="background:var(--emerald-bg); border:1px solid var(--emerald-border); border-radius:6px; padding:12px; margin-bottom:12px;">' +
+            '<div style="font-weight:600; color:var(--emerald-text); font-size:0.85rem;">Connect OpenCode Zen</div>' +
             '<p style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">' +
-              'OpenCode Zen models operate anonymously with automatic session minting and 12 gate tools. No manual API keys required.' +
+              'Leave the key blank to connect keyless — anonymous sessions are minted automatically. Paste an OpenCode Zen API key to use your own account instead.' +
             '</p>' +
-          '</div>';
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Account ID</label>' +
+            '<input type="text" class="form-input" id="acc-id" value="acc_opencode_keyless">' +
+          '</div>' +
+          '<div class="form-group" style="margin-top:10px;">' +
+            '<label class="form-label">API Key (optional)</label>' +
+            '<input type="password" class="form-input" id="acc-key" placeholder="Leave blank for keyless">' +
+          '</div>' +
+          '<button type="button" class="btn btn-emerald btn-sm" style="margin-top:12px;" onclick="connectOpenCodeKeyless()">${ICONS.plus} Connect keyless</button>';
       }
     }
 
@@ -3805,30 +3812,45 @@ export function getDashboardHtml(): string {
       const idEl = document.getElementById('acc-id');
       const keyEl = document.getElementById('acc-key');
 
-      if (currentProviderTab === 'opencode') {
-        showToast('OpenCode Zen operates keyless and is already registered live!', 'info');
-        closeCredentialsModal();
+      const isOpenCode = currentProviderTab === 'opencode';
+      const key = keyEl?.value.trim() || '';
+      const id = idEl?.value.trim() || (isOpenCode ? 'acc_opencode_keyless_' + Date.now() : '');
+
+      if (!id) {
+        showToast('Please enter an Account ID', 'error');
         return;
       }
 
-      const id = idEl?.value.trim();
-      const key = keyEl?.value.trim();
-
-      if (!id || !key) {
-        showToast('Please enter both Account ID and credentials', 'error');
-        return;
-      }
-
-      const payload = {
-        id,
-        providerId: currentProviderTab,
-        authType: currentProviderTab === 'deepseek' ? 'cookie_pool' : (currentProviderTab === 'cline' ? 'oauth' : 'api_key'),
-        status: 'active',
-        credentials: {
-          apiKey: key,
-          accessToken: key,
+      let payload;
+      if (isOpenCode) {
+        // Blank key = keyless anonymous account; a key = the user's own account.
+        if (key) {
+          payload = {
+            id, providerId: 'opencode', authType: 'api_key', status: 'active',
+            credentials: { apiKey: key },
+          };
+        } else {
+          payload = {
+            id, providerId: 'opencode', authType: 'anonymous', status: 'active',
+            credentials: {},
+          };
         }
-      };
+      } else {
+        if (!key) {
+          showToast('Please enter both Account ID and credentials', 'error');
+          return;
+        }
+        payload = {
+          id,
+          providerId: currentProviderTab,
+          authType: currentProviderTab === 'deepseek' ? 'cookie_pool' : (currentProviderTab === 'cline' ? 'oauth' : 'api_key'),
+          status: 'active',
+          credentials: {
+            apiKey: key,
+            accessToken: key,
+          }
+        };
+      }
 
       try {
         const res = await fetch('/api/accounts', {
@@ -3847,6 +3869,12 @@ export function getDashboardHtml(): string {
       } catch (err) {
         showToast('Network error: ' + err.message, 'error');
       }
+    }
+
+    function connectOpenCodeKeyless() {
+      const keyEl = document.getElementById('acc-key');
+      if (keyEl) keyEl.value = '';
+      submitAccountForm();
     }
 
     async function startOAuthDeviceLogin(provider) {
@@ -4402,6 +4430,7 @@ export function getDashboardHtml(): string {
       window.clearLogs = clearLogs;
       window.switchProviderTab = switchProviderTab;
       window.submitAccountForm = submitAccountForm;
+      window.connectOpenCodeKeyless = connectOpenCodeKeyless;
       window.startOAuthDeviceLogin = startOAuthDeviceLogin;
       window.syncLocalAccounts = syncLocalAccounts;
       window.nextWizardStep = nextWizardStep;
