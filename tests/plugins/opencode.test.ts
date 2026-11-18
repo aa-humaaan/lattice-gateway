@@ -7,6 +7,7 @@ import {
   generateTracingHeaders,
 } from '../../src/plugins/opencode';
 import { GatewayError } from '../../src/core/types/errors';
+import { globalAccountPool } from '../../src/pool/account-pool';
 import type { CanonicalRequest } from '../../src/core/types/canonical';
 
 describe('OpenCode Zen Authentic Production Plugin', () => {
@@ -427,6 +428,51 @@ describe('OpenCode Zen Authentic Production Plugin', () => {
       expect(caughtError.status).toBe(429);
       expect(caughtError.retryAfter).toBe(45);
       expect(caughtError.retryAfterMs).toBe(45000);
+    });
+
+    it('turns FreeUsageLimitError into a clear message and marks the account cooldown', async () => {
+      const body = JSON.stringify({
+        type: 'error',
+        error: {
+          type: 'FreeUsageLimitError',
+          message: 'Free usage limit reached. Free models work in OpenCode; subscribe to OpenCode Go to keep going.',
+        },
+      });
+      mockServer = Bun.serve({
+        port: 0,
+        fetch: async () => new Response(body, { status: 429, headers: { 'retry-after': '45' } }),
+      });
+      mockPort = mockServer.port;
+      const testPlugin = new OpenCodeProviderPlugin(`http://127.0.0.1:${mockPort}`);
+      const acc: any = {
+        id: 'acc_oc_freelimit', providerId: 'opencode', authType: 'anonymous', status: 'active',
+        credentials: {}, createdAt: 1, updatedAt: 1, errorCount: 0,
+      };
+      globalAccountPool.addAccount(acc);
+      testPlugin.setAccount(acc);
+
+      const req: CanonicalRequest = {
+        id: 'req_lat_test_freelimit', clientDialect: 'openai-chat', model: 'opencode/big-pickle',
+        messages: [{ role: 'user', content: 'hi' }], stream: false,
+      };
+      let caught: any;
+      try {
+        await testPlugin.execute(req);
+      } catch (err) {
+        caught = err;
+      }
+      try {
+        expect(caught).toBeInstanceOf(GatewayError);
+        expect(caught.status).toBe(429);
+        expect(caught.message).toContain('OpenCode free usage limit reached');
+        expect(caught.message).toContain('OpenCode Go');
+        expect(caught.message).not.toContain('FreeUsageLimitError');
+        const stored = globalAccountPool.getAccount('acc_oc_freelimit');
+        expect(stored?.status).toBe('cooldown');
+        expect(stored?.cooldownReason).toContain('OpenCode');
+      } finally {
+        globalAccountPool.deleteAccount('acc_oc_freelimit');
+      }
     });
 
     it('streams SSE response chunks including thinking and tool call deltas', async () => {

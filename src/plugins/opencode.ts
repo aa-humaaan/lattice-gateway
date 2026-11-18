@@ -20,6 +20,7 @@ import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
 import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
+import { globalAccountPool } from '../pool/account-pool';
 
 // ============================================================================
 // Types & Interfaces
@@ -263,6 +264,22 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       return deltaSec > 0 ? deltaSec : 20;
     }
     return 20;
+  }
+
+  /** Turn an upstream 429 body into a clear, actionable message and cooldown reason. */
+  private describeRateLimit(errorBody: string, retryAfter: number): string {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(errorBody);
+    } catch {
+      // Non-JSON upstream error — fall back to a generic message.
+    }
+    const type = parsed?.error?.type || parsed?.type || '';
+    const upstream = parsed?.error?.message || '';
+    if (type === 'FreeUsageLimitError' || /free usage limit reached/i.test(upstream)) {
+      return `OpenCode free usage limit reached — connect with your own API key or subscribe to OpenCode Go (https://opencode.ai/go). Retry in ${retryAfter}s.`;
+    }
+    return `OpenCode Zen rate limit${upstream ? `: ${upstream}` : ''} (retry in ${retryAfter}s)`;
   }
 
   /**
@@ -563,10 +580,14 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       } catch {
         // ignore
       }
+      const message = this.describeRateLimit(errorBody, retryAfter);
+      if (this.account?.id) {
+        globalAccountPool.reportRateLimit(this.account.id, retryAfter, message);
+      }
       throw new GatewayError(
         429,
         'rate_limit',
-        `OpenCode Zen rate limit: ${errorBody || 'free-tier usage limit reached'}`,
+        message,
         { retryAfter, retryAfterMs: retryAfter * 1000, providerId: this.id }
       );
     }
@@ -702,10 +723,14 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
         } catch {
           // ignore
         }
+        const message = this.describeRateLimit(errorBody, retryAfter);
+        if (this.account?.id) {
+          globalAccountPool.reportRateLimit(this.account.id, retryAfter, message);
+        }
         throw new GatewayError(
           429,
           'rate_limit',
-          `OpenCode Zen rate limit: ${errorBody || 'free-tier rate limit'}`,
+          message,
           { retryAfter, retryAfterMs: retryAfter * 1000, providerId: this.id }
         );
       }
