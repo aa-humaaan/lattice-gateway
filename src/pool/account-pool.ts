@@ -5,8 +5,61 @@ import { globalHealthStore, type HealthStore } from './health-store';
 
 const QUOTA_EXHAUSTION_THRESHOLD_SECONDS = 3600;
 
+/** Runtime-only state that must survive a restart (no credentials included). */
+export interface RuntimeSnapshot {
+  accounts: Record<string, {
+    status: AccountStatus;
+    cooldownUntil?: number;
+    cooldownReason?: string;
+    quotaRemaining?: number;
+    quotaLimit?: number;
+    quotaResetAt?: number;
+    tokensUsed?: number;
+    requestsUsed?: number;
+    lastUsedAt?: number;
+  }>;
+}
+
 export class AccountPoolManager {
   constructor(private readonly healthStore: HealthStore = globalHealthStore) {}
+
+  private persistenceHook?: () => void;
+
+  /** Set by storage so runtime state transitions are persisted immediately. */
+  setPersistenceHook(hook: () => void): void {
+    this.persistenceHook = hook;
+  }
+
+  private persistState(): void {
+    try { this.persistenceHook?.(); } catch { /* persistence failure must not break routing */ }
+  }
+
+  snapshotRuntimeState(): RuntimeSnapshot {
+    const accounts: RuntimeSnapshot['accounts'] = {};
+    for (const [id, acc] of this.accounts) {
+      accounts[id] = {
+        status: acc.status,
+        ...(acc.cooldownUntil !== undefined ? { cooldownUntil: acc.cooldownUntil } : {}),
+        ...(acc.cooldownReason !== undefined ? { cooldownReason: acc.cooldownReason } : {}),
+        ...(acc.quotaRemaining !== undefined ? { quotaRemaining: acc.quotaRemaining } : {}),
+        ...(acc.quotaLimit !== undefined ? { quotaLimit: acc.quotaLimit } : {}),
+        ...(acc.quotaResetAt !== undefined ? { quotaResetAt: acc.quotaResetAt } : {}),
+        ...(acc.tokensUsed !== undefined ? { tokensUsed: acc.tokensUsed } : {}),
+        ...(acc.requestsUsed !== undefined ? { requestsUsed: acc.requestsUsed } : {}),
+        ...(acc.lastUsedAt !== undefined ? { lastUsedAt: acc.lastUsedAt } : {}),
+      };
+    }
+    return { accounts };
+  }
+
+  restoreRuntimeState(snapshot?: RuntimeSnapshot): void {
+    if (!snapshot?.accounts) return;
+    for (const [id, state] of Object.entries(snapshot.accounts)) {
+      const acc = this.accounts.get(id);
+      if (!acc) continue;
+      Object.assign(acc, state);
+    }
+  }
 
   private accounts = new Map<string, StoredAccount>();
   private leases = new Map<string, { accountId: string; providerId: string; expiresAt: number }>();
@@ -47,6 +100,7 @@ export class AccountPoolManager {
     acc.requestsUsed = (acc.requestsUsed || 0) + 1;
     acc.lastUsedAt = Date.now();
     this.healthStore.set(accountId, { status: 'healthy', failures: 0 });
+    this.persistState();
   }
 
   addAccount(account: StoredAccount): void {
@@ -182,6 +236,7 @@ export class AccountPoolManager {
       acc.updatedAt = Date.now();
       this.healthStore.set(accountId, { status: 'healthy', failures: 0 });
       logger.info(`[AccountPool] Account ${accountId} cooldown manually cleared -> restored to active`);
+      this.persistState();
       return true;
     }
     return false;
@@ -212,6 +267,7 @@ export class AccountPoolManager {
       logger.warn(
         `[AccountPool] Account ${accountId} placed in cooldown for ${retryAfterSeconds}s (${acc.cooldownReason})`
       );
+      this.persistState();
     }
   }
 
@@ -405,6 +461,7 @@ export class AccountPoolManager {
     prov.totalTokens += total;
     prov.requestsUsed += 1;
     this.providerUsage.set(acc.providerId, prov);
+    this.persistState();
   }
 
   /**
@@ -437,6 +494,7 @@ export class AccountPoolManager {
     prov.totalTokens += total;
     prov.requestsUsed += 1;
     this.providerUsage.set(providerId, prov);
+    this.persistState();
   }
 
   reportError(accountId: string, isPermanent = false, reason?: string): void {
@@ -448,6 +506,7 @@ export class AccountPoolManager {
         acc.status = 'invalid';
         logger.error(`[AccountPool] Account ${accountId} marked invalid: ${reason || 'Too many errors'}`);
       }
+      this.persistState();
     }
   }
 }
