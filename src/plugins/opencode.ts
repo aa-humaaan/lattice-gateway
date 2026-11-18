@@ -147,7 +147,6 @@ export function loadZenGateTools(customPath?: string): ZenGateToolDefinition[] {
   const candidatePaths = [
     customPath,
     process.env.ZEN_GATE_TOOLS_PATH,
-    'C:\\Users\\adity\\Videos\\cline-proxy-main\\cline-proxy-main\\internal\\app\\zen_gate_tools.json',
     path.join(__dirname, 'zen_gate_tools.json'),
     path.join(process.cwd(), 'src', 'plugins', 'zen_gate_tools.json'),
   ].filter(Boolean) as string[];

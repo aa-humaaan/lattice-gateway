@@ -100,9 +100,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
       modelId.includes('muse-spark') ||
       modelId.includes('claude-sonnet-4-5') ||
       modelId.includes('claude-opus-4-5') ||
-      modelId.includes('claude-haiku-4-5') ||
-      modelId === 'freellmapi/auto' ||
-      modelId === 'freellmapi/fusion'
+      modelId.includes('claude-haiku-4-5')
     ) {
       return 1_048_576;
     }

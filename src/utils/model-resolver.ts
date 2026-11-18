@@ -3,7 +3,6 @@ import type { ProviderPlugin } from '../core/types/plugin';
 import { GatewayError } from '../core/types/errors';
 
 export function resolveTargetProviderId(modelId: string): string {
-  if (modelId.startsWith('freellmapi/')) return 'freellmapi';
   if (modelId.startsWith('kilo/')) return 'kilo';
   if (
     modelId.startsWith('cline/') ||

@@ -14,7 +14,6 @@ import { NousProviderPlugin } from '../src/plugins/nous';
 import { ClinePoolPlugin } from '../src/plugins/cline';
 import { OpenCodeProviderPlugin } from '../src/plugins/opencode';
 import { DeepSeekPoolPlugin } from '../src/plugins/deepseek';
-import { FreeLLMAPIProviderPlugin } from '../src/plugins/freellmapi';
 import { LatticeComboPlugin } from '../src/plugins/combo';
 
 function parseArgs(): Partial<GatewayConfig> {
@@ -61,7 +60,6 @@ const nousPlugin = new NousProviderPlugin();
 const clinePlugin = new ClinePoolPlugin();
 const opencodePlugin = new OpenCodeProviderPlugin();
 const deepseekPlugin = new DeepSeekPoolPlugin();
-const freellmapiPlugin = new FreeLLMAPIProviderPlugin();
 const comboPlugin = new LatticeComboPlugin();
 
 // Wire accounts from global pool into plugins
@@ -71,7 +69,6 @@ for (const acc of globalAccountPool.listAccounts()) {
   if (acc.providerId === 'cline') clinePlugin.addAccount(acc);
   if (acc.providerId === 'deepseek') deepseekPlugin.addAccount(acc);
   if (acc.providerId === 'opencode') opencodePlugin.setAccount(acc);
-  if (acc.providerId === 'freellmapi') freellmapiPlugin.setAccount(acc);
 }
 
 globalPluginRegistry.register(kiloPlugin);
@@ -79,7 +76,6 @@ globalPluginRegistry.register(nousPlugin);
 globalPluginRegistry.register(clinePlugin);
 globalPluginRegistry.register(opencodePlugin);
 globalPluginRegistry.register(deepseekPlugin);
-globalPluginRegistry.register(freellmapiPlugin);
 globalPluginRegistry.register(comboPlugin);
 
 const overrides = parseArgs();

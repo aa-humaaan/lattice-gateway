@@ -3,7 +3,6 @@ import { getEnrichedModelsCatalog } from '../../src/admin/models-catalog';
 import { globalAccountPool } from '../../src/pool/account-pool';
 import { globalPluginRegistry } from '../../src/plugins/registry';
 import type { StoredAccount } from '../../src/core/types/plugin';
-import type { EnrichedModelCatalogItem } from '../../src/admin/models-catalog';
 
 function activeAccount(id: string, providerId: string): StoredAccount {
   return {
@@ -38,54 +37,37 @@ describe('catalog availability', () => {
     }
   });
 
-  test('keyless backends stay available without accounts', () => {
+  test('no provider is available without an active account, including keyless ones', () => {
     clearAccounts();
     const models = getEnrichedModelsCatalog();
-    for (const provider of ['opencode', 'freellmapi']) {
-      const providerModels = models.filter((m) => m.providerId === provider);
-      expect(providerModels.length).toBeGreaterThan(0);
-      expect(providerModels.some((m) => m.available === true)).toBeTrue();
-    }
+    expect(models.every((m) => m.available === false)).toBeTrue();
   });
 
   test('disabled providers contribute no available models', () => {
     clearAccounts();
+    if (!globalPluginRegistry.has('kilo')) {
+      globalPluginRegistry.register({
+        id: 'kilo', displayName: 'Kilo', defaultBaseUrl: 'http://localhost',
+        async listModels() { return []; },
+        async execute() { throw new Error('unused'); },
+        async executeStream() { return (async function* () {})(); },
+      } as any);
+    }
+    globalAccountPool.addAccount(activeAccount('acc_kilo_disabled', 'kilo'));
     globalPluginRegistry.setEnabled('kilo', false);
     try {
       const models = getEnrichedModelsCatalog();
       expect(models.filter((m) => m.providerId === 'kilo').every((m) => m.available === false)).toBeTrue();
     } finally {
       globalPluginRegistry.setEnabled('kilo', true);
+      clearAccounts();
     }
   });
 
-  test('a combo is available when a keyless target is configured', () => {
+  test('combos need a configured target account', () => {
     clearAccounts();
     const combos = getEnrichedModelsCatalog().filter((m) => m.providerId === 'lattice');
     expect(combos.length).toBeGreaterThan(0);
-    expect(combos.some((m) => m.available === true)).toBeTrue();
-  });
-
-  test('a combo with no configured targets is unavailable', () => {
-    clearAccounts();
-    const makeStub = (id: string) => ({
-      id, displayName: id, defaultBaseUrl: 'http://localhost',
-      async listModels() { return []; },
-      async execute() { throw new Error('unused'); },
-      async executeStream() { return (async function* () {})(); },
-    }) as any;
-    for (const id of ['opencode', 'freellmapi']) {
-      if (!globalPluginRegistry.has(id)) globalPluginRegistry.register(makeStub(id));
-      globalPluginRegistry.setEnabled(id, false);
-    }
-    try {
-      const combos = getEnrichedModelsCatalog().filter((m) => m.providerId === 'lattice');
-      expect(combos.length).toBeGreaterThan(0);
-      expect(combos.every((m) => m.available === false)).toBeTrue();
-      expect(combos[0].unavailableReason).toMatch(/combo/i);
-    } finally {
-      globalPluginRegistry.setEnabled('opencode', true);
-      globalPluginRegistry.setEnabled('freellmapi', true);
-    }
+    expect(combos.every((m) => m.available === false)).toBeTrue();
   });
 });

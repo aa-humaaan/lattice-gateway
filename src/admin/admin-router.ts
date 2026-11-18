@@ -27,7 +27,6 @@ import { getGlobalModelPassportStore } from '../core/model-passports';
 import { globalSessionAffinityStore } from '../core/session-affinity';
 import { detectAllHarnesses, configureHarness } from './harness-manager';
 import { resolveTargetProviderId } from '../utils/model-resolver';
-import { FreeLLMAPIProviderPlugin } from '../plugins/freellmapi';
 import { globalImportManager } from '../core/account-import';
 import { ILLUSTRATIVE_USD_PER_TOKEN } from '../core/pricing';
 import { globalSecretStore } from '../core/secret-store';
@@ -288,7 +287,7 @@ export function createAdminRouter(): Hono {
               expiresIn: device.expires_in || 300,
             });
             const reg = await registerWithCline(token.access_token, token.refresh_token);
-            const email = reg.data?.userInfo?.email || 'cline-user@gmail.com';
+            const email = reg.data?.userInfo?.email || `cline-${crypto.randomUUID().slice(0, 8)}`;
             const accountId = (reg.data as any)?.accountId || reg.data?.userInfo?.id || 'new';
             const accId = `acc_cline_${Date.now()}_${accountId}`;
 
@@ -386,7 +385,7 @@ export function createAdminRouter(): Hono {
             }
 
             const accId = `acc_kilo_${Date.now()}`;
-            let email = 'kilo-user@gmail.com';
+            let email = `kilo-${crypto.randomUUID().slice(0, 8)}`;
             try {
               const payload = JSON.parse(Buffer.from(tokenRes.access_token.split('.')[1], 'base64').toString());
               if (payload.email) email = payload.email;
@@ -1013,7 +1012,6 @@ export function createAdminRouter(): Hono {
       cline: 'Cline Free Pool',
       opencode: 'OpenCode Zen Keyless',
       deepseek: 'DeepSeek Web Pool',
-      freellmapi: 'FreeLLMAPI Local Engine',
       lattice: 'Lattice Virtual Combos',
     };
     const events = requestLedger.readRecent(5000);

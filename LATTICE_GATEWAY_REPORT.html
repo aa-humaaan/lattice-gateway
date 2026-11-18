@@ -1007,7 +1007,7 @@ footer .fine{font:12px/1.7 var(--mono);color:#b8ad99;border-top:1px solid #4a423
 
     <div class="note good">
       <span class="tag">Status: Phase A + B + Phase C1 shipped</span>
-      <p>The rescue, all ten moat increments, and the minor-sweep were implemented test-first. Latest full run: <b>692 tests pass, 0 fail, 85 files</b>.</p>
+      <p>The rescue, all ten moat increments, and the minor-sweep were implemented test-first. Latest full run: <b>708 tests pass, 0 fail, 88 files</b>.</p>
     </div>
 
     <h3>Phase A — stop the bleeding</h3>
@@ -1092,6 +1092,13 @@ footer .fine{font:12px/1.7 var(--mono);color:#b8ad99;border-top:1px solid #4a423
       <li class="done"><b>Honest numbers</b><span><code>tokensPerSec</code> now divides tokens from the same window as its time span, and one labelled illustrative USD rate feeds both the API and the dashboard.</span></li>
       <li class="done"><b>Safer boundaries</b><span>The upstream URL allow-list rejects decimal/octal/hex IPv4, non-canonical loopback, and IPv4-mapped IPv6; port conflicts name the owner PID when the runtime reports it.</span></li>
     </ul>
+    <h3>Clean slate — an empty gateway is truly empty</h3>
+    <ul class="check">
+      <li class="done"><b>No phantom models</b><span>With zero configured accounts, Free Models shows zero models — keyless backends no longer auto-qualify and the hard-coded "31 free" text is gone.</span></li>
+      <li class="done"><b>FreeLLMAPI removed</b><span>The unwanted plugin, its 8 fake catalogue entries, combo targets, resolver branch and dashboard option are deleted. The audit above is kept as the historical finding it was.</span></li>
+      <li class="done"><b>No hard-added credentials</b><span>Harness configs use the generated gateway token instead of a literal; personal paths and fake fallback emails are removed. The local store was cleared of test-fixture accounts so you can add your own via OAuth.</span></li>
+    </ul>
+
     <h3>Phase C10 — receipts and durable health</h3>
     <ul class="check">
       <li class="done"><b>One-request receipts</b><span>Ledger events carry request IDs, and <code>bun run why &lt;id&gt;</code> explains the real outcome, provider, model, latency and token accounting for that request.</span></li>

@@ -20,13 +20,8 @@ export class ComboManager {
       name: 'Lattice 1M Context Free Tier ($0 Auto-Failover)',
       targets: [
         'kilo/particle-ai/particle-1:free',
-        'freellmapi/auto',
         'kilo/nvidia/nemotron-3.5-lightning:free',
-        'freellmapi/claude-sonnet-4-5',
         'kilo/baidu/ernie-5.5-flash-preview:free',
-        'freellmapi/claude-opus-4-5',
-        'freellmapi/fusion',
-        'freellmapi/claude-haiku-4-5',
         'kilo/nvidia/nemotron-3-ultra-550b-a55b:free',
         'kilo/kilo-auto/free',
       ],

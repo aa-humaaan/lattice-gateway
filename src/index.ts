@@ -13,7 +13,6 @@ import { NousProviderPlugin } from './plugins/nous';
 import { ClinePoolPlugin } from './plugins/cline';
 import { OpenCodeProviderPlugin } from './plugins/opencode';
 import { DeepSeekPoolPlugin } from './plugins/deepseek';
-import { FreeLLMAPIProviderPlugin } from './plugins/freellmapi';
 import { LatticeComboPlugin } from './plugins/combo';
 
 // 1. Load persistent accounts, combos, and proxy configs
@@ -25,7 +24,6 @@ const nousPlugin = new NousProviderPlugin();
 const clinePlugin = new ClinePoolPlugin();
 const opencodePlugin = new OpenCodeProviderPlugin();
 const deepseekPlugin = new DeepSeekPoolPlugin();
-const freellmapiPlugin = new FreeLLMAPIProviderPlugin();
 const comboPlugin = new LatticeComboPlugin();
 
 // Wire accounts from global pool into plugins
@@ -35,7 +33,6 @@ for (const acc of globalAccountPool.listAccounts()) {
   if (acc.providerId === 'cline') clinePlugin.addAccount(acc);
   if (acc.providerId === 'deepseek') deepseekPlugin.addAccount(acc);
   if (acc.providerId === 'opencode') opencodePlugin.setAccount(acc);
-  if (acc.providerId === 'freellmapi') freellmapiPlugin.setAccount(acc);
 }
 
 globalPluginRegistry.register(kiloPlugin);
@@ -43,7 +40,6 @@ globalPluginRegistry.register(nousPlugin);
 globalPluginRegistry.register(clinePlugin);
 globalPluginRegistry.register(opencodePlugin);
 globalPluginRegistry.register(deepseekPlugin);
-globalPluginRegistry.register(freellmapiPlugin);
 globalPluginRegistry.register(comboPlugin);
 
 function parseArgs() {

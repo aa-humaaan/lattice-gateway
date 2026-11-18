@@ -1,4 +1,4 @@
-import { globalPluginRegistry } from '../plugins/registry';
+﻿import { globalPluginRegistry } from '../plugins/registry';
 import { globalComboManager } from '../pool/combos';
 import { globalAccountPool } from '../pool/account-pool';
 import { resolveTargetProviderId } from '../utils/model-resolver';
@@ -39,14 +39,10 @@ export interface EnrichedModelCatalogItem {
   unavailableReason?: string;
 }
 
-/** Providers that work without an operator-supplied credential. */
-const KEYLESS_PROVIDERS = new Set(['opencode', 'freellmapi']);
-
 export function isProviderConfigured(providerId: string): { available: boolean; reason?: string } {
   if (globalPluginRegistry.has(providerId) && !globalPluginRegistry.isEnabled(providerId)) {
     return { available: false, reason: 'Provider plugin is disabled' };
   }
-  if (KEYLESS_PROVIDERS.has(providerId)) return { available: true };
   const active = globalAccountPool.listAccounts(providerId).some((a) => a.status === 'active');
   return active
     ? { available: true }
@@ -960,177 +956,6 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
   },
 
   // --------------------------------------------------------------------------
-  // FreeLLMAPI Local Free Engine (8 verified 1M context models)
-  // --------------------------------------------------------------------------
-  {
-    id: 'freellmapi/auto',
-    name: 'FreeLLMAPI Auto Router (1M Context Free)',
-    providerId: 'freellmapi',
-    ownedBy: 'freellmapi',
-    contextWindow: 1_048_576,
-    contextWindowFormatted: '1M tokens (1,048,576)',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['1M Context', 'Auto-Router', 'Free'],
-    badges: [
-      { text: '1M Context', color: 'emerald' },
-      { text: 'Auto-Router', color: 'amber' },
-      { text: 'Free Tier', color: 'emerald' },
-    ],
-    description: 'Dynamic local auto-router picking best available free 1M frontier model via FreeLLMAPI backend.',
-  },
-  {
-    id: 'freellmapi/claude-sonnet-4-5',
-    name: 'FreeLLMAPI Claude Sonnet 4.5 Slot (1M Context)',
-    providerId: 'freellmapi',
-    ownedBy: 'freellmapi',
-    contextWindow: 1_048_576,
-    contextWindowFormatted: '1M tokens (1,048,576)',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['1M Context', 'Coding', 'Flagship', 'Free'],
-    badges: [
-      { text: '1M Context', color: 'emerald' },
-      { text: 'Coding', color: 'coral' },
-      { text: 'Free Tier', color: 'emerald' },
-    ],
-    description: 'FreeLLMAPI Sonnet slot automatically routed to top zero-cost frontier model with 1,048,576 context.',
-  },
-  {
-    id: 'freellmapi/claude-opus-4-5',
-    name: 'FreeLLMAPI Claude Opus 4.5 Slot (1M Context)',
-    providerId: 'freellmapi',
-    ownedBy: 'freellmapi',
-    contextWindow: 1_048_576,
-    contextWindowFormatted: '1M tokens (1,048,576)',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['1M Context', 'Reasoning', 'Free'],
-    badges: [
-      { text: '1M Context', color: 'emerald' },
-      { text: 'Reasoning', color: 'amber' },
-      { text: 'Free Tier', color: 'emerald' },
-    ],
-    description: 'FreeLLMAPI Opus slot with high-capacity analytical reasoning at 1,048,576 context window.',
-  },
-  {
-    id: 'freellmapi/claude-haiku-4-5',
-    name: 'FreeLLMAPI Claude Haiku 4.5 Slot (1M Context)',
-    providerId: 'freellmapi',
-    ownedBy: 'freellmapi',
-    contextWindow: 1_048_576,
-    contextWindowFormatted: '1M tokens (1,048,576)',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['1M Context', 'Fast', 'Free'],
-    badges: [
-      { text: '1M Context', color: 'emerald' },
-      { text: 'Fast', color: 'cyan' },
-      { text: 'Free Tier', color: 'emerald' },
-    ],
-    description: 'High-speed 1M token context window model for rapid iterations and small context tasks.',
-  },
-  {
-    id: 'freellmapi/fusion',
-    name: 'FreeLLMAPI Fusion Panel (1M Context)',
-    providerId: 'freellmapi',
-    ownedBy: 'freellmapi',
-    contextWindow: 1_048_576,
-    contextWindowFormatted: '1M tokens (1,048,576)',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['1M Context', 'Panel-Judge', 'Free'],
-    badges: [
-      { text: '1M Context', color: 'emerald' },
-      { text: 'Fusion', color: 'amber' },
-      { text: 'Free Tier', color: 'emerald' },
-    ],
-    description: 'Panel of models answers in parallel with an automated judge synthesizing one cohesive response.',
-  },
-  {
-    id: 'freellmapi/nemotron-3.5-lightning',
-    name: 'FreeLLMAPI Nemotron 3.5 Lightning (1M Context)',
-    providerId: 'freellmapi',
-    ownedBy: 'freellmapi',
-    contextWindow: 1_048_576,
-    contextWindowFormatted: '1M tokens (1,048,576)',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['1M Context', 'Lightning', 'Free'],
-    badges: [
-      { text: '1M Context', color: 'emerald' },
-      { text: 'Lightning', color: 'coral' },
-      { text: 'Free Tier', color: 'emerald' },
-    ],
-    description: 'NVIDIA Nemotron 3.5 Lightning served via FreeLLMAPI with 1,048,576 context length.',
-  },
-  {
-    id: 'freellmapi/nemotron-3-ultra-550b',
-    name: 'FreeLLMAPI Nemotron 3 Ultra 550B (1M Context)',
-    providerId: 'freellmapi',
-    ownedBy: 'freellmapi',
-    contextWindow: 1_048_576,
-    contextWindowFormatted: '1M tokens (1,048,576)',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['1M Context', 'Ultra-550B', 'Free'],
-    badges: [
-      { text: '1M Context', color: 'emerald' },
-      { text: '550B', color: 'amber' },
-      { text: 'Free Tier', color: 'emerald' },
-    ],
-    description: 'NVIDIA Nemotron 3 Ultra 550B served via FreeLLMAPI with 1,048,576 context length.',
-  },
-  {
-    id: 'freellmapi/nemotron-3.5-super-vl',
-    name: 'FreeLLMAPI Nemotron 3.5 Super VL (1M Context)',
-    providerId: 'freellmapi',
-    ownedBy: 'freellmapi',
-    contextWindow: 1_000_000,
-    contextWindowFormatted: '1M tokens (1,000,000)',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: true,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['1M Context', 'Vision', 'Free'],
-    badges: [
-      { text: '1M Context', color: 'emerald' },
-      { text: 'Vision', color: 'cyan' },
-      { text: 'Free Tier', color: 'emerald' },
-    ],
-    description: 'NVIDIA Nemotron 3.5 Super VL multimodal vision-language model with 1,000,000 context length.',
-  },
-
   // --------------------------------------------------------------------------
   // Lattice Virtual Combos (2 auto-failover cascades)
   // --------------------------------------------------------------------------

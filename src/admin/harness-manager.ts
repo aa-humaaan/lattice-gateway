@@ -1,6 +1,7 @@
-import * as os from 'os';
+﻿import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+import { gatewayBearerToken } from '../core/local-token';
 
 export interface HarnessInfo {
   id: string;
@@ -372,7 +373,7 @@ export function getHarnessDefinitions(): Record<string, {
             "name": "Lattice Gateway",
             "options": {
               "baseURL": "http://127.0.0.1:4000/v1",
-              "apiKey": "sk-lattice-master"
+              "apiKey": gatewayBearerToken()
             },
             "models": getOpenCodeCatalogModels()
           }
@@ -390,7 +391,7 @@ export function getHarnessDefinitions(): Record<string, {
           name: "Lattice Gateway",
           options: {
             baseURL: "http://127.0.0.1:4000/v1",
-            apiKey: "sk-lattice-master"
+            apiKey: gatewayBearerToken()
           },
           models: getOpenCodeCatalogModels()
         };
@@ -419,7 +420,7 @@ export function getHarnessDefinitions(): Record<string, {
             "name": "Lattice Gateway",
             "options": {
               "baseURL": "http://127.0.0.1:4000/v1",
-              "apiKey": "sk-lattice-master"
+              "apiKey": gatewayBearerToken()
             }
           }
         }
@@ -435,7 +436,7 @@ export function getHarnessDefinitions(): Record<string, {
           name: "Lattice Gateway",
           options: {
             baseURL: "http://127.0.0.1:4000/v1",
-            apiKey: "sk-lattice-master"
+            apiKey: gatewayBearerToken()
           }
         };
         current.model = "lattice/1m-free";
@@ -454,7 +455,7 @@ export function getHarnessDefinitions(): Record<string, {
       getSnippet: (targetPath: string) => JSON.stringify({
         "roo-cline.apiProvider": "openai-compatible",
         "roo-cline.openAiBaseUrl": "http://127.0.0.1:4000/v1",
-        "roo-cline.openAiApiKey": "sk-lattice-master",
+        "roo-cline.openAiApiKey": gatewayBearerToken(),
         "roo-cline.openAiModelId": "lattice/1m-free",
         "roo-cline.openAiCustomModelInfo": {
           "maxTokens": 8192,
@@ -468,7 +469,7 @@ export function getHarnessDefinitions(): Record<string, {
         let current = safeReadJson(targetPath) || {};
         current["roo-cline.apiProvider"] = "openai-compatible";
         current["roo-cline.openAiBaseUrl"] = "http://127.0.0.1:4000/v1";
-        current["roo-cline.openAiApiKey"] = "sk-lattice-master";
+        current["roo-cline.openAiApiKey"] = gatewayBearerToken();
         current["roo-cline.openAiModelId"] = "lattice/1m-free";
         current["roo-cline.openAiCustomModelInfo"] = {
           maxTokens: 8192,
@@ -492,8 +493,8 @@ export function getHarnessDefinitions(): Record<string, {
       getSnippet: (targetPath: string) => JSON.stringify({
         "env": {
           "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000",
-          "ANTHROPIC_AUTH_TOKEN": "sk-lattice-master",
-          "ANTHROPIC_API_KEY": "sk-lattice-master",
+          "ANTHROPIC_AUTH_TOKEN": gatewayBearerToken(),
+          "ANTHROPIC_API_KEY": gatewayBearerToken(),
           "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
           "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000"
         },
@@ -507,8 +508,8 @@ export function getHarnessDefinitions(): Record<string, {
         let current = safeReadJson(targetPath) || {};
         if (!current.env) current.env = {};
         current.env.ANTHROPIC_BASE_URL = "http://127.0.0.1:4000";
-        current.env.ANTHROPIC_AUTH_TOKEN = "sk-lattice-master";
-        current.env.ANTHROPIC_API_KEY = "sk-lattice-master";
+        current.env.ANTHROPIC_AUTH_TOKEN = gatewayBearerToken();
+        current.env.ANTHROPIC_API_KEY = gatewayBearerToken();
         current.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = "1";
         current.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = "1000000";
         current.model = "lattice/1m-free";
@@ -536,7 +537,7 @@ export function getHarnessDefinitions(): Record<string, {
         },
         "env": {
           "GOOGLE_GEMINI_BASE_URL": "http://127.0.0.1:4000",
-          "GEMINI_API_KEY": "sk-lattice-master",
+          "GEMINI_API_KEY": gatewayBearerToken(),
           "GEMINI_MODEL": "lattice/1m-free"
         }
       }, null, 2),
@@ -547,7 +548,7 @@ export function getHarnessDefinitions(): Record<string, {
         current.security.auth.selectedType = "gateway";
         if (!current.env) current.env = {};
         current.env.GOOGLE_GEMINI_BASE_URL = "http://127.0.0.1:4000";
-        current.env.GEMINI_API_KEY = "sk-lattice-master";
+        current.env.GEMINI_API_KEY = gatewayBearerToken();
         current.env.GEMINI_MODEL = "lattice/1m-free";
 
         const { backupPath } = safeWriteJson(targetPath, current);
@@ -568,7 +569,7 @@ export function getHarnessDefinitions(): Record<string, {
           "lattice": {
             "type": "openai-compat",
             "base_url": "http://127.0.0.1:4000/v1",
-            "api_key": "sk-lattice-master",
+            "api_key": gatewayBearerToken(),
             "models": [
               { "id": "lattice/1m-free", "name": "Lattice 1M Free ($0)", "context_window": 1000000 },
               { "id": "lattice/code-flagship", "name": "Lattice Code Flagship", "context_window": 200000 }
@@ -585,7 +586,7 @@ export function getHarnessDefinitions(): Record<string, {
         current.providers.lattice = {
           type: "openai-compat",
           base_url: "http://127.0.0.1:4000/v1",
-          api_key: "sk-lattice-master",
+          api_key: gatewayBearerToken(),
           models: [
             { id: "lattice/1m-free", name: "Lattice 1M Free ($0)", context_window: 1000000 },
             { id: "lattice/code-flagship", name: "Lattice Code Flagship", context_window: 200000 }
@@ -606,7 +607,7 @@ export function getHarnessDefinitions(): Record<string, {
       getPath: () => path.join(appData, 'Cursor', 'User', 'settings.json'),
       getSnippet: (targetPath: string) => JSON.stringify({
         "cursor.openAI.baseUrl": "http://127.0.0.1:4000/v1",
-        "cursor.openAI.apiKey": "sk-lattice-master",
+        "cursor.openAI.apiKey": gatewayBearerToken(),
         "cursor.models": [
           "lattice/1m-free",
           "lattice/code-flagship"
@@ -615,7 +616,7 @@ export function getHarnessDefinitions(): Record<string, {
       configure: (targetPath: string) => {
         let current = safeReadJson(targetPath) || {};
         current["cursor.openAI.baseUrl"] = "http://127.0.0.1:4000/v1";
-        current["cursor.openAI.apiKey"] = "sk-lattice-master";
+        current["cursor.openAI.apiKey"] = gatewayBearerToken();
         current["cursor.models"] = ["lattice/1m-free", "lattice/code-flagship"];
 
         const { backupPath } = safeWriteJson(targetPath, current);
@@ -691,3 +692,4 @@ export function configureHarness(harnessId: string): SetupResult {
     };
   }
 }
+

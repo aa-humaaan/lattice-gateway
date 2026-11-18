@@ -1513,7 +1513,7 @@ export function getDashboardHtml(): string {
             </div>
           </div>
           <div class="hub-content" id="hub-models-content">
-            Includes verified 1,000,000+ token context models across FreeLLMAPI, Kilo, Cline, and OpenCode with instant 1-token test probes.
+            Configure provider accounts to see their models here.
           </div>
           <div style="display:flex; gap:8px;">
             <button class="btn btn-primary btn-sm" onclick="switchNavTab('models')">
@@ -1585,12 +1585,12 @@ export function getDashboardHtml(): string {
       <div class="view-header">
         <div class="view-title-group">
           <h1>Free Models Explorer</h1>
-          <p>Searchable directory of 31 verified zero-cost models across Kilo, Cline, DeepSeek, OpenCode Zen, Nous &amp; Combos</p>
+          <p>Searchable directory of models from your configured providers</p>
         </div>
         <div class="header-actions">
           <div class="status-pill emerald">
             <span class="status-dot emerald"></span>
-            <span id="models-free-counter">31 Models Available ($0)</span>
+            <span id="models-free-counter">No models available — add credentials via OAuth</span>
           </div>
         </div>
       </div>
@@ -1611,7 +1611,6 @@ export function getDashboardHtml(): string {
         </div>
         <select class="form-select" id="models-provider-filter" style="width: auto; padding: 5px 10px;" onchange="filterModels()">
           <option value="">All Providers</option>
-          <option value="freellmapi">FreeLLMAPI</option>
           <option value="kilo">Kilo Code</option>
           <option value="cline">Cline Pool</option>
           <option value="deepseek">DeepSeek Web</option>
@@ -2513,7 +2512,7 @@ export function getDashboardHtml(): string {
           if (filter1M) filter1M.textContent = '1M Context (' + oneMCount + ')';
 
           const hubContent = document.getElementById('hub-models-content');
-          if (hubContent) hubContent.textContent = 'Includes ' + oneMCount + ' verified 1,000,000+ token context models across FreeLLMAPI, Kilo, Cline, and OpenCode with instant 1-token test probes.';
+          if (hubContent) hubContent.textContent = oneMCount + ' models with 1M+ token context from your configured providers.';
         }
       } catch (err) {
         console.error('fetchModels error:', err);
