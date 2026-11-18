@@ -2,6 +2,7 @@ import { describe, it, expect } from 'bun:test';
 import {
   createOpenAISSEStream,
   createAnthropicSSEStream,
+  createResponsesSSEStream,
 } from '../../src/engine/dialect/stream-adapter';
 import { CanonicalStreamEvent } from '../../src/core/types/canonical';
 
@@ -164,5 +165,132 @@ describe('SSE Stream Adapters', () => {
     await reader.cancel();
 
     expect(reader.closed).toBeDefined();
+  });
+
+  // =========================================================================
+  // OpenAI Responses SSE Stream Tests
+  // =========================================================================
+  it('R1: Basic text response creates response.created + output_item.added + response.completed', async () => {
+    async function* generateEvents(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'resp_1', model: 'gpt-4', created: 1731693600 };
+      yield { type: 'text_delta', delta: 'Hello ' };
+      yield { type: 'text_delta', delta: 'world!' };
+      yield { type: 'stream_end', stopReason: 'stop' };
+    }
+
+    const stream = createResponsesSSEStream(generateEvents());
+    const text = await streamToText(stream);
+
+    expect(text).toContain('event: response.created');
+    expect(text).toContain('"type":"output_item.added"');
+    expect(text).toContain('"item_index":0');
+    expect(text).toContain('"type":"message"');
+    expect(text).toContain('event: response.completed');
+    expect(text).toContain('"status":"completed"');
+    expect(text).toContain('"role":"assistant"');
+    expect(text).toContain('Hello world!');
+  });
+
+  it('R2: Tool call emits function_call item with partial_json_delta', async () => {
+    async function* generateEvents(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'resp_t1', model: 'gpt-4', created: 1731693600 };
+      yield { type: 'tool_call_start', index: 0, id: 'call_lat_abc123', name: 'run_command' };
+      yield { type: 'tool_call_delta', index: 0, argumentsDelta: '{"cmd":"' };
+      yield { type: 'tool_call_delta', index: 0, argumentsDelta: 'ls -la"}' };
+      yield { type: 'tool_call_stop', index: 0 };
+      yield { type: 'stream_end', stopReason: 'tool_calls' };
+    }
+
+    const stream = createResponsesSSEStream(generateEvents());
+    const text = await streamToText(stream);
+
+    expect(text).toContain('event: response.created');
+    expect(text).toContain('"type":"function_call"');
+    expect(text).toContain('"name":"run_command"');
+    expect(text).toContain('"partial_json_delta"');
+    expect(text).toContain('ls -la');
+  });
+
+  it('R3: Thinking delta emits reasoning_text_delta within text message', async () => {
+    async function* generateEvents(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'resp_th1', model: 'o1', created: 1731693600 };
+      yield { type: 'thinking_delta', delta: 'Let me think.' };
+      yield { type: 'text_delta', delta: 'The answer is 42.' };
+      yield { type: 'stream_end', stopReason: 'stop' };
+    }
+
+    const stream = createResponsesSSEStream(generateEvents());
+    const text = await streamToText(stream);
+
+    expect(text).toContain('"reasoning_text_delta"');
+    expect(text).toContain('Let me think.');
+    expect(text).toContain('"input_text_delta"');
+    expect(text).toContain('The answer is 42.');
+  });
+
+  it('R4: Empty stream emits response.created + empty completed response', async () => {
+    async function* generateEvents(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'resp_empty', model: 'gpt-4', created: 1731693600 };
+      yield { type: 'stream_end', stopReason: 'stop' };
+    }
+
+    const stream = createResponsesSSEStream(generateEvents());
+    const text = await streamToText(stream);
+
+    expect(text).toContain('event: response.created');
+    expect(text).toContain('event: response.completed');
+    expect(text).toContain('"status":"completed"');
+    expect(text).toContain('"output":[]');
+  });
+
+  it('R5: Usage event records token counts in final response', async () => {
+    async function* generateEvents(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'resp_u1', model: 'gpt-4', created: 1731693600 };
+      yield { type: 'usage', usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 } };
+      yield { type: 'text_delta', delta: 'done' };
+      yield { type: 'stream_end', stopReason: 'stop' };
+    }
+
+    const stream = createResponsesSSEStream(generateEvents());
+    const text = await streamToText(stream);
+
+    expect(text).toContain('"input_tokens":10');
+    expect(text).toContain('"output_tokens":20');
+    expect(text).toContain('"total_tokens":30');
+  });
+
+  it('R6: Keepalive ping heartbeat generation', async () => {
+    let continueStream: () => void = () => {};
+    const waitPromise = new Promise<void>((resolve) => {
+      continueStream = resolve;
+    });
+
+    async function* generateSlowEvents(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'resp_slow', model: 'gpt-4', created: 1731693600 };
+      await waitPromise;
+      yield { type: 'text_delta', delta: 'Resumed.' };
+      yield { type: 'stream_end', stopReason: 'stop' };
+    }
+
+    const stream = createResponsesSSEStream(generateSlowEvents(), { keepaliveMs: 30 });
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+
+    let chunks = '';
+    const { value: firstVal } = await reader.read();
+    chunks += decoder.decode(firstVal!);
+
+    await new Promise((r) => setTimeout(r, 80));
+    continueStream();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks += decoder.decode(value);
+      }
+    }
+
+    expect(chunks).toContain(': ping\n\n');
   });
 });

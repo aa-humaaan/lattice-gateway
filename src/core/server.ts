@@ -89,11 +89,40 @@ export function createServer(
     })
   );
 
-  // Reject oversized bodies before the router buffers them.
+  // Reject oversized bodies before the router buffers them. A declared
+  // Content-Length is checked first; otherwise count bytes while draining the
+  // stream (chunked bodies). The buffered body is reattached for downstream
+  // handlers, which is safe because it was fully read here.
   app.use('*', async (c, next) => {
+    const maxBytes = config.maxBodyBytes || 10_000_000;
+    const tooLarge = () =>
+      c.json({ error: { type: 'payload_too_large', message: 'Request body too large' } }, 413);
     const declared = Number(c.req.header('content-length') || 0);
-    if (Number.isFinite(declared) && declared > (config.maxBodyBytes || 10_000_000)) {
-      return c.json({ error: { type: 'payload_too_large', message: 'Request body too large' } }, 413);
+    if (Number.isFinite(declared) && declared > maxBytes) return tooLarge();
+
+    if ((!Number.isFinite(declared) || declared === 0) && c.req.raw.body) {
+      const reader = c.req.raw.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maxBytes) return tooLarge();
+        chunks.push(value);
+      }
+      const buffered = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        buffered.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      (c.req as any).raw = new Request(c.req.raw.url, {
+        method: c.req.raw.method,
+        headers: c.req.raw.headers,
+        body: buffered,
+        signal: c.req.raw.signal,
+      });
     }
     await next();
   });

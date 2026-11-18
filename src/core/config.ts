@@ -17,8 +17,14 @@ export function isSafeUpstreamBaseUrl(value: unknown): boolean {
   if (url.username || url.password) return false;
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
 
+  // URL normalizes decimal/octal/hex IPv4 to dotted form; comparing the raw
+  // host to the normalized one closes those bypasses. IPv4-mapped IPv6 is
+  // rejected outright because it can hide private targets behind a v6 literal.
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  const loopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  const rawHost = value.match(/^[a-z]+:\/\/([^/?#@]+)/i)?.[1]?.toLowerCase();
+  if (rawHost && rawHost !== host && /^[0-9a-fx.]+$/.test(rawHost)) return false;
+  if (/^::ffff:/i.test(host)) return false;
+  const loopback = host === 'localhost' || host === '::1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
   if (url.protocol === 'http:' && !loopback) return false;
   if (/\.(local|internal|localhost)$/.test(host)) return false;
 
@@ -26,13 +32,14 @@ export function isSafeUpstreamBaseUrl(value: unknown): boolean {
   if (ipv4) {
     const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
     if (a === 10 || a === 0) return false;
+    if (a === 127 && host !== '127.0.0.1') return false;
     if (a === 169 && b === 254) return false;
     if (a === 172 && b >= 16 && b <= 31) return false;
     if (a === 192 && b === 168) return false;
     if (a === 100 && b >= 64 && b <= 127) return false;
     return true;
   }
-  if (/^(fc|fd|fe[89ab])/i.test(host)) return false;
+  if (/^(fc|fd|fe[89ab])/i.test(host) || host === '::' ) return false;
   return true;
 }
 

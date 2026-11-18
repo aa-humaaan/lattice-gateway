@@ -366,6 +366,44 @@ describe('Combo Context-Aware Failover', () => {
     }
   });
 
+  it('caps target attempts for both non-stream and stream execution', async () => {
+    const calls: string[] = [];
+    const provider = new StubPlugin(
+      'cap-provider',
+      Array.from({ length: 6 }, (_, index) => ({
+        id: `cap-provider/model-${index}`, name: `M${index}`, contextWindow: 100000,
+      })),
+      async (req) => {
+        calls.push(req.model);
+        throw new Error('all targets down');
+      },
+      async (req) => {
+        calls.push(req.model);
+        throw new Error('all targets down');
+      }
+    );
+    registerPlugin(provider);
+    globalComboManager.createCombo({
+      id: 'test/cap',
+      name: 'Cap',
+      createdAt: Date.now(),
+      targets: Array.from({ length: 6 }, (_, index) => `cap-provider/model-${index}`),
+    });
+    try {
+      const combo = new LatticeComboPlugin();
+      await expect(combo.execute(makeRequest({ model: 'test/cap' }))).rejects.toThrow();
+      expect(calls.length).toBe(4);
+      calls.length = 0;
+      await expect((async () => {
+        const stream = await combo.executeStream(makeRequest({ model: 'test/cap', stream: true }));
+        for await (const _event of stream) { /* consume */ }
+      })()).rejects.toThrow();
+      expect(calls.length).toBe(4);
+    } finally {
+      globalComboManager.deleteCombo('test/cap');
+    }
+  });
+
   it('skips small targets and streams from a large target', async () => {
     let smallStreamed = false;
     const small = new StubPlugin(

@@ -29,6 +29,7 @@ import { detectAllHarnesses, configureHarness } from './harness-manager';
 import { resolveTargetProviderId } from '../utils/model-resolver';
 import { FreeLLMAPIProviderPlugin } from '../plugins/freellmapi';
 import { globalImportManager } from '../core/account-import';
+import { ILLUSTRATIVE_USD_PER_TOKEN } from '../core/pricing';
 import { globalSecretStore } from '../core/secret-store';
 
 /** Drops all credential material before an account crosses the HTTP boundary. */
@@ -936,7 +937,8 @@ export function createAdminRouter(): Hono {
       recent.length > 1
         ? Math.max(1, (recent[0].timestamp - recent[recent.length - 1].timestamp) / 1000)
         : 0;
-    const tokensPerSec = spanSeconds ? Math.floor(metrics.totalTokens / spanSeconds) : 0;
+    const windowTokens = recent.reduce((sum, event) => sum + (event.totalTokens || 0), 0);
+    const tokensPerSec = spanSeconds ? Math.floor(windowTokens / spanSeconds) : 0;
 
     return c.json({
       success: true,
@@ -946,7 +948,9 @@ export function createAdminRouter(): Hono {
         completionTokens: metrics.completionTokens,
         totalRequests: metrics.totalRequests,
         tokensPerSec,
-        savedUsd: (metrics.totalTokens * 0.000026).toFixed(2),
+        savedUsd: (metrics.totalTokens * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2),
+        usdPerToken: ILLUSTRATIVE_USD_PER_TOKEN,
+        priceIsIllustrative: true,
         providerTokens: metrics.providerTokens,
         estimated: true,
       },
@@ -975,7 +979,7 @@ export function createAdminRouter(): Hono {
         cached: 0,
         completion: tokens.completion,
         total: tokens.total,
-        costSaved: Number((tokens.total * 0.0000305).toFixed(2)),
+        costSaved: Number((tokens.total * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2)),
         requests: metrics.providerRequests[provider] || 0,
       };
     }
@@ -989,7 +993,7 @@ export function createAdminRouter(): Hono {
         totalCachedTokens: 0,
         totalCompletionTokens: metrics.completionTokens,
         totalTokens: metrics.totalTokens,
-        totalCostSaved: Number((metrics.totalTokens * 0.0000305).toFixed(2)),
+        totalCostSaved: Number((metrics.totalTokens * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2)),
         cachedTokensUnavailable: true,
       },
       providers: providerStats,
@@ -1048,7 +1052,7 @@ export function createAdminRouter(): Hono {
             completionTokens: usage.completion,
             cachedTokens: 0,
             totalTokens: usage.total,
-            costSaved: Number((usage.total * 0.0000305).toFixed(2)),
+            costSaved: Number((usage.total * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2)),
             requests: usage.requests,
           };
         }),
@@ -1071,7 +1075,7 @@ export function createAdminRouter(): Hono {
         promptTokens: slot.prompt,
         completionTokens: slot.completion,
         cachedTokens: 0,
-        costSaved: Number((slot.total * 0.0000305).toFixed(2)),
+        costSaved: Number((slot.total * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2)),
         requests: slot.requests,
         models,
       };
@@ -1455,3 +1459,4 @@ export function createAdminRouter(): Hono {
 
   return router;
 }
+

@@ -3086,7 +3086,7 @@ export function getDashboardHtml(): string {
                 '<td>' + (data.prompt || 0).toLocaleString() + '</td>' +
                 '<td>' + (data.completion || 0).toLocaleString() + '</td>' +
                 '<td style="color:var(--text-primary); font-weight:600;">' + (data.total || 0).toLocaleString() + '</td>' +
-                '<td style="color:var(--emerald-text); font-family:var(--font-mono); font-weight:600;">$' + ((data.total || 0) * 0.000026).toFixed(2) + '</td>' +
+                '<td style="color:var(--emerald-text); font-family:var(--font-mono); font-weight:600;">$' + ((data.total || 0) * (t.usdPerToken || 0)).toFixed(2) + '</td>' +
               '</tr>'
             ).join('');
           }

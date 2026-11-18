@@ -13,6 +13,7 @@ import {
 import {
   createOpenAISSEStream,
   createAnthropicSSEStream,
+  createResponsesSSEStream,
 } from '../engine/dialect/stream-adapter';
 import { createXMLToolInterceptor } from '../engine/dialect/xml-tool-interceptor';
 import { GatewayError } from './types/errors';
@@ -561,41 +562,125 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     // Real Tokenizer prompt counting at the gateway edge before forwarding
     const realPromptTokens = countPromptTokens(canonicalReq).total;
 
-    let canonicalRes: Awaited<ReturnType<typeof provider.execute>>;
-    try {
-      canonicalRes = await withRequestDeadline(
-        provider.execute(canonicalReq, c.req.raw.signal),
-        config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1_800_000,
-        provider.id
-      );
-    } catch (err) {
-      if (isContextOverflow(err)) {
-        observeContextOverflow(observedPassportStore(), canonicalReq.model, realPromptTokens);
+    // Non-Streaming Branch
+    if (!canonicalReq.stream) {
+      let canonicalRes: Awaited<ReturnType<typeof provider.execute>>;
+      try {
+        canonicalRes = await withRequestDeadline(
+          provider.execute(canonicalReq, c.req.raw.signal),
+          config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1_800_000,
+          provider.id
+        );
+      } catch (err) {
+        if (isContextOverflow(err)) {
+          observeContextOverflow(observedPassportStore(), canonicalReq.model, realPromptTokens);
+        }
+        throw err;
       }
-      throw err;
+      observeCanonicalResponse(observedPassportStore(), canonicalReq.model, canonicalRes);
+      const latencyMs = Math.max(1, Date.now() - reqStartTime);
+      const promptTokens = canonicalRes.usage?.promptTokens || realPromptTokens;
+      const completionTokens =
+        canonicalRes.usage?.completionTokens ||
+        countCompletionTokens(canonicalRes.content);
+      globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
+      broadcastLog({
+        timestamp: Date.now(),
+        method: 'POST',
+        path: '/v1/responses',
+        provider: provider.id,
+        model: canonicalReq.model,
+        status: 200,
+        latencyMs,
+        promptTokens,
+        completionTokens,
+        totalTokens: promptTokens + completionTokens,
+        estimated: !canonicalRes.usage,
+      });
+      const responsesOutput = serializeOpenAIResponse(canonicalRes);
+      return c.json(responsesOutput);
     }
-    observeCanonicalResponse(observedPassportStore(), canonicalReq.model, canonicalRes);
-    const latencyMs = Math.max(1, Date.now() - reqStartTime);
-    const promptTokens = canonicalRes.usage?.promptTokens || realPromptTokens;
-    const completionTokens =
-      canonicalRes.usage?.completionTokens ||
-      countCompletionTokens(canonicalRes.content);
-    globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
-    broadcastLog({
-      timestamp: Date.now(),
-      method: 'POST',
-      path: '/v1/responses',
-      provider: provider.id,
-      model: canonicalReq.model,
-      status: 200,
-      latencyMs,
-      promptTokens,
-      completionTokens,
-      totalTokens: promptTokens + completionTokens,
-      estimated: !canonicalRes.usage,
+
+    // Streaming Branch
+    const requestTimeoutMs = config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1800000;
+    const idleTimeoutMs = config.idleTimeoutMs || config.defaultIdleTimeoutMs || 120000;
+
+    const upstreamEvents = await provider.executeStream(canonicalReq, c.req.raw.signal);
+    const interceptor = createXMLToolInterceptor();
+    const cleanEvents = interceptor.transform(upstreamEvents);
+    const timedEvents = withIdleTimeout(cleanEvents, {
+      idleTimeoutMs,
+      requestTimeoutMs,
+      signal: c.req.raw.signal,
     });
-    const responsesOutput = serializeOpenAIResponse(canonicalRes);
-    return c.json(responsesOutput);
+
+    async function* tappedResponsesStream() {
+      let finalPrompt = realPromptTokens;
+      let upstreamCompletionTokens: number | undefined;
+      let streamStatus = 200;
+      let accumulatedOutput = '';
+
+      try {
+        for await (const event of timedEvents) {
+          observeStreamEvent(observedPassportStore(), canonicalReq.model, event);
+          if (event.type === 'text_delta' || event.type === 'thinking_delta') {
+            accumulatedOutput += event.delta;
+          } else if (event.type === 'tool_call_delta') {
+            if (event.argumentsDelta) {
+              accumulatedOutput += event.argumentsDelta;
+            }
+          } else if (event.type === 'usage') {
+            if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
+            if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
+          } else if (event.type === 'stream_end' && event.usage) {
+            if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
+            if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
+          } else if (event.type === 'stream_error') {
+            streamStatus = event.error?.status ?? 502;
+          }
+          yield event;
+        }
+      } finally {
+        const latencyMs = Math.max(1, Date.now() - reqStartTime);
+        const finalCompletion =
+          upstreamCompletionTokens !== undefined
+            ? upstreamCompletionTokens
+            : (accumulatedOutput.length > 0 ? countTextTokens(accumulatedOutput) : 0);
+
+        if (streamStatus === 200) {
+          globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
+        }
+        broadcastLog({
+          timestamp: Date.now(),
+          method: 'POST',
+          path: '/v1/responses',
+          provider: provider.id,
+          model: canonicalReq.model,
+          status: streamStatus,
+          latencyMs,
+          promptTokens: finalPrompt,
+          completionTokens: finalCompletion,
+          totalTokens: finalPrompt + finalCompletion,
+          estimated: upstreamCompletionTokens === undefined,
+        });
+      }
+    }
+
+    const sseStream = createResponsesSSEStream(tappedResponsesStream(), {
+      keepaliveMs: config.defaultKeepaliveMs,
+      signal: c.req.raw.signal,
+    });
+
+    return new Response(sseStream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        'x-request-id': reqId,
+      },
+    });
   });
 }
 

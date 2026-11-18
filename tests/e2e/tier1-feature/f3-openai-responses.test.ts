@@ -168,4 +168,33 @@ describe('F3: OpenAI /v1/responses Dialect', () => {
     assertDialectError(errBody, 'openai', 400);
     expect(errBody.error.message).toBeDefined();
   });
+
+  // 7. Streaming /v1/responses endpoint returns proper SSE event sequence
+  it('streams /v1/responses with SSE events: response.created → output_stream.delta → response.completed', async () => {
+    const res = await client.openaiResponses({
+      model: 'mock-chat',
+      input: 'Say hello',
+      stream: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+    if (!res.body) throw new Error('No response body');
+    const chunks: string[] = [];
+    const decoder = new TextDecoder();
+    const reader = res.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(decoder.decode(value, { stream: true }));
+    }
+    const text = chunks.join('');
+
+    expect(text).toContain('event: response.created');
+    expect(text).toContain('"status":"in_progress"');
+    expect(text).toContain('event: response.completed');
+    expect(text).toContain('"status":"completed"');
+    expect(text).toContain('Lattice Gateway Mock Stream');
+  });
 });

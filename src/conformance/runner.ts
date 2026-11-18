@@ -2,7 +2,7 @@ import { normalizeOpenAIChat, normalizeAnthropicMessages, normalizeOpenAIRespons
 import { serializeOpenAIChat, serializeAnthropicMessage, serializeOpenAIResponse } from '../engine/dialect/serializer';
 import type { CanonicalResponse } from '../core/types/canonical';
 import type { CanonicalStreamEvent } from '../core/types/canonical';
-import { createOpenAISSEStream, createAnthropicSSEStream } from '../engine/dialect/stream-adapter';
+import { createOpenAISSEStream, createAnthropicSSEStream, createResponsesSSEStream } from '../engine/dialect/stream-adapter';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -58,7 +58,9 @@ export async function runConformanceFixture(fixture: ConformanceFixture): Promis
     async function* events() { for (const event of fixture.streamEvents!) yield event; }
     const stream = fixture.dialect === 'anthropic-messages'
       ? createAnthropicSSEStream(events(), { keepaliveMs: 0 })
-      : createOpenAISSEStream(events(), { keepaliveMs: 0 });
+      : fixture.dialect === 'openai-responses'
+        ? createResponsesSSEStream(events(), { keepaliveMs: 0 })
+        : createOpenAISSEStream(events(), { keepaliveMs: 0 });
     const text = await new Response(stream).text();
     for (const expected of fixture.streamContains ?? []) {
       if (!text.includes(expected)) failures.push({ stage: 'stream', path: 'contains', expected, actual: text });

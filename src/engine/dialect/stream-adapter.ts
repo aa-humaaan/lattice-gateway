@@ -5,6 +5,7 @@ import {
   mapStopReasonToOpenAI,
   mapStopReasonToAnthropic,
 } from './serializer';
+import type { CanonicalStopReason } from '../../core/types/canonical';
 
 export interface StreamAdapterOptions {
   keepaliveMs?: number;
@@ -525,6 +526,335 @@ export function createAnthropicSSEStream(
               return;
             }
           }
+        }
+      } catch (err) {
+        controller.error(err);
+      } finally {
+        isClosed = true;
+        if (keepaliveTimer) clearInterval(keepaliveTimer);
+        try {
+          controller.close();
+        } catch {}
+      }
+    },
+    cancel() {
+      isClosed = true;
+      if (keepaliveTimer) clearInterval(keepaliveTimer);
+    },
+  });
+}
+
+// ============================================================================
+// OpenAI Responses API SSE Stream (POST /v1/responses?stream=true)
+// Implements JSON-over-SSE per OpenAI Responses API spec
+// ============================================================================
+
+export function createResponsesSSEStream(
+  events: AsyncIterable<CanonicalStreamEvent>,
+  options?: StreamAdapterOptions
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  const keepaliveMs = options?.keepaliveMs ?? 15000;
+  let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  let isClosed = false;
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const resetKeepalive = () => {
+        if (keepaliveTimer) clearInterval(keepaliveTimer);
+        keepaliveTimer = setInterval(() => {
+          if (!isClosed) {
+            try {
+              controller.enqueue(encoder.encode(': ping\n\n'));
+            } catch {
+              if (keepaliveTimer) clearInterval(keepaliveTimer);
+            }
+          }
+        }, keepaliveMs);
+      };
+
+      resetKeepalive();
+
+      const enqueueData = (eventType: string, payload: unknown) => {
+        resetKeepalive();
+        controller.enqueue(
+          encoder.encode(`event: ${eventType}\ndata: ${JSON.stringify(payload)}\n\n`)
+        );
+      };
+
+      let responseId = `resp_lat_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+      let model = 'default';
+      let created = Math.floor(Date.now() / 1000);
+      let hasOutputStarted = false;
+      let stopReason: CanonicalStopReason = 'stop';
+      let totalPromptTokens = 0;
+      let totalCompletionTokens = 0;
+      let textAccumulator = '';
+      const outputItems: any[] = [];
+      let pendingToolCallId: string | undefined;
+      let pendingToolCallName: string | undefined;
+      let pendingToolCallArguments = '';
+      let pendingTextItemId: string | undefined;
+      let pendingTextItemIndex = -1;
+      let itemIndexCounter = 0;
+      let toolCallIndexCounter = 0;
+
+      const flushPendingToolCall = () => {
+        if (pendingToolCallId && pendingToolCallName !== undefined) {
+          const args = pendingToolCallArguments;
+          const name = pendingToolCallName;
+          pendingToolCallArguments = '';
+          pendingToolCallName = undefined;
+          const item = {
+            id: pendingToolCallId,
+            type: 'function_call',
+            call_id: pendingToolCallId,
+            name,
+            arguments: args,
+            status: 'completed',
+          };
+          outputItems.push(item);
+          enqueueData('response.output_item.done', {
+            type: 'output_item.done',
+            item,
+          });
+        }
+        pendingToolCallId = undefined;
+      };
+
+      const flushPendingTextItem = () => {
+        if (pendingTextItemId !== undefined && pendingTextItemIndex >= 0) {
+          const item = {
+            id: pendingTextItemId,
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: textAccumulator }],
+            status: 'completed',
+          };
+          outputItems.push(item);
+          enqueueData('response.output_item.done', {
+            type: 'output_item.done',
+            item,
+          });
+        }
+        pendingTextItemId = undefined;
+        pendingTextItemIndex = -1;
+        textAccumulator = '';
+      };
+
+      const ensureResponseCreated = () => {
+        if (!hasOutputStarted) {
+          hasOutputStarted = true;
+          enqueueData('response.created', {
+            type: 'response.created',
+            response: {
+              id: responseId,
+              object: 'response',
+              created_at: created,
+              status: 'in_progress',
+              model,
+              output: [],
+            },
+          });
+        }
+      };
+
+      try {
+        for await (const event of events) {
+          if (options?.signal?.aborted || isClosed) break;
+
+          switch (event.type) {
+            case 'stream_start':
+              responseId = event.id;
+              model = event.model;
+              created = event.created;
+              ensureResponseCreated();
+              break;
+
+            case 'thinking_delta': {
+              ensureResponseCreated();
+              if (pendingTextItemId === undefined) {
+                pendingTextItemId = `item_lat_${responseId}_text`;
+                pendingTextItemIndex = itemIndexCounter++;
+                enqueueData('response.output_item.added', {
+                  type: 'output_item.added',
+                  output_index: pendingTextItemIndex,
+                  item: {
+                    id: pendingTextItemId,
+                    type: 'message',
+                    role: 'assistant',
+                    content: [],
+                    status: 'in_progress',
+                  },
+                });
+              }
+              textAccumulator += event.delta;
+              enqueueData('response.output_stream.delta', {
+                type: 'output_stream.delta',
+                item_index: pendingTextItemIndex,
+                delta: { type: 'reasoning_text_delta', text: event.delta },
+              });
+              break;
+            }
+
+            case 'text_delta': {
+              ensureResponseCreated();
+              if (pendingTextItemId === undefined) {
+                pendingTextItemId = `item_lat_${responseId}_text`;
+                pendingTextItemIndex = itemIndexCounter++;
+                enqueueData('response.output_item.added', {
+                  type: 'output_item.added',
+                  output_index: pendingTextItemIndex,
+                  item: {
+                    id: pendingTextItemId,
+                    type: 'message',
+                    role: 'assistant',
+                    content: [],
+                    status: 'in_progress',
+                  },
+                });
+              }
+              textAccumulator += event.delta;
+              enqueueData('response.output_stream.delta', {
+                type: 'output_stream.delta',
+                item_index: pendingTextItemIndex,
+                delta: { type: 'input_text_delta', text: event.delta },
+              });
+              break;
+            }
+
+            case 'tool_call_start': {
+              ensureResponseCreated();
+              flushPendingTextItem();
+              pendingToolCallId = `call_${responseId}_${toolCallIndexCounter++}`;
+              pendingToolCallName = event.name;
+              pendingToolCallArguments = '';
+              const tcIndex = itemIndexCounter++;
+              enqueueData('response.output_item.added', {
+                type: 'output_item.added',
+                output_index: tcIndex,
+                item: {
+                  id: pendingToolCallId,
+                  type: 'function_call',
+                  call_id: pendingToolCallId,
+                  name: event.name,
+                  arguments: '',
+                  status: 'in_progress',
+                },
+              });
+              break;
+            }
+
+            case 'tool_call_delta': {
+              if (pendingToolCallId && pendingToolCallName !== undefined) {
+                pendingToolCallArguments += event.argumentsDelta;
+                enqueueData('response.output_stream.delta', {
+                  type: 'output_stream.delta',
+                  item_index: outputItems.length,
+                  delta: {
+                    type: 'partial_json_delta',
+                    argument_index: 0,
+                    partial_json: event.argumentsDelta,
+                  },
+                });
+              }
+              break;
+            }
+
+            case 'tool_call_stop':
+              flushPendingToolCall();
+              break;
+
+            case 'usage':
+              totalPromptTokens = event.usage.promptTokens || totalPromptTokens;
+              totalCompletionTokens = event.usage.completionTokens || totalCompletionTokens;
+              break;
+
+            case 'stream_end':
+              stopReason = event.stopReason;
+              flushPendingTextItem();
+              flushPendingToolCall();
+              // Emit final response.completed
+              const status = stopReason === 'error' ? 'failed' : 'completed';
+              const completedResponse: any = {
+                id: responseId,
+                object: 'response',
+                created_at: created,
+                status,
+                model,
+                output: outputItems.length > 0 ? outputItems : [
+                  {
+                    id: pendingTextItemId || `msg_${responseId}`,
+                    type: 'message',
+                    role: 'assistant',
+                    content: textAccumulator
+                      ? [{ type: 'text', text: textAccumulator }]
+                      : [],
+                    status: status === 'completed' ? 'completed' : 'in_progress',
+                  },
+                ],
+                usage: {
+                  total_tokens: totalPromptTokens + totalCompletionTokens,
+                  input_tokens: totalPromptTokens,
+                  output_tokens: totalCompletionTokens,
+                },
+              };
+              enqueueData('response.completed', {
+                type: 'response.completed',
+                response: completedResponse,
+              });
+              break;
+
+            case 'stream_error':
+              ensureResponseCreated();
+              enqueueData('response.completed', {
+                type: 'response.completed',
+                response: {
+                  id: responseId,
+                  object: 'response',
+                  created_at: created,
+                  status: 'failed',
+                  model,
+                  output: [],
+                  error: {
+                    code: event.error.code,
+                    message: event.error.message,
+                  },
+                },
+              });
+              return;
+          }
+        }
+
+        // If no response was ever started but we get here, emit an empty completed one
+        if (!hasOutputStarted) {
+          enqueueData('response.created', {
+            type: 'response.created',
+            response: {
+              id: responseId,
+              object: 'response',
+              created_at: created,
+              status: 'in_progress',
+              model,
+              output: [],
+            },
+          });
+          enqueueData('response.completed', {
+            type: 'response.completed',
+            response: {
+              id: responseId,
+              object: 'response',
+              created_at: created,
+              status: 'completed',
+              model,
+              output: [],
+              usage: {
+                total_tokens: totalPromptTokens + totalCompletionTokens,
+                input_tokens: totalPromptTokens,
+                output_tokens: totalCompletionTokens,
+              },
+            },
+          });
         }
       } catch (err) {
         controller.error(err);

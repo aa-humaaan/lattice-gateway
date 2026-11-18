@@ -20,6 +20,15 @@ describe('upstream base URL allow-list', () => {
     expect(isSafeUpstreamBaseUrl('http://172.16.0.1/v1')).toBe(false);
   });
 
+  test('rejects obfuscated loopback, decimal/octal IPv4 and IPv4-mapped forms', () => {
+    expect(isSafeUpstreamBaseUrl('http://127.0.0.2/v1')).toBe(false);
+    expect(isSafeUpstreamBaseUrl('http://2130706433/v1')).toBe(false);
+    expect(isSafeUpstreamBaseUrl('http://0177.0.0.1/v1')).toBe(false);
+    expect(isSafeUpstreamBaseUrl('http://0x7f000001/v1')).toBe(false);
+    expect(isSafeUpstreamBaseUrl('http://[::ffff:127.0.0.1]/v1')).toBe(false);
+    expect(isSafeUpstreamBaseUrl('http://[::ffff:10.0.0.5]/v1')).toBe(false);
+  });
+
   test('rejects non-HTTP schemes and malformed URLs', () => {
     expect(isSafeUpstreamBaseUrl('file:///etc/passwd')).toBe(false);
     expect(isSafeUpstreamBaseUrl('javascript:alert(1)')).toBe(false);

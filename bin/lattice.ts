@@ -3,6 +3,7 @@ import { createServer } from '../src/core/server';
 import { loadConfig, GatewayConfig } from '../src/core/config';
 import { loadOrCreateAuthTokens } from '../src/core/auth-tokens';
 import { logger } from '../src/utils/logger';
+import { formatPortConflict } from '../src/utils/port-error';
 import { globalPluginRegistry } from '../src/plugins/registry';
 import { globalAccountPool } from '../src/pool/account-pool';
 import { globalComboManager } from '../src/pool/combos';
@@ -106,7 +107,7 @@ try {
     String(err.message || '').toLowerCase().includes('port');
 
   if (isPortError) {
-    logger.error(`Port ${config.port} is already in use by another process. Lattice will not terminate that process.`);
+    logger.error(formatPortConflict(config.port, err));
     logger.error(`Identify the owner yourself, or start Lattice on another port: lattice.exe --port ${config.port + 1}`);
   } else {
     logger.error(`Failed to start server: ${err.message}`);

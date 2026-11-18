@@ -114,7 +114,7 @@ Model passports learn from traffic instead of guesses. A real tool call, thinkin
 Account rotation is deliberately narrow: a rate limit (429) or an authentication rejection (401/403) may switch accounts because those responses prove the upstream never processed the request. A network error, timeout, abort, or 5xx fails fast instead — retrying another account after an ambiguous failure could repeat a tool call or a charge.
 
 ### 10. Public Dialect Conformance
-Run `bun run conformance` to execute network-free public fixtures through the real normalizers, serializers, and supported stream adapters. Results are written deterministically to `conformance/results.json`. OpenAI Chat covers tools and SSE, Anthropic Messages covers thinking/tools/SSE, and OpenAI Responses covers JSON while honestly reporting streaming as unsupported.
+Run `bun run conformance` to execute network-free public fixtures through the real normalizers, serializers, and stream adapters. Results are written deterministically to `conformance/results.json`. OpenAI Chat covers tools and SSE, Anthropic Messages covers thinking/tools/SSE, and OpenAI Responses now covers JSON plus its own SSE event sequence (`response.created` → output deltas → `response.completed`).
 
 ---
 
@@ -159,7 +159,7 @@ In `~/.claude/settings.json`:
 
 ## 🧪 Testing & Verification
 
-Project Lattice is tested by **666 automated tests** spanning 82 test files:
+Project Lattice is tested by **676 automated tests** spanning 82 test files:
 ```bash
 bun test
 ```

@@ -6,6 +6,7 @@ import { globalAccountPool } from './pool/account-pool';
 import { globalComboManager } from './pool/combos';
 import { globalStorage } from './pool/storage';
 import { loadOrCreateAuthTokens } from './core/auth-tokens';
+import { formatPortConflict } from './utils/port-error';
 
 import { KiloProviderPlugin } from './plugins/kilo';
 import { NousProviderPlugin } from './plugins/nous';
@@ -85,7 +86,7 @@ try {
     String(err.message || '').toLowerCase().includes('port');
 
   if (isPortError) {
-    logger.error(`Port ${config.port} is already in use by another process. Lattice will not terminate that process.`);
+    logger.error(formatPortConflict(config.port, err));
     logger.error(`Identify the owner yourself, or start Lattice on another port: bun run src/index.ts --port ${config.port + 1}`);
   } else {
     logger.error(`Failed to start server: ${err.message}`);

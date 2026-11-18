@@ -1007,7 +1007,7 @@ footer .fine{font:12px/1.7 var(--mono);color:#b8ad99;border-top:1px solid #4a423
 
     <div class="note good">
       <span class="tag">Status: Phase A + B + Phase C1 shipped</span>
-      <p>The rescue and all eight moat increments were implemented test-first. The accumulated work was committed as <code>bea5508</code>; C8 is the increment after that commit. Latest full run: <b>666 tests pass, 0 fail, 82 files</b>.</p>
+      <p>The rescue, all nine moat increments, and the minor-sweep were implemented test-first. Latest full run: <b>676 tests pass, 0 fail, 82 files</b>.</p>
     </div>
 
     <h3>Phase A — stop the bleeding</h3>
@@ -1050,7 +1050,7 @@ footer .fine{font:12px/1.7 var(--mono);color:#b8ad99;border-top:1px solid #4a423
     <h3>Phase C3 — a public dialect truth table</h3>
     <ul class="check">
       <li class="done"><b>Executable public fixtures</b><span>OpenAI Chat, Anthropic Messages and OpenAI Responses requests run through the real normalizers and serializers with literal semantic expectations.</span></li>
-      <li class="done"><b>Streaming checked honestly</b><span>Chat and Messages SSE event semantics are exercised; Responses streaming is explicitly reported unsupported instead of receiving a fake pass.</span></li>
+      <li class="done"><b>Streaming checked honestly</b><span>Chat and Messages SSE event semantics are exercised. Responses streaming was later implemented and its conformance fixture now verifies the real event sequence instead of a fabricated pass.</span></li>
       <li class="done"><b>Deterministic evidence</b><span><code>bun run conformance</code> writes stable machine-readable results to <code>conformance/results.json</code> without provider calls.</span></li>
     </ul>
 
@@ -1084,7 +1084,15 @@ footer .fine{font:12px/1.7 var(--mono);color:#b8ad99;border-top:1px solid #4a423
       <li class="done"><b>Ambiguous failures fail fast</b><span>A network error, timeout or abort now returns 502 immediately in Kilo, Nous and Cline instead of trying another account. The upstream may have processed the first request, so a retry could duplicate a tool call or a charge.</span></li>
       <li class="done"><b>Provably safe switches remain</b><span>429 rate limits and 401/403 auth rejections still rotate, because those responses prove the request was never processed. A test counts fetch attempts for each case.</span></li>
     </ul>
-    <p class="small">Ordinary accounts keep reading their own credentials unchanged; only imported accounts use the secret-store overlay.</p>
+    <h3>Phase C9 — closing the deferred minors</h3>
+    <ul class="check">
+      <li class="done"><b>Bodies bounded for real</b><span>Requests without a declared Content-Length are byte-counted while streaming and rejected at 413, closing the chunked-body bypass.</span></li>
+      <li class="done"><b>Deadlines stop work</b><span>A timed-out request now aborts its upstream fetch instead of merely returning early and leaving a connection open.</span></li>
+      <li class="done"><b>Bounded combos</b><span>Target attempts are capped in both non-stream and stream paths, with an off-by-one corrected.</span></li>
+      <li class="done"><b>Honest numbers</b><span><code>tokensPerSec</code> now divides tokens from the same window as its time span, and one labelled illustrative USD rate feeds both the API and the dashboard.</span></li>
+      <li class="done"><b>Safer boundaries</b><span>The upstream URL allow-list rejects decimal/octal/hex IPv4, non-canonical loopback, and IPv4-mapped IPv6; port conflicts name the owner PID when the runtime reports it.</span></li>
+    </ul>
+    <p class="small">An external sync also landed OpenAI Responses SSE streaming during this sweep; it was preserved and verified rather than discarded. Ordinary accounts keep reading their own credentials unchanged; only imported accounts use the secret-store overlay.</p>
   </div>
 </section>
 

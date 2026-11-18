@@ -155,7 +155,13 @@ export class LatticeComboPlugin implements ProviderPlugin {
       ? [pinnedTarget, ...combo.targets.filter((target) => target !== pinnedTarget)]
       : [...combo.targets];
 
+    let attemptCount = 0;
     for (const target of targets) {
+      if (attemptCount >= MAX_STREAM_TARGET_SWITCHES) {
+        logger.warn(`[LatticeCombo] Target attempt budget exhausted for combo ${combo.id}`);
+        break;
+      }
+      attemptCount++;
       let resolved: { plugin: ProviderPlugin; resolvedModel: string };
       try {
         resolved = this.resolveProviderForModel(target);
@@ -277,7 +283,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
       : [...combo.targets];
 
     for (const target of targets) {
-      if (switchCount > MAX_STREAM_TARGET_SWITCHES) {
+      if (switchCount >= MAX_STREAM_TARGET_SWITCHES) {
         logger.warn(`[LatticeCombo] Switch budget exhausted for combo ${combo.id}`);
         break;
       }
