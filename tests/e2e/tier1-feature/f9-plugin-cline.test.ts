@@ -135,7 +135,7 @@ describe('Feature F9: Plugin Cline Pool Upstream & Token Rotation', () => {
   });
 
   // Test 4: Account state transition on suspension
-  it('transitions account state to suspended on upstream 401 and removes it from routing', async () => {
+  it('suspends a 401 account and retries the same model on the next account', async () => {
     clinePlugin.accounts[0].status = 'active';
     clinePlugin.accounts[1].status = 'active';
 
@@ -147,14 +147,18 @@ describe('Feature F9: Plugin Cline Pool Upstream & Token Rotation', () => {
       count: 1,
     });
 
-    // Request hits Account 1 and fails with 401
+    // Request hits Account 1, suspends it, then stays on the same model via Account 2.
     const res = await client.openaiChat({
       model: 'cline/claude-3-7-sonnet',
       messages: [{ role: 'user', content: 'Test suspension' }],
     });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
     expect(clinePlugin.accounts[0].status).toBe('suspended' as any);
+    const firstTurnRequests = mockServer.getRequests();
+    expect(firstTurnRequests.length).toBe(2);
+    expect(firstTurnRequests[0].headers['authorization']).toBe(`Bearer ${clinePlugin.accounts[0].credentials.accessToken}`);
+    expect(firstTurnRequests[1].headers['authorization']).toBe(`Bearer ${clinePlugin.accounts[1].credentials.accessToken}`);
 
     // Next request should automatically route to Account 2
     mockServer.reset();

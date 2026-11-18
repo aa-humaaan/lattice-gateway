@@ -40,6 +40,11 @@ export interface StoredAccount {
   lastUsedAt?: number;           // Epoch ms
   errorCount: number;
   rateLimitResetAt?: number;     // Epoch ms
+  quotaRemaining?: number;       // Remaining requests/tokens in current window
+  quotaLimit?: number;           // Total requests/tokens in current window
+  quotaResetAt?: number;         // Epoch ms when quota resets
+  tokensUsed?: number;           // Actual cumulative tokens consumed
+  requestsUsed?: number;         // Actual cumulative requests completed
 }
 
 // ============================================================================
@@ -59,6 +64,8 @@ export interface ModelDescriptor {
   supportsStreaming?: boolean;   // Supports SSE streaming
   isFree?: boolean;              // Tagged free-tier model
   tags?: string[];               // e.g., ["reasoning", "flagship", "coding"]
+  catalogSource?: 'declared' | 'discovered';
+  catalogEvidence?: string;
 }
 
 // ============================================================================

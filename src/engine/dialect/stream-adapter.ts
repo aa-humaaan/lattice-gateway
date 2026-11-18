@@ -247,7 +247,7 @@ export function createOpenAISSEStream(
                   code: event.error.code,
                 },
               });
-              break;
+              return;
           }
         }
 
@@ -522,7 +522,7 @@ export function createAnthropicSSEStream(
                   message: event.error.message,
                 },
               });
-              break;
+              return;
             }
           }
         }

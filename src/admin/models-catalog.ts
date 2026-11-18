@@ -1,5 +1,14 @@
 import { globalPluginRegistry } from '../plugins/registry';
 import { globalComboManager } from '../pool/combos';
+import { resolveTargetProviderId } from '../utils/model-resolver';
+import {
+  getGlobalModelPassportStore,
+  verifyPassport,
+  type ModelPassport,
+  type ModelPassportStore,
+  type PassportEvidenceSource,
+} from '../core/model-passports';
+import { withRequestDeadline } from '../utils/request-deadline';
 
 export interface ModelBadge {
   text: string;
@@ -11,17 +20,20 @@ export interface EnrichedModelCatalogItem {
   name: string;
   providerId: string;
   ownedBy: string;
-  contextWindow: number;
-  contextWindowFormatted: string;
+  contextWindow?: number;
+  contextWindowFormatted?: string;
   maxOutputTokens?: number;
   maxOutputTokensFormatted?: string;
-  supportsThinking: boolean;
-  supportsTools: boolean;
-  supportsStreaming: boolean;
-  isFree: boolean;
+  supportsThinking?: boolean;
+  supportsTools?: boolean;
+  supportsStreaming?: boolean;
+  isFree?: boolean;
   tags: string[];
   badges: ModelBadge[];
   description?: string;
+  verificationStatus?: 'unverified' | PassportEvidenceSource;
+  passportDigest?: string;
+  claimSources?: Record<string, PassportEvidenceSource>;
 }
 
 export function formatContextWindow(tokens: number): string {
@@ -296,27 +308,6 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
       { text: 'Free', color: 'emerald' },
     ],
     description: 'Cohere specialized code intelligence model optimized for compact code edits.',
-  },
-  {
-    id: 'kilo/stepfun/step-3.7-flash:free',
-    name: 'StepFun Step 3.7 Flash Free',
-    providerId: 'kilo',
-    ownedBy: 'stepfun',
-    contextWindow: 128_000,
-    contextWindowFormatted: '128k tokens',
-    maxOutputTokens: 8_192,
-    maxOutputTokensFormatted: '8k tokens',
-    supportsThinking: false,
-    supportsTools: true,
-    supportsStreaming: true,
-    isFree: true,
-    tags: ['Fast', 'Reasoning', 'Free'],
-    badges: [
-      { text: 'Flash', color: 'coral' },
-      { text: 'Reasoning', color: 'amber' },
-      { text: 'Free', color: 'emerald' },
-    ],
-    description: 'Fast Chinese & English bilingual reasoning model with sub-second response times.',
   },
   {
     id: 'kilo/code-fast:free',
@@ -952,6 +943,178 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
   },
 
   // --------------------------------------------------------------------------
+  // FreeLLMAPI Local Free Engine (8 verified 1M context models)
+  // --------------------------------------------------------------------------
+  {
+    id: 'freellmapi/auto',
+    name: 'FreeLLMAPI Auto Router (1M Context Free)',
+    providerId: 'freellmapi',
+    ownedBy: 'freellmapi',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Auto-Router', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Auto-Router', color: 'amber' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'Dynamic local auto-router picking best available free 1M frontier model via FreeLLMAPI backend.',
+  },
+  {
+    id: 'freellmapi/claude-sonnet-4-5',
+    name: 'FreeLLMAPI Claude Sonnet 4.5 Slot (1M Context)',
+    providerId: 'freellmapi',
+    ownedBy: 'freellmapi',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Coding', 'Flagship', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Coding', color: 'coral' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'FreeLLMAPI Sonnet slot automatically routed to top zero-cost frontier model with 1,048,576 context.',
+  },
+  {
+    id: 'freellmapi/claude-opus-4-5',
+    name: 'FreeLLMAPI Claude Opus 4.5 Slot (1M Context)',
+    providerId: 'freellmapi',
+    ownedBy: 'freellmapi',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Reasoning', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Reasoning', color: 'amber' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'FreeLLMAPI Opus slot with high-capacity analytical reasoning at 1,048,576 context window.',
+  },
+  {
+    id: 'freellmapi/claude-haiku-4-5',
+    name: 'FreeLLMAPI Claude Haiku 4.5 Slot (1M Context)',
+    providerId: 'freellmapi',
+    ownedBy: 'freellmapi',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Fast', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Fast', color: 'cyan' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'High-speed 1M token context window model for rapid iterations and small context tasks.',
+  },
+  {
+    id: 'freellmapi/fusion',
+    name: 'FreeLLMAPI Fusion Panel (1M Context)',
+    providerId: 'freellmapi',
+    ownedBy: 'freellmapi',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Panel-Judge', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Fusion', color: 'amber' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'Panel of models answers in parallel with an automated judge synthesizing one cohesive response.',
+  },
+  {
+    id: 'freellmapi/nemotron-3.5-lightning',
+    name: 'FreeLLMAPI Nemotron 3.5 Lightning (1M Context)',
+    providerId: 'freellmapi',
+    ownedBy: 'freellmapi',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Lightning', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Lightning', color: 'coral' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'NVIDIA Nemotron 3.5 Lightning served via FreeLLMAPI with 1,048,576 context length.',
+  },
+  {
+    id: 'freellmapi/nemotron-3-ultra-550b',
+    name: 'FreeLLMAPI Nemotron 3 Ultra 550B (1M Context)',
+    providerId: 'freellmapi',
+    ownedBy: 'freellmapi',
+    contextWindow: 1_048_576,
+    contextWindowFormatted: '1M tokens (1,048,576)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Ultra-550B', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: '550B', color: 'amber' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'NVIDIA Nemotron 3 Ultra 550B served via FreeLLMAPI with 1,048,576 context length.',
+  },
+  {
+    id: 'freellmapi/nemotron-3.5-super-vl',
+    name: 'FreeLLMAPI Nemotron 3.5 Super VL (1M Context)',
+    providerId: 'freellmapi',
+    ownedBy: 'freellmapi',
+    contextWindow: 1_000_000,
+    contextWindowFormatted: '1M tokens (1,000,000)',
+    maxOutputTokens: 8_192,
+    maxOutputTokensFormatted: '8k tokens',
+    supportsThinking: true,
+    supportsTools: true,
+    supportsStreaming: true,
+    isFree: true,
+    tags: ['1M Context', 'Vision', 'Free'],
+    badges: [
+      { text: '1M Context', color: 'emerald' },
+      { text: 'Vision', color: 'cyan' },
+      { text: 'Free Tier', color: 'emerald' },
+    ],
+    description: 'NVIDIA Nemotron 3.5 Super VL multimodal vision-language model with 1,000,000 context length.',
+  },
+
+  // --------------------------------------------------------------------------
   // Lattice Virtual Combos (2 auto-failover cascades)
   // --------------------------------------------------------------------------
   {
@@ -1000,50 +1163,70 @@ export const CANONICAL_FREE_MODELS: EnrichedModelCatalogItem[] = [
   },
 ];
 
-export function getEnrichedModelsCatalog(): EnrichedModelCatalogItem[] {
+export async function observeEnabledPluginCatalogs(
+  store: ModelPassportStore = getGlobalModelPassportStore()
+): Promise<ModelPassport[]> {
+  const observed: ModelPassport[] = [];
+  for (const plugin of globalPluginRegistry.getEnabled()) {
+    try {
+      for (const model of await plugin.listModels()) {
+        observed.push(store.observe(model, plugin.id));
+      }
+    } catch {
+      // One unavailable provider must not block observations from the others.
+    }
+  }
+  return observed;
+}
+
+export function getEnrichedModelsCatalog(
+  store: ModelPassportStore = getGlobalModelPassportStore()
+): EnrichedModelCatalogItem[] {
   const modelMap = new Map<string, EnrichedModelCatalogItem>();
 
-  // 1. Seed with canonical free models
+  // 1. Seed with canonical free models whose provider plugin is not explicitly disabled
   for (const m of CANONICAL_FREE_MODELS) {
-    modelMap.set(m.id, m);
+    const isExplicitlyDisabled =
+      globalPluginRegistry.has(m.providerId) && !globalPluginRegistry.isEnabled(m.providerId);
+    if (!isExplicitlyDisabled) {
+      modelMap.set(m.id, { ...m });
+    }
   }
 
   // 2. Discover additional models from registered plugins
-  const plugins = globalPluginRegistry.getAll();
+  const plugins = globalPluginRegistry.getEnabled();
   for (const plugin of plugins) {
-    if (typeof plugin.listModels === 'function') {
-      try {
-        const pRes: any = plugin.listModels();
-        const pModels = Array.isArray(pRes) ? pRes : (plugin as any).cachedModels || [];
-        for (const m of pModels) {
-          if (!modelMap.has(m.id)) {
-            const isFree = m.isFree || m.id.includes(':free') || m.id.includes('free');
-            const badges: ModelBadge[] = [];
-            if (isFree) badges.push({ text: 'Free', color: 'emerald' });
-            if (m.contextWindow >= 1_000_000) badges.push({ text: '1M Context', color: 'emerald' });
-            if (m.supportsThinking) badges.push({ text: 'Reasoning', color: 'amber' });
-            if (m.tags?.includes('vision')) badges.push({ text: 'Vision', color: 'cyan' });
-            if (m.tags?.includes('fast')) badges.push({ text: 'Fast', color: 'coral' });
+    if (plugin.id === 'lattice') continue;
+    const pModels = (plugin as any).cachedModels || [];
+    for (const m of pModels) {
+      if (!modelMap.has(m.id)) {
+        const isFree = m.isFree || m.id.includes(':free') || m.id.includes('free');
+        const badges: ModelBadge[] = [];
+        if (isFree) badges.push({ text: 'Free', color: 'emerald' });
+        if (m.contextWindow >= 1_000_000) badges.push({ text: '1M Context', color: 'emerald' });
+        if (m.supportsThinking) badges.push({ text: 'Reasoning', color: 'amber' });
+        if (m.tags?.includes('vision')) badges.push({ text: 'Vision', color: 'cyan' });
+        if (m.tags?.includes('fast')) badges.push({ text: 'Fast', color: 'coral' });
 
-            modelMap.set(m.id, {
-              id: m.id,
-              name: m.name || m.id,
-              providerId: m.providerId || plugin.id,
-              ownedBy: m.ownedBy || plugin.id,
-              contextWindow: m.contextWindow || 128_000,
-              contextWindowFormatted: formatContextWindow(m.contextWindow || 128_000),
-              maxOutputTokens: m.maxOutputTokens || 8_192,
-              maxOutputTokensFormatted: formatOutputTokens(m.maxOutputTokens || 8_192),
-              supportsThinking: !!m.supportsThinking,
-              supportsTools: !!m.supportsTools,
-              supportsStreaming: m.supportsStreaming !== false,
-              isFree: !!isFree,
-              tags: m.tags || ['General'],
-              badges,
-            });
-          }
-        }
-      } catch {}
+        modelMap.set(m.id, {
+          id: m.id,
+          name: m.name || m.id,
+          providerId: m.providerId || plugin.id,
+          ownedBy: m.ownedBy || plugin.id,
+          ...(m.contextWindow !== undefined
+            ? { contextWindow: m.contextWindow, contextWindowFormatted: formatContextWindow(m.contextWindow) }
+            : {}),
+          ...(m.maxOutputTokens !== undefined
+            ? { maxOutputTokens: m.maxOutputTokens, maxOutputTokensFormatted: formatOutputTokens(m.maxOutputTokens) }
+            : {}),
+          supportsThinking: m.supportsThinking,
+          supportsTools: m.supportsTools,
+          supportsStreaming: m.supportsStreaming,
+          isFree,
+          tags: m.tags || ['General'],
+          badges,
+        });
+      }
     }
   }
 
@@ -1073,10 +1256,48 @@ export function getEnrichedModelsCatalog(): EnrichedModelCatalogItem[] {
     }
   }
 
+  for (const item of modelMap.values()) {
+    const passport = store.get(item.id);
+    if (!passport || !verifyPassport(passport)) {
+      item.verificationStatus = 'unverified';
+      continue;
+    }
+    const sources: Record<string, PassportEvidenceSource> = {};
+    for (const [name, claim] of Object.entries(passport.claims)) {
+      if (claim) sources[name] = claim.source;
+    }
+    item.passportDigest = passport.digest;
+    item.claimSources = sources;
+    if (passport.claims.contextWindow) {
+      item.contextWindow = passport.claims.contextWindow.value;
+      item.contextWindowFormatted = formatContextWindow(passport.claims.contextWindow.value);
+    }
+    if (passport.claims.maxOutputTokens) {
+      item.maxOutputTokens = passport.claims.maxOutputTokens.value;
+      item.maxOutputTokensFormatted = formatOutputTokens(passport.claims.maxOutputTokens.value);
+    }
+    if (passport.claims.supportsThinking) {
+      item.supportsThinking = passport.claims.supportsThinking.value;
+    }
+    if (passport.claims.supportsTools) item.supportsTools = passport.claims.supportsTools.value;
+    if (passport.claims.supportsStreaming) {
+      item.supportsStreaming = passport.claims.supportsStreaming.value;
+    }
+    if (passport.claims.isFree) item.isFree = passport.claims.isFree.value;
+    item.verificationStatus = passport.availability?.source
+      ?? Object.values(sources)[0]
+      ?? 'unverified';
+  }
+
   return Array.from(modelMap.values());
 }
 
-export async function probeModel(modelId: string, prompt = 'Ping'): Promise<{
+export async function probeModel(
+  modelId: string,
+  prompt = 'Ping',
+  store: ModelPassportStore = getGlobalModelPassportStore(),
+  timeoutMs = 30_000
+): Promise<{
   success: boolean;
   model: string;
   providerId: string;
@@ -1087,48 +1308,81 @@ export async function probeModel(modelId: string, prompt = 'Ping'): Promise<{
   error?: string;
 }> {
   const startTime = Date.now();
-  let providerId = 'unknown';
-
-  if (modelId.startsWith('kilo/')) providerId = 'kilo';
-  else if (modelId.startsWith('cline') || modelId.startsWith('cline-free/') || modelId.startsWith('reflection/') || modelId.startsWith('poolside/')) providerId = 'cline';
-  else if (modelId.startsWith('deepseek')) providerId = 'deepseek';
-  else if (modelId.startsWith('opencode') || modelId === 'big-pickle' || modelId.includes('flash-free') || modelId.includes('lightning-free') || modelId.includes('muse-spark') || modelId.includes('nemotron-3-ultra') || modelId.includes('ling-3.0')) providerId = 'opencode';
-  else if (modelId.startsWith('nous/')) providerId = 'nous';
-  else if (modelId.startsWith('groq/')) providerId = 'groq';
-  else if (modelId.startsWith('gemini')) providerId = 'gemini';
-  else if (modelId.startsWith('lattice/')) providerId = 'lattice';
-
+  const providerId = resolveTargetProviderId(modelId);
   const plugin = globalPluginRegistry.get(providerId);
 
-  // If plugin has healthCheck or execute, probe it
+  if (!plugin || !globalPluginRegistry.isEnabled(providerId)) {
+    return {
+      success: false,
+      model: modelId,
+      providerId,
+      healthy: false,
+      latencyMs: 0,
+      sampleResponse: '',
+      error: 'Model not found or provider disabled',
+      timestamp: Date.now(),
+    };
+  }
+
   try {
-    if (plugin && typeof plugin.healthCheck === 'function') {
-      const health = await plugin.healthCheck();
-      const latencyMs = Math.max(12, Date.now() - startTime);
+    const descriptors = await plugin.listModels();
+    const descriptor = descriptors.find((model) => model.id === modelId);
+    if (!descriptor) {
       return {
-        success: true,
+        success: false,
         model: modelId,
         providerId,
-        healthy: health.healthy ?? true,
-        latencyMs: health.latencyMs || latencyMs,
-        sampleResponse: `Probe successful (${latencyMs}ms): Model ${modelId} active via ${plugin.displayName}.`,
+        healthy: false,
+        latencyMs: 0,
+        sampleResponse: '',
+        error: 'Model not found or provider disabled',
         timestamp: Date.now(),
       };
     }
 
-    // Default authentic measurement
-    const latencyMs = Math.floor(45 + Math.random() * 85);
+    store.observe(descriptor, providerId);
+    const response = await withRequestDeadline(
+      plugin.execute({
+        id: `probe_${crypto.randomUUID()}`,
+        clientDialect: 'openai-chat',
+        model: modelId,
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 1,
+        stream: false,
+      }),
+      timeoutMs,
+      `Model probe ${modelId}`
+    );
+    const latencyMs = Math.max(1, Date.now() - startTime);
+    store.recordAvailability(modelId, {
+      healthy: true,
+      latencyMs,
+      evidence: 'explicit basic probe',
+    });
+    const sampleResponse = response.content
+      .filter((part) => part.type === 'text')
+      .map((part) => part.type === 'text' ? part.text : '')
+      .join('')
+      .slice(0, 200);
     return {
       success: true,
       model: modelId,
       providerId,
       healthy: true,
       latencyMs,
-      sampleResponse: `1-token verification: Model ${modelId} ready for streaming inference (${latencyMs}ms).`,
+      sampleResponse,
       timestamp: Date.now(),
     };
-  } catch (err: any) {
-    const latencyMs = Math.max(10, Date.now() - startTime);
+  } catch {
+    const latencyMs = Math.max(1, Date.now() - startTime);
+    if (store.get(modelId)) {
+      store.recordAvailability(modelId, {
+        healthy: false,
+        latencyMs,
+        evidence: 'explicit basic probe',
+        error: 'Model probe failed',
+      });
+    }
     return {
       success: false,
       model: modelId,
@@ -1136,7 +1390,7 @@ export async function probeModel(modelId: string, prompt = 'Ping'): Promise<{
       healthy: false,
       latencyMs,
       sampleResponse: '',
-      error: err.message || 'Probe failed',
+      error: 'Model probe failed',
       timestamp: Date.now(),
     };
   }

@@ -169,7 +169,7 @@ describe('Server Ingress & Route Integration (Hono in-memory)', () => {
     expect(res.headers.get('retry-after')).toBe('20');
   });
 
-  it('I12: OPTIONS preflight returns permissive CORS', async () => {
+  it('I12: OPTIONS preflight from a foreign origin is rejected', async () => {
     const res = await app.request('/v1/chat/completions', {
       method: 'OPTIONS',
       headers: {
@@ -178,7 +178,8 @@ describe('Server Ingress & Route Integration (Hono in-memory)', () => {
       },
     });
 
-    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(res.status).toBe(403);
+    expect(res.headers.get('access-control-allow-origin')).not.toBe('*');
   });
 
   it('I13: x-request-id tracing header preservation', async () => {
@@ -195,5 +196,17 @@ describe('Server Ingress & Route Integration (Hono in-memory)', () => {
     });
 
     expect(res.headers.get('x-request-id')).toBe('req_custom_123');
+  });
+
+  it('I14: Universal health and probe routes return 200 OK JSON', async () => {
+    const probePaths = ['/healthz', '/health', '/api/health', '/status', '/api/status', '/admin/api/status', '/v1/health'];
+    for (const p of probePaths) {
+      const res = await app.request(p);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('application/json');
+      const body = (await res.json()) as any;
+      expect(body.status).toBe('ok');
+      expect(body.version).toBe('0.1.0');
+    }
   });
 });

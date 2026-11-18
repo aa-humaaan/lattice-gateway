@@ -9,8 +9,13 @@ Write-Host "OpenAI Endpoint: http://127.0.0.1:4000/v1" -ForegroundColor Yellow
 Write-Host "Stop with:       Ctrl+C" -ForegroundColor Gray
 Write-Host ""
 
-if (Test-Path "bin\lattice.exe") {
-  & "bin\lattice.exe"
+# Never kill processes holding port 4000. If the port is busy, Lattice
+# reports it and exits; choose another port with: .\lattice.exe --port 4001
+
+if (Test-Path "lattice.exe") {
+  & ".\lattice.exe" @args
+} elseif (Test-Path "bin\lattice.exe") {
+  & ".\bin\lattice.exe" @args
 } else {
-  bun run src/index.ts
+  bun run src/index.ts @args
 }

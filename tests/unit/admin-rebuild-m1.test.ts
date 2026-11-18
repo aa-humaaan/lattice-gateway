@@ -1,8 +1,29 @@
 import { describe, it, expect } from 'bun:test';
 import { createAdminRouter } from '../../src/admin/admin-router';
+import { globalPluginRegistry } from '../../src/plugins/registry';
+import type { ProviderPlugin } from '../../src/core/types/plugin';
 
 describe('Admin Dashboard Rebuild (Milestone 1)', () => {
   const router = createAdminRouter();
+
+  function probeStub(id: string): ProviderPlugin {
+    return {
+      id,
+      displayName: 'Probe Stub',
+      defaultBaseUrl: 'https://example.com',
+      async listModels() {
+        return [{ id: `${id}/model`, name: 'Probe Model', providerId: id }];
+      },
+      async execute(request) {
+        return {
+          id: 'probe-response', model: request.model, created: 1,
+          content: [{ type: 'text', text: 'pong' }], stopReason: 'stop',
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        };
+      },
+      async executeStream() { return (async function* () {})(); },
+    } as ProviderPlugin;
+  }
 
   it('serves dashboard HTML with no external CDN font links and graphite dark palette', async () => {
     const res = await router.request('/admin');
@@ -73,29 +94,41 @@ describe('Admin Dashboard Rebuild (Milestone 1)', () => {
   });
 
   it('POST /api/models/probe executes live probe and measures latency', async () => {
-    const res = await router.request('/api/models/probe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'kilo/particle-ai/particle-1:free' }),
-    });
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as any;
-    expect(json.success).toBeTrue();
-    expect(json.model).toBe('kilo/particle-ai/particle-1:free');
-    expect(typeof json.latencyMs).toBe('number');
-    expect(json.latencyMs).toBeGreaterThan(0);
-    expect(json.healthy).toBeTrue();
+    const plugin = probeStub('admin_probe_body');
+    globalPluginRegistry.register(plugin);
+    try {
+      const res = await router.request('/api/models/probe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'admin_probe_body/model' }),
+      });
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBeTrue();
+      expect(json.model).toBe('admin_probe_body/model');
+      expect(typeof json.latencyMs).toBe('number');
+      expect(json.latencyMs).toBeGreaterThan(0);
+      expect(json.healthy).toBeTrue();
+    } finally {
+      globalPluginRegistry.unregister(plugin.id);
+    }
   });
 
   it('POST /api/models/:id/test executes probe via parameterized URL path', async () => {
-    const res = await router.request('/api/models/lattice%2F1m-free/test', {
-      method: 'POST',
-    });
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as any;
-    expect(json.success).toBeTrue();
-    expect(json.model).toBe('lattice/1m-free');
-    expect(typeof json.latencyMs).toBe('number');
+    const plugin = probeStub('admin_probe_path');
+    globalPluginRegistry.register(plugin);
+    try {
+      const res = await router.request('/api/models/admin_probe_path%2Fmodel/test', {
+        method: 'POST',
+      });
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBeTrue();
+      expect(json.model).toBe('admin_probe_path/model');
+      expect(typeof json.latencyMs).toBe('number');
+    } finally {
+      globalPluginRegistry.unregister(plugin.id);
+    }
   });
 
   it('GET /api/harness/status returns status for all 7 developer tools', async () => {

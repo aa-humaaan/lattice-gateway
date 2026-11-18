@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "results": [
+    {
+      "name": "thinking-tools",
+      "dialect": "anthropic-messages",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "tools",
+      "dialect": "openai-chat",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "basic",
+      "dialect": "openai-responses",
+      "passed": true,
+      "streamStatus": "unsupported",
+      "failures": []
+    }
+  ]
+}

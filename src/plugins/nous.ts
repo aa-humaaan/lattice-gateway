@@ -12,10 +12,14 @@ import type {
   CanonicalContentPart,
 } from '../core/types/canonical';
 import { GatewayError } from '../core/types/errors';
+import { globalAccountPool } from '../pool/account-pool';
 import { parseSSEStream } from '../utils/sse-parser';
 import { parseXMLToolCall, applyXMLToolInterceptor } from '../engine/dialect/xml-tool-interceptor';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
 import { logger } from '../utils/logger';
+import { parseRetryAfterSeconds } from '../utils/retry-after';
+import { globalSessionAffinityStore, type SessionAffinityStore } from '../core/session-affinity';
+import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
 
 export const NOUS_DEFAULT_BASE_URL = 'https://inference-api.nousresearch.com/v1';
 
@@ -284,20 +288,106 @@ export class NousProviderPlugin implements ProviderPlugin {
   readonly defaultBaseUrl: string;
   readonly supportedAuthTypes = ['api_key', 'oauth'] as const;
 
-  public account?: StoredAccount;
+  public currentAccount?: StoredAccount;
+  public accounts: StoredAccount[] = [];
+  public currentAccountIndex = 0;
   public cachedModels: ModelDescriptor[] = [...NOUS_CURATED_MODELS];
 
-  constructor(defaultBaseUrl = NOUS_DEFAULT_BASE_URL, account?: StoredAccount) {
+  constructor(
+    defaultBaseUrl = NOUS_DEFAULT_BASE_URL,
+    account?: StoredAccount,
+    private readonly affinityStore: SessionAffinityStore = globalSessionAffinityStore,
+    private readonly credentialResolver: CredentialResolver = globalCredentialResolver
+  ) {
     this.defaultBaseUrl = defaultBaseUrl;
-    this.account = account;
+    if (account) {
+      this.addAccount(account);
+      this.currentAccount = account;
+    }
+  }
+
+  addAccount(account: StoredAccount): void {
+    const idx = this.accounts.findIndex((a) => a.id === account.id);
+    if (idx >= 0) {
+      this.accounts[idx] = account;
+    } else {
+      this.accounts.push(account);
+    }
+    if (!this.currentAccount) {
+      this.currentAccount = account;
+    }
   }
 
   setAccount(account: StoredAccount): void {
-    this.account = account;
+    this.addAccount(account);
+    this.currentAccount = account;
   }
 
   getAccount(): StoredAccount | undefined {
     return this.account;
+  }
+
+  get account(): StoredAccount | undefined {
+    return this.currentAccount || this.getActiveAccount();
+  }
+
+  set account(acc: StoredAccount | undefined) {
+    this.currentAccount = acc;
+    if (acc) this.addAccount(acc);
+  }
+
+  getActiveAccounts(triedIds: Set<string> = new Set()): StoredAccount[] {
+    const now = Date.now();
+    const list: StoredAccount[] = [];
+    const seenIds = new Set<string>();
+
+    if (this.currentAccount && !seenIds.has(this.currentAccount.id)) {
+      list.push(this.currentAccount);
+      seenIds.add(this.currentAccount.id);
+    }
+    for (const a of this.accounts) {
+      if (!seenIds.has(a.id)) {
+        list.push(a);
+        seenIds.add(a.id);
+      }
+    }
+    for (const a of globalAccountPool.listAccounts(this.id)) {
+      if (!seenIds.has(a.id)) {
+        list.push(a);
+        seenIds.add(a.id);
+      }
+    }
+
+    return list.filter((a) => {
+      if (triedIds.has(a.id)) return false;
+      if (a.status === 'cooldown' && a.cooldownUntil && a.cooldownUntil <= now) {
+        a.status = 'active';
+        a.cooldownUntil = undefined;
+        a.cooldownReason = undefined;
+        return true;
+      }
+      return a.status === 'active';
+    });
+  }
+
+  getActiveAccount(triedIds: Set<string> = new Set(), preferredId?: string): StoredAccount | undefined {
+    const active = this.getActiveAccounts(triedIds);
+    if (active.length === 0) return undefined;
+    const preferred = preferredId ? active.find((account) => account.id === preferredId) : undefined;
+    if (preferred) return preferred;
+    if (triedIds.size === 0 && this.currentAccount && !triedIds.has(this.currentAccount.id) && this.currentAccount.status === 'active') {
+      return this.currentAccount;
+    }
+    return active[0];
+  }
+
+  getLowestCooldownRemaining(): number {
+    const now = Date.now();
+    const all = [...this.accounts, ...globalAccountPool.listAccounts(this.id)];
+    const cooldowns = all
+      .filter((a) => a.status === 'cooldown' && a.cooldownUntil && a.cooldownUntil > now)
+      .map((a) => Math.ceil((a.cooldownUntil! - now) / 1000));
+    return cooldowns.length > 0 ? Math.min(...cooldowns) : 15;
   }
 
   private resolveUrl(endpoint: 'chat' | 'models' | 'portal_auth' | 'portal_token'): string {
@@ -323,7 +413,8 @@ export class NousProviderPlugin implements ProviderPlugin {
       'Connection': 'close',
     };
 
-    const key = acc?.credentials?.apiKey || acc?.credentials?.accessToken;
+    const creds = this.credentialResolver.credentialsFor(acc);
+    const key = creds.apiKey || creds.accessToken;
     if (key) {
       headers['Authorization'] = `Bearer ${key}`;
     }
@@ -503,16 +594,22 @@ export class NousProviderPlugin implements ProviderPlugin {
   }
 
   async refreshAuth(account: StoredAccount): Promise<StoredAccount> {
-    const sessionId = account.credentials.customData?.sessionId as string | undefined;
+    const creds = this.credentialResolver.credentialsFor(account);
+    const sessionId = creds.customData?.sessionId as string | undefined;
     if (sessionId) {
       const token = await this.pollPortalToken(sessionId);
+      this.credentialResolver.storeCredential(account.id, 'apiKey', token.access_token);
+      this.credentialResolver.storeCredential(account.id, 'accessToken', token.access_token);
+      if (token.refresh_token) {
+        this.credentialResolver.storeCredential(account.id, 'refreshToken', token.refresh_token);
+      }
       return {
         ...account,
         credentials: {
           ...account.credentials,
           apiKey: token.access_token,
           accessToken: token.access_token,
-          refreshToken: token.refresh_token || account.credentials.refreshToken,
+          refreshToken: token.refresh_token || creds.refreshToken,
         },
         status: 'active',
         updatedAt: Date.now(),
@@ -521,42 +618,7 @@ export class NousProviderPlugin implements ProviderPlugin {
     return account;
   }
 
-  async execute(req: CanonicalRequest, signal?: AbortSignal): Promise<CanonicalResponse> {
-    const headers = this.buildHeaders();
-    const model = req.model.replace(/^nous\//, '');
-    const url = this.resolveUrl('chat');
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
-        temperature: req.temperature,
-        max_tokens: req.maxTokens,
-        tools: req.tools && req.tools.length > 0 ? req.tools : undefined,
-        tool_choice: req.toolChoice,
-        stream: false,
-      }),
-      signal,
-    });
-
-    if (res.status === 401) {
-      throw new GatewayError(401, '401', 'Invalid or expired Nous Research API key');
-    }
-    if (res.status === 429) {
-      const retryAfter = Number(res.headers.get('retry-after') || 15);
-      throw new GatewayError(429, '429', 'Nous Research quota / rate limit reached', { retryAfter });
-    }
-    if (!res.ok) {
-      throw new GatewayError(
-        res.status,
-        String(res.status),
-        `Nous upstream error: ${res.statusText}`
-      );
-    }
-
-    const data = (await res.json()) as any;
+  private transformCanonicalResponse(data: any, req: CanonicalRequest): CanonicalResponse {
     const choice = data.choices?.[0];
     const canonicalId =
       req.clientDialect === 'anthropic-messages' || req.id.startsWith('msg_')
@@ -647,126 +709,300 @@ export class NousProviderPlugin implements ProviderPlugin {
     };
   }
 
+  async execute(req: CanonicalRequest, signal?: AbortSignal): Promise<CanonicalResponse> {
+    const triedIds = new Set<string>();
+    const activeAccounts = this.getActiveAccounts();
+    const maxAttempts = Math.max(1, activeAccounts.length);
+    let lastErr: unknown;
+    const sessionKey = req.affinity?.sessionKey;
+    const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const account = this.getActiveAccount(triedIds, preferredId);
+      if (!account && activeAccounts.length > 0) {
+        break;
+      }
+      if (account) {
+        triedIds.add(account.id);
+        account.lastUsedAt = Date.now();
+      }
+
+      const headers = this.buildHeaders(account);
+      const model = req.model.replace(/^nous\//, '');
+      const url = this.resolveUrl('chat');
+
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
+            temperature: req.temperature,
+            max_tokens: req.maxTokens,
+            tools: req.tools && req.tools.length > 0 ? req.tools : undefined,
+            tool_choice: req.toolChoice,
+            stream: false,
+          }),
+          signal,
+        });
+      } catch (networkErr) {
+        if (account) account.errorCount++;
+        lastErr = networkErr;
+        continue;
+      }
+
+      if (res.status === 401) {
+        if (account) {
+          account.status = 'suspended';
+          account.errorCount++;
+        }
+        lastErr = new GatewayError(401, '401', 'Invalid or expired Nous Research API key');
+        if (this.getActiveAccounts(triedIds).length > 0) {
+          logger.warn(`[Nous] Account ${account?.id} unauthorized (401). Retrying with next account for ${req.model}...`);
+          continue;
+        }
+        throw lastErr;
+      }
+
+      if (res.status === 429) {
+        const retryAfter = parseRetryAfterSeconds(res.headers.get('retry-after'), 15);
+        if (account) {
+          account.status = 'cooldown';
+          account.cooldownUntil = Date.now() + retryAfter * 1000;
+          account.cooldownReason = 'Nous 429 quota/rate limit';
+          globalAccountPool.reportRateLimit(account.id, retryAfter, 'Nous 429 quota/rate limit');
+        }
+        lastErr = new GatewayError(429, '429', 'Nous Research quota / rate limit reached', { retryAfter });
+
+        const remainingActive = this.getActiveAccounts(triedIds);
+        if (remainingActive.length > 0) {
+          logger.info(
+            `[Nous] Account ${account?.id} rate limited (429). Rotating to next account for model ${req.model}... (${remainingActive.length} remaining)`
+          );
+          continue;
+        }
+        throw lastErr;
+      }
+
+      if (!res.ok) {
+        if (account) account.errorCount++;
+        const errText = await res.text().catch(() => '');
+        throw new GatewayError(
+          res.status,
+          String(res.status),
+          `Nous upstream error: ${res.statusText} ${errText}`
+        );
+      }
+
+      if (account) {
+        account.errorCount = 0;
+        globalAccountPool.reportSuccess(account.id);
+        if (sessionKey) this.affinityStore.pinAccount(sessionKey, this.id, account.id);
+      }
+
+      const data = (await res.json()) as any;
+      return this.transformCanonicalResponse(data, req);
+    }
+
+    if (lastErr) throw lastErr;
+    const lowestRetry = this.getLowestCooldownRemaining();
+    throw new GatewayError(
+      429,
+      '429',
+      'All Nous accounts are currently rate-limited or in cooldown',
+      { retryAfter: lowestRetry }
+    );
+  }
+
   async executeStream(
     req: CanonicalRequest,
     signal?: AbortSignal
   ): Promise<AsyncIterable<CanonicalStreamEvent>> {
-    const headers = this.buildHeaders();
-    const model = req.model.replace(/^nous\//, '');
-    const url = this.resolveUrl('chat');
+    const triedIds = new Set<string>();
+    const activeAccounts = this.getActiveAccounts();
+    const maxAttempts = Math.max(1, activeAccounts.length);
+    let lastErr: unknown;
+    const sessionKey = req.affinity?.sessionKey;
+    const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
-        temperature: req.temperature,
-        max_tokens: req.maxTokens,
-        tools: req.tools && req.tools.length > 0 ? req.tools : undefined,
-        tool_choice: req.toolChoice,
-        stream: true,
-      }),
-      signal,
-    });
-
-    if (!res.ok) {
-      if (res.status === 401) {
-        throw new GatewayError(401, '401', 'Invalid or expired Nous Research API key');
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const account = this.getActiveAccount(triedIds, preferredId);
+      if (!account && activeAccounts.length > 0) {
+        break;
       }
-      if (res.status === 429) {
-        const retryAfter = Number(res.headers.get('retry-after') || 15);
-        throw new GatewayError(429, '429', 'Nous Research quota / rate limit reached', { retryAfter });
+      if (account) {
+        triedIds.add(account.id);
+        account.lastUsedAt = Date.now();
       }
-      throw new GatewayError(
-        res.status,
-        String(res.status),
-        `Nous upstream stream error: ${res.statusText}`
-      );
-    }
 
-    if (!res.body) {
-      throw new GatewayError(502, 'bad_gateway', 'Nous upstream returned empty stream');
-    }
+      const headers = this.buildHeaders(account);
+      const model = req.model.replace(/^nous\//, '');
+      const url = this.resolveUrl('chat');
 
-    const timestamp = Math.floor(Date.now() / 1000);
-    const reqId = req.id;
-    const reqModel = req.model;
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
+            temperature: req.temperature,
+            max_tokens: req.maxTokens,
+            tools: req.tools && req.tools.length > 0 ? req.tools : undefined,
+            tool_choice: req.toolChoice,
+            stream: true,
+          }),
+          signal,
+        });
+      } catch (networkErr) {
+        if (account) account.errorCount++;
+        lastErr = networkErr;
+        continue;
+      }
 
-    async function* rawStreamGenerator(): AsyncGenerator<CanonicalStreamEvent> {
-      yield { type: 'stream_start', id: reqId, model: reqModel, created: timestamp };
-
-      let hasToolCalls = false;
-      let stopReason: 'stop' | 'tool_calls' | 'length' = 'stop';
-
-      for await (const sse of parseSSEStream(res.body!)) {
-        if (sse.data === '[DONE]') break;
-
-        try {
-          const parsed = JSON.parse(sse.data);
-          const choice = parsed.choices?.[0];
-          const delta = choice?.delta;
-
-          if (choice?.finish_reason) {
-            if (choice.finish_reason === 'tool_calls') stopReason = 'tool_calls';
-            else if (choice.finish_reason === 'length') stopReason = 'length';
-            else if (choice.finish_reason === 'stop') stopReason = 'stop';
+      if (!res.ok) {
+        if (res.status === 401) {
+          if (account) {
+            account.status = 'suspended';
+            account.errorCount++;
           }
+          lastErr = new GatewayError(401, '401', 'Invalid or expired Nous Research API key');
+          if (this.getActiveAccounts(triedIds).length > 0) {
+            logger.warn(`[Nous] Stream account ${account?.id} unauthorized (401). Retrying with next account...`);
+            continue;
+          }
+          throw lastErr;
+        }
 
-          if (delta?.content) {
-            yield { type: 'text_delta', delta: delta.content };
+        if (res.status === 429) {
+          const retryAfter = parseRetryAfterSeconds(res.headers.get('retry-after'), 15);
+          if (account) {
+            account.status = 'cooldown';
+            account.cooldownUntil = Date.now() + retryAfter * 1000;
+            account.cooldownReason = 'Nous stream 429';
+            globalAccountPool.reportRateLimit(account.id, retryAfter, 'Nous stream 429');
           }
-          if (delta?.reasoning_content || delta?.thinking) {
-            yield {
-              type: 'thinking_delta',
-              delta: delta.reasoning_content || delta.thinking,
-            };
+          lastErr = new GatewayError(429, '429', 'Nous Research quota / rate limit reached', { retryAfter });
+
+          const remainingActive = this.getActiveAccounts(triedIds);
+          if (remainingActive.length > 0) {
+            logger.info(
+              `[Nous] Stream account ${account?.id} rate limited (429). Rotating to next account for model ${req.model}... (${remainingActive.length} remaining)`
+            );
+            continue;
           }
-          if (delta?.tool_calls && Array.isArray(delta.tool_calls)) {
-            hasToolCalls = true;
-            for (const tc of delta.tool_calls) {
-              const idx = tc.index ?? 0;
-              if (tc.id && tc.function?.name) {
-                yield {
-                  type: 'tool_call_start',
-                  index: idx,
-                  id: tc.id,
-                  name: tc.function.name,
-                };
-              }
-              if (tc.function?.arguments) {
-                yield {
-                  type: 'tool_call_delta',
-                  index: idx,
-                  argumentsDelta: tc.function.arguments,
-                };
+          throw lastErr;
+        }
+
+        if (account) account.errorCount++;
+        throw new GatewayError(
+          res.status,
+          String(res.status),
+          `Nous upstream stream error: ${res.statusText}`
+        );
+      }
+
+      if (!res.body) {
+        throw new GatewayError(502, 'bad_gateway', 'Nous upstream returned empty stream');
+      }
+
+      if (account) {
+        account.errorCount = 0;
+        globalAccountPool.reportSuccess(account.id);
+        if (sessionKey) this.affinityStore.pinAccount(sessionKey, this.id, account.id);
+      }
+
+      const timestamp = Math.floor(Date.now() / 1000);
+      const reqId = req.id;
+      const reqModel = req.model;
+
+      async function* rawStreamGenerator(): AsyncGenerator<CanonicalStreamEvent> {
+        yield { type: 'stream_start', id: reqId, model: reqModel, created: timestamp };
+
+        let hasToolCalls = false;
+        let stopReason: 'stop' | 'tool_calls' | 'length' = 'stop';
+
+        for await (const sse of parseSSEStream(res.body!)) {
+          if (sse.data === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(sse.data);
+            const choice = parsed.choices?.[0];
+            const delta = choice?.delta;
+
+            if (choice?.finish_reason) {
+              if (choice.finish_reason === 'tool_calls') stopReason = 'tool_calls';
+              else if (choice.finish_reason === 'length') stopReason = 'length';
+              else if (choice.finish_reason === 'stop') stopReason = 'stop';
+            }
+
+            if (delta?.content) {
+              yield { type: 'text_delta', delta: delta.content };
+            }
+            if (delta?.reasoning_content || delta?.thinking) {
+              yield {
+                type: 'thinking_delta',
+                delta: delta.reasoning_content || delta.thinking,
+              };
+            }
+            if (delta?.tool_calls && Array.isArray(delta.tool_calls)) {
+              hasToolCalls = true;
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index ?? 0;
+                if (tc.id && tc.function?.name) {
+                  yield {
+                    type: 'tool_call_start',
+                    index: idx,
+                    id: tc.id,
+                    name: tc.function.name,
+                  };
+                }
+                if (tc.function?.arguments) {
+                  yield {
+                    type: 'tool_call_delta',
+                    index: idx,
+                    argumentsDelta: tc.function.arguments,
+                  };
+                }
               }
             }
+            if (parsed.usage) {
+              yield {
+                type: 'usage',
+                usage: {
+                  promptTokens: parsed.usage.prompt_tokens || 0,
+                  completionTokens: parsed.usage.completion_tokens || 0,
+                  totalTokens: parsed.usage.total_tokens || 0,
+                },
+              };
+            }
+          } catch {
+            // ignore corrupted SSE frame
           }
-          if (parsed.usage) {
-            yield {
-              type: 'usage',
-              usage: {
-                promptTokens: parsed.usage.prompt_tokens || 0,
-                completionTokens: parsed.usage.completion_tokens || 0,
-                totalTokens: parsed.usage.total_tokens || 0,
-              },
-            };
-          }
-        } catch {
-          // ignore corrupted SSE frame
         }
+
+        if (hasToolCalls) {
+          stopReason = 'tool_calls';
+        }
+
+        yield { type: 'stream_end', stopReason };
       }
 
-      if (hasToolCalls) {
-        stopReason = 'tool_calls';
-      }
-
-      yield { type: 'stream_end', stopReason };
+      // Intercept and normalize raw XML tool calls from Hermes streaming tokens
+      return applyXMLToolInterceptor(rawStreamGenerator());
     }
 
-    // Intercept and normalize raw XML tool calls from Hermes streaming tokens
-    return applyXMLToolInterceptor(rawStreamGenerator());
+    if (lastErr) throw lastErr;
+    const lowestRetry = this.getLowestCooldownRemaining();
+    throw new GatewayError(
+      429,
+      '429',
+      'All Nous accounts are currently rate-limited or in cooldown',
+      { retryAfter: lowestRetry }
+    );
   }
 
   /**
@@ -785,7 +1021,7 @@ export class NousProviderPlugin implements ProviderPlugin {
         latencyMs,
         checkedAt: Date.now(),
         message: res.ok
-          ? 'Nous Research inference gateway operational'
+          ? `Nous Research inference gateway operational (${this.getActiveAccounts().length} accounts active)`
           : `Nous upstream returned HTTP ${res.status}: ${res.statusText}`,
       };
     } catch (err) {

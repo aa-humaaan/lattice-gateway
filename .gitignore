@@ -2,3 +2,28 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# Build output. Never commit binaries — the compiled exe is ~90 MB and a
+# stale one silently serves old code.
+lattice.exe
+bin/lattice.exe
+*.exe
+
+# Drawn by local agent tooling (Crush), not source.
+.crush/
+
+# Local scratch
+.tmp/
+.superpowers/
+
+# Credentials. Never commit the live account store — see SECURITY.md.
+data/lattice-store.json
+data/lattice-auth.json
+data/request-ledger.ndjson
+data/model-passports.json
+data/model-passports.json.tmp
+data/model-passport-key.json
+data/lattice-secrets.json
+data/lattice-secrets.json.tmp
+data/lattice-keychain.json
+data/lattice-keychain.json.tmp

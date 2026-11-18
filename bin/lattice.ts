@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { createServer } from '../src/core/server';
 import { loadConfig, GatewayConfig } from '../src/core/config';
+import { loadOrCreateAuthTokens } from '../src/core/auth-tokens';
 import { logger } from '../src/utils/logger';
 import { globalPluginRegistry } from '../src/plugins/registry';
 import { globalAccountPool } from '../src/pool/account-pool';
@@ -12,6 +13,7 @@ import { NousProviderPlugin } from '../src/plugins/nous';
 import { ClinePoolPlugin } from '../src/plugins/cline';
 import { OpenCodeProviderPlugin } from '../src/plugins/opencode';
 import { DeepSeekPoolPlugin } from '../src/plugins/deepseek';
+import { FreeLLMAPIProviderPlugin } from '../src/plugins/freellmapi';
 import { LatticeComboPlugin } from '../src/plugins/combo';
 
 function parseArgs(): Partial<GatewayConfig> {
@@ -52,21 +54,23 @@ console.log(banner);
 // 1. Load persistent accounts, combos, and proxy configs
 globalStorage.load();
 
-// 2. Instantiate and register the 5 primary upstream plugins
+// 2. Instantiate and register the 6 primary upstream plugins
 const kiloPlugin = new KiloProviderPlugin();
 const nousPlugin = new NousProviderPlugin();
 const clinePlugin = new ClinePoolPlugin();
 const opencodePlugin = new OpenCodeProviderPlugin();
 const deepseekPlugin = new DeepSeekPoolPlugin();
+const freellmapiPlugin = new FreeLLMAPIProviderPlugin();
 const comboPlugin = new LatticeComboPlugin();
 
 // Wire accounts from global pool into plugins
 for (const acc of globalAccountPool.listAccounts()) {
-  if (acc.providerId === 'kilo') kiloPlugin.setAccount(acc);
-  if (acc.providerId === 'nous') nousPlugin.setAccount(acc);
+  if (acc.providerId === 'kilo') kiloPlugin.addAccount(acc);
+  if (acc.providerId === 'nous') nousPlugin.addAccount(acc);
   if (acc.providerId === 'cline') clinePlugin.addAccount(acc);
   if (acc.providerId === 'deepseek') deepseekPlugin.addAccount(acc);
   if (acc.providerId === 'opencode') opencodePlugin.setAccount(acc);
+  if (acc.providerId === 'freellmapi') freellmapiPlugin.setAccount(acc);
 }
 
 globalPluginRegistry.register(kiloPlugin);
@@ -74,17 +78,44 @@ globalPluginRegistry.register(nousPlugin);
 globalPluginRegistry.register(clinePlugin);
 globalPluginRegistry.register(opencodePlugin);
 globalPluginRegistry.register(deepseekPlugin);
+globalPluginRegistry.register(freellmapiPlugin);
 globalPluginRegistry.register(comboPlugin);
 
 const overrides = parseArgs();
-const config = loadConfig(overrides);
+const authTokens = loadOrCreateAuthTokens(overrides.dataDir || process.env.DATA_DIR || 'data');
+const config = loadConfig({
+  ...overrides,
+  gatewayToken: authTokens.gatewayToken,
+  adminToken: authTokens.adminToken,
+});
+console.log(`Gateway token: ${authTokens.gatewayToken}\nAdmin token:   ${authTokens.adminToken}`);
 const app = createServer(config, globalPluginRegistry.getAll());
 
-const server = Bun.serve({
-  port: config.port,
-  hostname: config.host,
-  fetch: app.fetch,
-});
+let server: any;
+try {
+  server = Bun.serve({
+    port: config.port,
+    hostname: config.host,
+    fetch: app.fetch,
+    idleTimeout: 255,
+  });
+} catch (err: any) {
+  const isPortError =
+    err?.code === 'EADDRINUSE' ||
+    String(err).includes('EADDRINUSE') ||
+    String(err.message || '').toLowerCase().includes('port');
 
-logger.info(`Lattice Gateway listening at http://${config.host}:${server.port}`);
+  if (isPortError) {
+    logger.error(`Port ${config.port} is already in use by another process. Lattice will not terminate that process.`);
+    logger.error(`Identify the owner yourself, or start Lattice on another port: lattice.exe --port ${config.port + 1}`);
+  } else {
+    logger.error(`Failed to start server: ${err.message}`);
+  }
+  process.exit(1);
+}
+
+const displayHost = config.host === '0.0.0.0' ? '127.0.0.1' : config.host;
+
+logger.info(`Lattice Gateway listening at http://${displayHost}:${server.port}`);
+logger.info(`Admin Dashboard accessible at http://${displayHost}:${server.port}/admin`);
 logger.info(`Ready for incoming OpenAI, Anthropic, and Responses traffic.`);

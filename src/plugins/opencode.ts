@@ -19,6 +19,7 @@ import type {
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
+import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
 
 // ============================================================================
 // Types & Interfaces
@@ -204,7 +205,8 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
 
   constructor(
     defaultBaseUrl = 'https://opencode.ai/inference/openai/v1',
-    account?: StoredAccount
+    account?: StoredAccount,
+    private readonly credentialResolver: CredentialResolver = globalCredentialResolver
   ) {
     this.defaultBaseUrl = defaultBaseUrl;
     this.account = account;
@@ -424,10 +426,11 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       'x-opencode-project': 'global',
     };
 
-    if (this.account?.credentials?.apiKey) {
-      headers['authorization'] = `Bearer ${this.account.credentials.apiKey}`;
+    const creds = this.credentialResolver.credentialsFor(this.account);
+    if (creds.apiKey) {
+      headers['authorization'] = `Bearer ${creds.apiKey}`;
     }
-    const org = this.account?.credentials?.organizationId || (this.account?.credentials as any)?.orgId;
+    const org = creds.organizationId || (creds as any).orgId;
     if (org) {
       headers['x-opencode-org-id'] = String(org);
     }

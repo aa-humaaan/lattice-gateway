@@ -216,6 +216,9 @@ export interface CanonicalRequest {
   reasoningEffort?: 'low' | 'medium' | 'high';
   metadata?: Record<string, unknown>;
   rawHeaders?: Record<string, string>;
+  affinity?: {
+    sessionKey: string;
+  };
 }
 
 export const CanonicalRequestSchema = z.object({
@@ -241,6 +244,7 @@ export const CanonicalRequestSchema = z.object({
   reasoningEffort: z.enum(['low', 'medium', 'high']).optional(),
   metadata: z.record(z.unknown()).optional(),
   rawHeaders: z.record(z.string()).optional(),
+  affinity: z.object({ sessionKey: z.string() }).optional(),
 });
 
 // ============================================================================

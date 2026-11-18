@@ -182,10 +182,14 @@ describe('Milestone M1 — Comprehensive Verification Suite', () => {
       expect(first.name).toBeDefined();
       expect(typeof first.totalTokens).toBe('number');
       expect(Array.isArray(first.models)).toBeTrue();
-      // Verify provider token metrics uses tracked values
-      const kiloProvider = json.providers.find((p: any) => p.id === 'kilo');
-      expect(kiloProvider).toBeDefined();
-      expect(kiloProvider.totalTokens).toBeGreaterThanOrEqual(293000);
+      // Aggregates must come from real ledger events and add up.
+      for (const provider of json.providers) {
+        const summed = provider.models.reduce(
+          (total: number, model: any) => total + model.totalTokens,
+          0
+        );
+        expect(provider.totalTokens).toBe(summed);
+      }
     });
 
     it('serves GET /api/usage/logs with pagination', async () => {

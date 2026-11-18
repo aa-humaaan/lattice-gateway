@@ -3,8 +3,9 @@ import {
   serializeOpenAIChat,
   serializeAnthropicMessage,
   serializeOpenAIResponse,
+  serializeOpenAIMessages,
 } from '../../src/engine/dialect/serializer';
-import { CanonicalResponse } from '../../src/core/types/canonical';
+import { CanonicalResponse, CanonicalMessage } from '../../src/core/types/canonical';
 
 describe('Outbound Dialect Serializer', () => {
   it('S1: Serialize CanonicalResponse to OpenAI Chat JSON', () => {
@@ -149,5 +150,85 @@ describe('Outbound Dialect Serializer', () => {
     expect(out.output[0].type).toBe('message');
     expect(out.output[1].type).toBe('function_call');
     expect((out.output[1] as any).name).toBe('browse');
+  });
+
+  it('S7: Serialize Anthropic multi-turn messages with tool_result into OpenAI tool messages', () => {
+    const messages: CanonicalMessage[] = [
+      {
+        role: 'user',
+        content: 'Check gitignore',
+      },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_bash_01',
+            name: 'Bash',
+            input: { command: 'cat .gitignore' },
+          },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            toolCallId: 'toolu_bash_01',
+            content: 'node_modules\nlattice.exe\n',
+          },
+        ],
+      },
+    ];
+
+    const openAIMsgs = serializeOpenAIMessages(messages);
+    expect(openAIMsgs.length).toBe(3);
+
+    // Turn 1
+    expect(openAIMsgs[0].role).toBe('user');
+    expect(openAIMsgs[0].content).toBe('Check gitignore');
+
+    // Turn 2: Assistant tool call
+    expect(openAIMsgs[1].role).toBe('assistant');
+    expect(openAIMsgs[1].tool_calls?.length).toBe(1);
+    expect(openAIMsgs[1].tool_calls[0].id).toBe('toolu_bash_01');
+    expect(openAIMsgs[1].tool_calls[0].function.name).toBe('Bash');
+    expect(openAIMsgs[1].tool_calls[0].function.arguments).toBe('{"command":"cat .gitignore"}');
+
+    // Turn 3: Anthropic user tool_result converted to OpenAI tool message
+    expect(openAIMsgs[2].role).toBe('tool');
+    expect(openAIMsgs[2].tool_call_id).toBe('toolu_bash_01');
+    expect(openAIMsgs[2].content).toBe('node_modules\nlattice.exe\n');
+  });
+
+  it('S8: Serialize user message containing both tool_result and user text', () => {
+    const messages: CanonicalMessage[] = [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            toolCallId: 'toolu_probe_02',
+            content: '{"status":"ok"}',
+          },
+          {
+            type: 'text',
+            text: 'Here is the probe result, please continue with the analysis.',
+          },
+        ],
+      },
+    ];
+
+    const openAIMsgs = serializeOpenAIMessages(messages);
+    expect(openAIMsgs.length).toBe(2);
+
+    // First: tool response
+    expect(openAIMsgs[0].role).toBe('tool');
+    expect(openAIMsgs[0].tool_call_id).toBe('toolu_probe_02');
+    expect(openAIMsgs[0].content).toBe('{"status":"ok"}');
+
+    // Second: trailing user text
+    expect(openAIMsgs[1].role).toBe('user');
+    expect(openAIMsgs[1].content).toBe('Here is the probe result, please continue with the analysis.');
   });
 });

@@ -10,9 +10,14 @@ echo OpenAI Endpoint: http://127.0.0.1:4000/v1
 echo Stop with: Ctrl+C
 echo.
 
-if exist "bin\lattice.exe" (
-  bin\lattice.exe
+REM Never kill processes holding port 4000. If the port is busy, Lattice
+REM reports it and exits; choose another port with: lattice.exe --port 4001
+
+if exist "lattice.exe" (
+  lattice.exe %*
+) else if exist "bin\lattice.exe" (
+  bin\lattice.exe %*
 ) else (
-  bun run src/index.ts
+  bun run src/index.ts %*
 )
 pause

@@ -5,6 +5,7 @@ import type {
   HealthCheckResult,
   ErrorClassificationResult,
 } from '../core/types/plugin';
+import { globalAccountPool } from '../pool/account-pool';
 import type {
   CanonicalRequest,
   CanonicalResponse,
@@ -13,6 +14,8 @@ import type {
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
+import { globalSessionAffinityStore, type SessionAffinityStore } from '../core/session-affinity';
+import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
 
 // ============================================================================
 // Genuine Production Constants & URLs (Audited from cline-proxy-main)
@@ -339,7 +342,12 @@ export class ClinePoolPlugin implements ProviderPlugin {
   public accounts: StoredAccount[] = [];
   private activeAccountIndex = 0;
 
-  constructor(defaultBaseUrl = CLINE_API_BASE, initialAccounts?: StoredAccount[]) {
+  constructor(
+    defaultBaseUrl = CLINE_API_BASE,
+    initialAccounts?: StoredAccount[],
+    private readonly affinityStore: SessionAffinityStore = globalSessionAffinityStore,
+    private readonly credentialResolver: CredentialResolver = globalCredentialResolver
+  ) {
     this.defaultBaseUrl = defaultBaseUrl;
     if (initialAccounts && initialAccounts.length > 0) {
       this.accounts = [...initialAccounts];
@@ -392,12 +400,14 @@ export class ClinePoolPlugin implements ProviderPlugin {
     return this.accounts.filter((a) => a.status === 'active');
   }
 
-  getActiveAccount(excludingIds?: Set<string>): StoredAccount | undefined {
+  getActiveAccount(excludingIds?: Set<string>, preferredId?: string): StoredAccount | undefined {
     let active = this.getActiveAccounts();
     if (excludingIds && excludingIds.size > 0) {
       active = active.filter((a) => !excludingIds.has(a.id));
     }
     if (active.length === 0) return undefined;
+    const preferred = preferredId ? active.find((account) => account.id === preferredId) : undefined;
+    if (preferred) return preferred;
     const acc = active[this.activeAccountIndex % active.length];
     this.activeAccountIndex++;
     return acc;
@@ -434,12 +444,15 @@ export class ClinePoolPlugin implements ProviderPlugin {
   }
 
   async refreshToken(account: StoredAccount): Promise<StoredAccount> {
-    const rt = account.credentials?.refreshToken;
+    const creds = this.credentialResolver.credentialsFor(account);
+    const rt = creds.refreshToken;
     if (!rt) {
       throw new GatewayError(400, '400', `Account ${account.id} has no refreshToken to refresh`);
     }
 
     const refreshed = await refreshClineToken(rt, this.defaultBaseUrl);
+    this.credentialResolver.storeCredential(account.id, 'accessToken', refreshed.accessToken);
+    this.credentialResolver.storeCredential(account.id, 'refreshToken', refreshed.refreshToken);
     account.credentials.accessToken = refreshed.accessToken;
     account.credentials.refreshToken = refreshed.refreshToken;
     account.updatedAt = Date.now();
@@ -481,7 +494,8 @@ export class ClinePoolPlugin implements ProviderPlugin {
       headers['X-Task-ID'] = sessionId;
     }
 
-    const token = acc?.credentials?.accessToken || acc?.credentials?.apiKey;
+    const creds = this.credentialResolver.credentialsFor(acc);
+    const token = creds.accessToken || creds.apiKey;
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -598,9 +612,11 @@ export class ClinePoolPlugin implements ProviderPlugin {
     const triedIds = new Set<string>();
     const maxAttempts = Math.max(1, Math.min(this.accounts.length, CLINE_FAILOVER_ATTEMPTS));
     let lastErr: unknown;
+    const sessionKey = req.affinity?.sessionKey;
+    const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const account = this.getActiveAccount(triedIds);
+      const account = this.getActiveAccount(triedIds, preferredId);
       if (!account) {
         if (lastErr) throw lastErr;
         const lowestRetry = this.getLowestCooldownRemaining();
@@ -643,7 +659,11 @@ export class ClinePoolPlugin implements ProviderPlugin {
       if (res.status === 401) {
         account.status = 'suspended';
         account.errorCount++;
-        throw new GatewayError(401, '401', 'Cline account suspended or unauthorized');
+        lastErr = new GatewayError(401, '401', 'Cline account suspended or unauthorized');
+        if (this.getActiveAccounts().some((candidate) => !triedIds.has(candidate.id))) {
+          continue;
+        }
+        throw lastErr;
       }
 
       // Handle 429 Rate Limit Exceeded
@@ -654,6 +674,8 @@ export class ClinePoolPlugin implements ProviderPlugin {
         account.status = 'cooldown';
         account.cooldownUntil = Date.now() + retryAfter * 1000;
         account.cooldownReason = rawBody || 'Rate limit exceeded';
+
+        globalAccountPool.reportRateLimit(account.id, retryAfter, rawBody || 'Cline rate limit');
 
         lastErr = new GatewayError(
           429,
@@ -671,6 +693,7 @@ export class ClinePoolPlugin implements ProviderPlugin {
       }
 
       const data = (await res.json()) as any;
+      if (sessionKey) this.affinityStore.pinAccount(sessionKey, this.id, account.id);
       return this.transformCanonicalResponse(data, req);
     }
 
@@ -705,9 +728,11 @@ export class ClinePoolPlugin implements ProviderPlugin {
     const triedIds = new Set<string>();
     const maxAttempts = Math.max(1, Math.min(this.accounts.length, CLINE_FAILOVER_ATTEMPTS));
     let lastErr: unknown;
+    const sessionKey = req.affinity?.sessionKey;
+    const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const account = this.getActiveAccount(triedIds);
+      const account = this.getActiveAccount(triedIds, preferredId);
       if (!account) {
         if (lastErr) throw lastErr;
         const lowestRetry = this.getLowestCooldownRemaining();
@@ -749,7 +774,11 @@ export class ClinePoolPlugin implements ProviderPlugin {
       if (res.status === 401) {
         account.status = 'suspended';
         account.errorCount++;
-        throw new GatewayError(401, '401', 'Cline token expired or suspended');
+        lastErr = new GatewayError(401, '401', 'Cline token expired or suspended');
+        if (this.getActiveAccounts().some((candidate) => !triedIds.has(candidate.id))) {
+          continue;
+        }
+        throw lastErr;
       }
 
       if (res.status === 429) {
@@ -759,6 +788,7 @@ export class ClinePoolPlugin implements ProviderPlugin {
         account.status = 'cooldown';
         account.cooldownUntil = Date.now() + retryAfter * 1000;
         account.cooldownReason = bodyText || 'Rate limit reached';
+        globalAccountPool.reportRateLimit(account.id, retryAfter, bodyText || 'Cline stream rate limit');
         lastErr = new GatewayError(429, '429', `Cline rate limit reached`, { retryAfter });
         continue;
       }
@@ -772,6 +802,7 @@ export class ClinePoolPlugin implements ProviderPlugin {
         throw new GatewayError(502, 'bad_gateway', 'Cline empty stream response');
       }
 
+      if (sessionKey) this.affinityStore.pinAccount(sessionKey, this.id, account.id);
       return this.streamFromResponse(res, req);
     }
 

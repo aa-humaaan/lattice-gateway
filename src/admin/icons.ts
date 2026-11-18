@@ -41,6 +41,8 @@ export const ICONS = {
 };
 
 export const PROVIDER_LOGOS: Record<string, string> = {
+  lattice: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#18181b"/><polygon points="12 2 2 7 12 12 22 7 12 2" stroke="#10b981" stroke-width="1.8"/><polyline points="2 17 12 22 22 17" stroke="#10b981" stroke-width="1.8"/><polyline points="2 12 12 17 22 12" stroke="#10b981" stroke-width="1.8"/></svg>`,
+  'lattice-combo': `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#18181b"/><polygon points="12 2 2 7 12 12 22 7 12 2" stroke="#10b981" stroke-width="1.8"/><polyline points="2 17 12 22 22 17" stroke="#10b981" stroke-width="1.8"/><polyline points="2 12 12 17 22 12" stroke="#10b981" stroke-width="1.8"/></svg>`,
   kilo: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#eab308"/><path d="M7 6v12M7 12l6-6M9.5 9.5l6.5 8.5" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   cline: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#2563eb"/><rect x="5" y="7" width="14" height="11" rx="3" stroke="#fff" stroke-width="2"/><circle cx="9" cy="12" r="1.5" fill="#fff"/><circle cx="15" cy="12" r="1.5" fill="#fff"/><path d="M12 4v3" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
   claude: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#d97706"/><path d="M12 4l1.5 5.5L19 11l-5.5 1.5L12 18l-1.5-5.5L5 11l5.5-1.5L12 4z" fill="#fff"/></svg>`,

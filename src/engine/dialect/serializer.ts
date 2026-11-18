@@ -302,25 +302,68 @@ export function serializeOpenAIMessages(
     if (msg.role === 'user') {
       if (typeof msg.content === 'string') {
         result.push({ role: 'user', content: msg.content, ...(msg.name ? { name: msg.name } : {}) });
-      } else if (Array.isArray(msg.content)) {
-        const hasImages = msg.content.some((p) => p.type === 'image');
-        if (!hasImages) {
-          const text = msg.content.map((p) => (p.type === 'text' ? p.text : '')).join('\n');
-          result.push({ role: 'user', content: text, ...(msg.name ? { name: msg.name } : {}) });
-        } else {
-          const parts = msg.content.map((p) => {
-            if (p.type === 'text') return { type: 'text', text: p.text };
-            if (p.type === 'image') {
-              const url = p.source.type === 'base64'
-                ? `data:${p.source.mediaType};base64,${p.source.data}`
-                : p.source.data;
-              return { type: 'image_url', image_url: { url } };
-            }
-            return { type: 'text', text: '' };
-          });
-          result.push({ role: 'user', content: parts, ...(msg.name ? { name: msg.name } : {}) });
-        }
+        continue;
       }
+
+      if (Array.isArray(msg.content)) {
+        // Separate tool_result parts (from Anthropic /v1/messages) from other parts (text, image)
+        const toolResults = msg.content.filter((p) => p.type === 'tool_result');
+        const nonToolParts = msg.content.filter((p) => p.type !== 'tool_result');
+
+        // Emit each tool_result as an individual OpenAI-compatible 'tool' message
+        for (const tr of toolResults) {
+          if (tr.type === 'tool_result') {
+            let trText = '';
+            if (typeof tr.content === 'string') {
+              trText = tr.content;
+            } else if (Array.isArray(tr.content)) {
+              trText = tr.content
+                .map((c) => {
+                  if (typeof c === 'string') return c;
+                  if (c && typeof c === 'object' && 'text' in c) return (c as any).text || '';
+                  return JSON.stringify(c);
+                })
+                .join('\n');
+            } else if (tr.content !== undefined && tr.content !== null) {
+              trText = typeof tr.content === 'object' ? JSON.stringify(tr.content) : String(tr.content);
+            }
+
+            result.push({
+              role: 'tool',
+              tool_call_id: tr.toolCallId || 'call_default',
+              content: trText,
+            });
+          }
+        }
+
+        // If there are other user parts (text, image), emit them as a subsequent user message
+        if (nonToolParts.length > 0) {
+          const hasImages = nonToolParts.some((p) => p.type === 'image');
+          if (!hasImages) {
+            const text = nonToolParts
+              .map((p) => (p.type === 'text' ? p.text : ''))
+              .filter(Boolean)
+              .join('\n');
+            if (text.trim() || toolResults.length === 0) {
+              result.push({ role: 'user', content: text, ...(msg.name ? { name: msg.name } : {}) });
+            }
+          } else {
+            const parts = nonToolParts.map((p) => {
+              if (p.type === 'text') return { type: 'text', text: p.text };
+              if (p.type === 'image') {
+                const url = p.source.type === 'base64'
+                  ? `data:${p.source.mediaType};base64,${p.source.data}`
+                  : p.source.data;
+                return { type: 'image_url', image_url: { url } };
+              }
+              return { type: 'text', text: '' };
+            });
+            result.push({ role: 'user', content: parts, ...(msg.name ? { name: msg.name } : {}) });
+          }
+        }
+        continue;
+      }
+
       continue;
     }
 

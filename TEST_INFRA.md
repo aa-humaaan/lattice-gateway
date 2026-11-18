@@ -106,3 +106,11 @@ tests/
   - Tier 3 only: `bun test tests/e2e/tier3-combination`
   - Tier 4 only: `bun test tests/e2e/tier4-scenarios`
 - **Environment**: Standalone hermetic environment using local mock upstreams and temporary SQLite in-memory or `.tmp` databases.
+
+## Dashboard Script Guard
+
+`src/admin/dashboard-ui.ts` builds one ~95 KB inline `<script>` inside a TypeScript template literal. A single mis-escaped quote there ships a script that does not parse, and then **every tab and button in the UI goes dead** while the page still renders normally.
+
+- `tests/unit/admin-dashboard.test.ts` extracts that inline script from the served HTML and compiles it with `new Function(body)`. Any parse error fails the test.
+- `bun run typecheck` does **not** catch this: the broken string is still valid TypeScript.
+- Fixing source is not enough. The gateway usually runs the compiled `lattice.exe`, so run `bun run build` and restart before telling anyone it is fixed.

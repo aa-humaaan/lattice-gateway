@@ -1292,98 +1292,65 @@ export function getDashboardHtml(): string {
       transform: rotate(90deg);
     }
 
-    /* Providers Grid & Cards (Matching 9Router Proxy Reference) */
-    .providers-section {
-      margin-bottom: 28px;
-    }
-    .providers-section-header {
+    /* Real Token Usage Chart (Phase 7) */
+    .token-chart-container {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 14px;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 14px;
     }
-    .providers-section-title {
-      font-size: 1.05rem;
+    .token-chart-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+    .token-chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+    }
+    .token-chart-provider-name {
       font-weight: 600;
       color: var(--text-primary);
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .providers-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 12px;
+    .token-chart-totals {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
     }
-    .provider-box {
-      background: var(--bg-surface-elevated);
-      border: 1px solid var(--border-subtle);
-      border-radius: 12px;
-      padding: 14px 16px;
+    .token-stacked-bar {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: all 0.15s ease;
-      cursor: pointer;
-      position: relative;
-    }
-    .provider-box:hover {
-      background: var(--bg-surface-hover);
-      border-color: var(--border-muted);
-      transform: translateY(-1px);
-    }
-    .provider-box-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 0;
-    }
-    .provider-box-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 9px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      color: var(--text-primary);
-    }
-    .provider-box-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-    }
-    .provider-box-name {
-      font-size: 0.92rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      white-space: nowrap;
+      height: 10px;
+      width: 100%;
+      border-radius: 9999px;
       overflow: hidden;
-      text-overflow: ellipsis;
+      background: #27272a;
     }
-    .provider-box-status {
-      font-size: 0.76rem;
+    .token-stacked-segment {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .token-chart-subbars {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
-    }
-    .provider-box-status.connected {
-      color: var(--emerald-text);
-      font-weight: 500;
-    }
-    .provider-box-status.disabled {
+      gap: 16px;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
       color: var(--text-tertiary);
     }
-    .provider-box-status.disconnected {
-      color: var(--text-tertiary);
-    }
-    .provider-box-right {
+    .token-subbar-metric {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
     }
   </style>
 </head>
@@ -1406,10 +1373,10 @@ export function getDashboardHtml(): string {
         ${ICONS.activity}
         <span>Overview &amp; KPIs</span>
       </a>
-      <a class="nav-item" data-tab="providers" onclick="switchNavTab('providers')">
+      <a class="nav-item" data-tab="plugins" onclick="switchNavTab('plugins')">
         ${ICONS.layers}
-        <span>Providers</span>
-        <span class="nav-badge emerald" id="badge-providers-count">5 Connected</span>
+        <span>Provider Plugins</span>
+        <span class="nav-badge emerald" id="badge-plugins-nav">6 Active</span>
       </a>
       <a class="nav-item" data-tab="models" onclick="switchNavTab('models')">
         ${ICONS.cpu}
@@ -1445,11 +1412,6 @@ export function getDashboardHtml(): string {
         ${ICONS.gitBranch}
         <span>Virtual Combos</span>
         <span class="nav-badge" id="badge-combos-count">2</span>
-      </a>
-      <a class="nav-item" data-tab="plugins" onclick="switchNavTab('plugins')">
-        ${ICONS.layers}
-        <span>Provider Plugins</span>
-        <span class="nav-badge" id="badge-plugins-count">6</span>
       </a>
       <a class="nav-item" data-tab="logs" onclick="switchNavTab('logs')">
         ${ICONS.radio}
@@ -1515,12 +1477,12 @@ export function getDashboardHtml(): string {
         </div>
         <div class="kpi-card" onclick="switchNavTab('models')" style="cursor:pointer;" title="View Free Models">
           <div class="kpi-label">Free Models</div>
-          <div class="kpi-value" id="kpi-models" style="color: var(--cyan-text);">31 Free</div>
-          <div class="kpi-subtext">6 with 1M context</div>
+          <div class="kpi-value" id="kpi-models" style="color: var(--cyan-text);">-- Free</div>
+          <div class="kpi-subtext" id="kpi-models-sub">-- with 1M context</div>
         </div>
         <div class="kpi-card" onclick="switchNavTab('combos')" style="cursor:pointer;" title="View Virtual Combos">
           <div class="kpi-label">Virtual Combos</div>
-          <div class="kpi-value" id="kpi-combos" style="color: var(--text-primary);">2 Active</div>
+          <div class="kpi-value" id="kpi-combos" style="color: var(--text-primary);">3 Active</div>
           <div class="kpi-subtext">Auto-failover active</div>
         </div>
         <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
@@ -1547,11 +1509,11 @@ export function getDashboardHtml(): string {
             <div class="hub-icon">${ICONS.cpu}</div>
             <div>
               <div class="hub-title">Free Models Explorer</div>
-              <div class="hub-desc">31 zero-cost frontier models across 6 upstreams</div>
+              <div class="hub-desc" id="hub-models-desc">Zero-cost frontier models across active upstreams</div>
             </div>
           </div>
-          <div class="hub-content">
-            Includes 6 million-token models (Particle 1, Ernie 5.5, Nemotron Lightning, Ling 3.2, Step-5 Preview, and Lattice 1M combo) with instant 1-token test probes.
+          <div class="hub-content" id="hub-models-content">
+            Includes verified 1,000,000+ token context models across FreeLLMAPI, Kilo, Cline, and OpenCode with instant 1-token test probes.
           </div>
           <div style="display:flex; gap:8px;">
             <button class="btn btn-primary btn-sm" onclick="switchNavTab('models')">
@@ -1589,7 +1551,7 @@ export function getDashboardHtml(): string {
             </div>
           </div>
           <div class="hub-content">
-            Autonomous health check probing, WorkOS OAuth device flow, and 1-click local sync from 9router and Cline Proxy data stores.
+            Autonomous health check probing, WorkOS OAuth device flow, and consentful account import from an explicit export path with a redacted preview.
           </div>
           <div style="display:flex; gap:8px;">
             <button class="btn btn-secondary btn-sm" onclick="switchNavTab('accounts')">Manage Accounts</button>
@@ -1612,72 +1574,6 @@ export function getDashboardHtml(): string {
             <button class="btn btn-secondary btn-sm" onclick="switchNavTab('combos')">Configure Combos</button>
             <button class="btn btn-primary btn-sm" onclick="openComboWizard()">Combo Wizard</button>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- =================================================================== -->
-    <!-- VIEW: Providers (9Router Reference Replica)                         -->
-    <!-- =================================================================== -->
-    <div class="tab-view" id="view-providers">
-      <div class="view-header">
-        <div class="view-title-group">
-          <h1>Providers</h1>
-          <p>Manage your AI provider connections, API keys, and OAuth device authentications</p>
-        </div>
-        <div class="header-actions" style="display:flex; align-items:center; gap:8px;">
-          <div class="search-box" style="width:220px;">
-            ${ICONS.search}
-            <input type="text" class="search-input" id="providers-search" placeholder="Search providers..." oninput="filterProvidersCards()">
-          </div>
-          <select class="form-select" id="providers-category-filter" style="width:auto; padding:5px 10px;" onchange="filterProvidersCards()">
-            <option value="all">All</option>
-            <option value="connected">Connected</option>
-            <option value="oauth">OAuth</option>
-            <option value="custom">Custom</option>
-          </select>
-          <button class="btn btn-secondary btn-sm" data-action="test-all-providers">
-            ${ICONS.play}
-            <span>Test All</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Custom Providers Section -->
-      <div class="providers-section">
-        <div class="providers-section-header">
-          <div class="providers-section-title">
-            Custom Providers (OpenAI/Anthropic Compatible)
-          </div>
-          <div style="display:flex; gap:8px;">
-            <button class="btn btn-primary btn-sm" data-action="add-anthropic" style="background:#e06c4b; border-color:#e06c4b;">
-              ${ICONS.plus}
-              <span>Add Anthropic Compatible</span>
-            </button>
-            <button class="btn btn-secondary btn-sm" data-action="add-openai">
-              ${ICONS.plus}
-              <span>Add OpenAI Compatible</span>
-            </button>
-          </div>
-        </div>
-        <div class="providers-grid" id="custom-providers-grid">
-          <!-- Dynamically populated -->
-        </div>
-      </div>
-
-      <!-- OAuth Providers Section -->
-      <div class="providers-section">
-        <div class="providers-section-header">
-          <div class="providers-section-title">
-            OAuth Providers
-          </div>
-          <button class="btn btn-secondary btn-sm" data-action="test-all-providers">
-            ${ICONS.play}
-            <span>Test All</span>
-          </button>
-        </div>
-        <div class="providers-grid" id="oauth-providers-grid">
-          <!-- Dynamically populated -->
         </div>
       </div>
     </div>
@@ -1706,8 +1602,8 @@ export function getDashboardHtml(): string {
           <input type="text" class="search-input" id="models-search" placeholder="Search models by name, ID, provider, capability, or tags..." oninput="filterModels()">
         </div>
         <div class="filter-pills">
-          <button class="filter-btn active" data-filter="all" onclick="setModelsFilter('all', this)">All (31)</button>
-          <button class="filter-btn" data-filter="1m" onclick="setModelsFilter('1m', this)">1M Context (6)</button>
+          <button class="filter-btn active" data-filter="all" id="filter-models-all" onclick="setModelsFilter('all', this)">All</button>
+          <button class="filter-btn" data-filter="1m" id="filter-models-1m" onclick="setModelsFilter('1m', this)">1M Context</button>
           <button class="filter-btn" data-filter="reasoning" onclick="setModelsFilter('reasoning', this)">Reasoning</button>
           <button class="filter-btn" data-filter="coding" onclick="setModelsFilter('coding', this)">Coding</button>
           <button class="filter-btn" data-filter="fast" onclick="setModelsFilter('fast', this)">Fast</button>
@@ -1715,6 +1611,7 @@ export function getDashboardHtml(): string {
         </div>
         <select class="form-select" id="models-provider-filter" style="width: auto; padding: 5px 10px;" onchange="filterModels()">
           <option value="">All Providers</option>
+          <option value="freellmapi">FreeLLMAPI</option>
           <option value="kilo">Kilo Code</option>
           <option value="cline">Cline Pool</option>
           <option value="deepseek">DeepSeek Web</option>
@@ -1897,6 +1794,27 @@ export function getDashboardHtml(): string {
         </div>
       </div>
 
+      <!-- Real Token Usage Chart (Phase 7 Real Edge Accounting) -->
+      <div class="panel" style="margin-top: 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+          <div>
+            <h3 style="font-size:0.95rem; font-weight:600; display:flex; align-items:center; gap:8px;">
+              <span>Real Token Usage &amp; Volume Accounting</span>
+              <span class="badge-tag emerald" style="font-size:0.65rem;">gpt-tokenizer BPE</span>
+            </h3>
+            <p style="font-size:0.75rem; color:var(--text-tertiary);">Live input (prompt), cached, and output (completion) tokens measured at the gateway edge</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:14px; font-size:0.75rem; font-family:var(--font-mono);">
+            <div style="display:flex; align-items:center; gap:5px;"><span class="legend-dot" style="background:var(--cyan-text);"></span><span>Prompt (Input)</span></div>
+            <div style="display:flex; align-items:center; gap:5px;"><span class="legend-dot" style="background:#60a5fa;"></span><span>Cached</span></div>
+            <div style="display:flex; align-items:center; gap:5px;"><span class="legend-dot" style="background:var(--emerald-text);"></span><span>Completion (Output)</span></div>
+          </div>
+        </div>
+        <div class="token-chart-container" id="usage-chart-container">
+          <!-- Rendered dynamically by JavaScript -->
+        </div>
+      </div>
+
       <!-- Accordion Model Breakdown Table -->
       <div class="panel" style="margin-top: 16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
@@ -2048,6 +1966,25 @@ export function getDashboardHtml(): string {
         </div>
       </div>
 
+      <!-- Provider Quota Overview Panel (R4 additions) -->
+      <div class="panel" style="margin-top: 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+          <div>
+            <h3 style="font-size:0.95rem; font-weight:600;">Provider Quota Capacity &amp; Windows</h3>
+            <p style="font-size:0.75rem; color:var(--text-tertiary);">Aggregated capacity, remaining quota, real tokens consumed, and reset schedule per upstream provider</p>
+          </div>
+          <span class="badge-tag emerald" id="badge-provider-quota-status">Providers Monitored</span>
+        </div>
+        <div class="quota-grid" id="provider-quota-cards-container">
+          <!-- Rendered dynamically by JavaScript -->
+        </div>
+      </div>
+
+      <div style="margin-top: 24px; margin-bottom: 10px;">
+        <h3 style="font-size:0.95rem; font-weight:600;">Individual Account Quota Pools</h3>
+        <p style="font-size:0.75rem; color:var(--text-tertiary);">Per-account rate limits, session quotas, sliding windows, and account health</p>
+      </div>
+
       <!-- Quota Cards Grid -->
       <div class="quota-grid" id="quota-cards-container">
         <!-- Rendered dynamically by JavaScript -->
@@ -2066,7 +2003,7 @@ export function getDashboardHtml(): string {
         <div class="header-actions">
           <button class="btn btn-secondary btn-sm" onclick="syncLocalAccounts()">
             ${ICONS.refresh}
-            <span>Auto-Sync 9router &amp; Cline Stores</span>
+            <span>Import Accounts (Explicit Export)</span>
           </button>
           <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">
             ${ICONS.plus}
@@ -2116,10 +2053,11 @@ export function getDashboardHtml(): string {
         <table>
           <thead>
             <tr>
-              <th>Combo ID</th>
-              <th>Name</th>
-              <th>Target Cascade Chain</th>
-              <th>Actions</th>
+              <th style="width: 20%;">Combo ID</th>
+              <th style="width: 18%;">Name</th>
+              <th style="width: 14%;">Health</th>
+              <th style="width: 38%;">Target Cascade Chain (Reachability)</th>
+              <th style="width: 10%;">Actions</th>
             </tr>
           </thead>
           <tbody id="combos-table-body">
@@ -2130,32 +2068,78 @@ export function getDashboardHtml(): string {
     </div>
 
     <!-- =================================================================== -->
-    <!-- VIEW 7: Provider Plugins                                            -->
+    <!-- VIEW: Provider Plugins & Upstreams                                  -->
     <!-- =================================================================== -->
     <div class="tab-view" id="view-plugins">
       <div class="view-header">
         <div class="view-title-group">
           <h1>Provider Plugins &amp; Upstreams</h1>
-          <p>Upstream adapters managing protocol translations, authentication, and endpoint dispatch</p>
+          <p>Upstream protocol adapters managing live endpoint dispatch, token authentication, and credential routing</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary btn-sm" onclick="syncLocalAccounts()">
+            ${ICONS.refresh}
+            <span>Import Accounts (Explicit Export)</span>
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">
+            ${ICONS.plus}
+            <span>Add Credentials</span>
+          </button>
         </div>
       </div>
 
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Plugin ID</th>
-              <th>Display Name</th>
-              <th>Default Base URL</th>
-              <th>Supported Auth</th>
-              <th>State</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="plugins-table-body">
-            <!-- Rendered dynamically -->
-          </tbody>
-        </table>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Plugins</div>
+          <div class="kpi-value" id="plugins-kpi-total">6</div>
+          <div class="kpi-subtext">Registered upstream adapters</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Active Adapters</div>
+          <div class="kpi-value" id="plugins-kpi-active" style="color:var(--emerald-text);">6</div>
+          <div class="kpi-subtext">Routing requests live</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Connected Accounts</div>
+          <div class="kpi-value" id="plugins-kpi-accounts">8</div>
+          <div class="kpi-subtext">Across active credential pools</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Available Models</div>
+          <div class="kpi-value" id="plugins-kpi-models">31 Free</div>
+          <div class="kpi-subtext">Zero-cost inference endpoints</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div>
+            <div style="font-weight:600; font-size:1rem; color:var(--text-primary);">Registered Upstream Adapters</div>
+            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:2px;">Core protocol implementations and connection status</div>
+          </div>
+          <div class="status-pill emerald">
+            <span class="status-dot emerald"></span>
+            <span>All Core Upstreams Ready</span>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 24%;">Adapter / Plugin</th>
+                <th style="width: 28%;">Endpoint Base URL</th>
+                <th style="width: 18%;">Auth Strategy</th>
+                <th style="width: 14%;">Credential Pool</th>
+                <th style="width: 8%;">State</th>
+                <th style="width: 8%;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="plugins-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -2226,7 +2210,7 @@ export function getDashboardHtml(): string {
   <!-- MODAL 2: Virtual Combo Creator Wizard (Preserving test invariants)    -->
   <!-- ===================================================================== -->
   <div class="modal-backdrop" id="modal-combo-wizard" onclick="onBackdropClick(event, 'modal-combo-wizard')">
-    <div class="modal-window">
+    <div class="modal-window" style="max-width:760px;">
       <div class="modal-header">
         <div>
           <div class="modal-title">Virtual Model Combo Creator Wizard</div>
@@ -2284,27 +2268,60 @@ export function getDashboardHtml(): string {
 
         <!-- Step 2: Fallback Chain -->
         <div id="wizard-page-2" style="display:none;">
-          <label class="form-label">Configured Fallback Target Chain</label>
-          <div id="wizard-targets-list" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label class="form-label" style="margin:0;">Configured Fallback Target Chain (<span id="wizard-chain-count">0</span> models)</label>
+            <span style="font-size:0.75rem; color:var(--text-tertiary);">Priority Order: 1 &rarr; 2 &rarr; 3</span>
+          </div>
+          
+          <!-- Selected targets list -->
+          <div id="wizard-targets-list" style="display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:160px; overflow-y:auto; padding-right:4px;"></div>
 
-          <div style="margin-top:12px;">
-            <label class="form-label">Quick Add Model to Chain</label>
-            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
-              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('kilo/particle-ai/particle-1:free')">+ Particle 1 (1M)</button>
-              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('kilo/kilo-auto/free')">+ Kilo Auto Free</button>
-              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('deepseek/deepseek-chat')">+ DeepSeek Chat</button>
-              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('big-pickle')">+ Big Pickle (Zen)</button>
-              <button class="btn btn-secondary btn-sm" onclick="addTargetToChain('cline-free/step-5-preview')">+ Step-5 (1M)</button>
+          <!-- Chain Preview visual (preserving id for tests) -->
+          <div style="margin-top:10px; background:var(--bg-canvas); border:1px solid var(--border-subtle); border-radius:6px; padding:8px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.7rem; color:var(--text-tertiary); font-family:var(--font-mono); text-transform:uppercase;">Live Cascade Pipeline</span>
             </div>
-            <div style="display:flex; gap:8px; margin-top:10px;">
-              <input type="text" class="form-input" id="wizard-custom-target" placeholder="provider/model-id" style="flex:1;">
-              <button class="btn btn-secondary" onclick="addCustomTarget()">Add Custom</button>
-            </div>
+            <div id="wizard-chain-preview" style="font-family:var(--font-mono); font-size:0.78rem; color:var(--cyan-text); margin-top:4px; word-break:break-all;"></div>
           </div>
 
-          <div style="margin-top:14px; background:var(--bg-canvas); border:1px solid var(--border-subtle); border-radius:6px; padding:10px;">
-            <div style="font-size:0.7rem; color:var(--text-tertiary); font-family:var(--font-mono); text-transform:uppercase;">Chain Preview</div>
-            <div id="wizard-chain-preview" style="font-family:var(--font-mono); font-size:0.78rem; color:var(--cyan-text); margin-top:4px;"></div>
+          <!-- Interactive Model Directory Browser -->
+          <div style="margin-top:14px; border-top:1px solid var(--border-subtle); padding-top:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label class="form-label" style="margin:0;">Select Models from Live Catalog</label>
+              <span style="font-size:0.72rem; color:var(--text-tertiary);" id="wizard-models-count-label"></span>
+            </div>
+
+            <!-- Search Bar -->
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+              <div style="position:relative; flex:1;">
+                <input type="text" class="form-input" id="wizard-model-search" placeholder="Search models by name, id, provider, tags (e.g. nemotron, sonnet, 1m)..." oninput="filterWizardModels()" style="padding-left:28px;">
+                <span style="position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--text-tertiary); font-size:0.8rem; pointer-events:none;">&#128269;</span>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="clearWizardModelSearch()" title="Clear search">Clear</button>
+            </div>
+
+            <!-- Category / Provider Filter Chips -->
+            <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px;" id="wizard-model-chips">
+              <button class="filter-pill active" onclick="setWizardModelFilter('all', this)">All</button>
+              <button class="filter-pill" onclick="setWizardModelFilter('free', this)">&#127379; Free Tier (:free)</button>
+              <button class="filter-pill" onclick="setWizardModelFilter('1m', this)">&#9889; 1M Context</button>
+              <button class="filter-pill" onclick="setWizardModelFilter('coding', this)">&#128187; Coding</button>
+              <button class="filter-pill" onclick="setWizardModelFilter('kilo', this)">Kilo</button>
+              <button class="filter-pill" onclick="setWizardModelFilter('cline', this)">Cline</button>
+              <button class="filter-pill" onclick="setWizardModelFilter('nous', this)">Nous</button>
+              <button class="filter-pill" onclick="setWizardModelFilter('deepseek', this)">DeepSeek</button>
+            </div>
+
+            <!-- Scrollable Model Catalog -->
+            <div id="wizard-model-directory" style="max-height:190px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:4px;">
+              <!-- Rendered dynamically -->
+            </div>
+
+            <!-- Custom Manual Target Input -->
+            <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+              <input type="text" class="form-input" id="wizard-custom-target" placeholder="Or enter custom target: provider/model-id" style="flex:1; font-size:0.8rem;">
+              <button class="btn btn-secondary btn-sm" onclick="addCustomTarget()">+ Add Custom</button>
+            </div>
           </div>
         </div>
 
@@ -2365,6 +2382,30 @@ export function getDashboardHtml(): string {
 
   <!-- Client-Side Vanilla SPA Script Engine -->
   <script>
+    // ADMIN_TOKEN_BOOTSTRAP_START
+    (function () {
+      var key = 'lattice-admin-token';
+      var token = sessionStorage.getItem(key);
+      if (!token) {
+        token = window.prompt('Lattice admin token (printed when the gateway started)') || '';
+        if (token) sessionStorage.setItem(key, token);
+      }
+      var originalFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        init = init || {};
+        var headers = new Headers(init.headers || (input && input.headers) || {});
+        if (token && !headers.has('Authorization')) {
+          headers.set('Authorization', 'Bearer ' + token);
+        }
+        var next = {};
+        for (var k in init) {
+          if (Object.prototype.hasOwnProperty.call(init, k)) next[k] = init[k];
+        }
+        next.headers = headers;
+        return originalFetch(input, next);
+      };
+    })();
+    // ADMIN_TOKEN_BOOTSTRAP_END
     let currentTab = 'overview';
     let currentProviderTab = 'cline';
     let wizardCurrentStep = 1;
@@ -2380,155 +2421,9 @@ export function getDashboardHtml(): string {
     let expandedProviders = new Set(['kilo', 'cline']);
     let quotaFilter = 'all';
     let quotaData = null;
+    let providerQuotaData = [];
     let allAccountsData = [];
     const PROVIDER_LOGOS_MAP = ${JSON.stringify(PROVIDER_LOGOS)};
-
-    const OAUTH_PROVIDERS_CONFIG = [
-      { id: 'claude', name: 'Claude Code', canOAuth: true, category: 'oauth' },
-      { id: 'antigravity', name: 'Antigravity', canOAuth: false, category: 'oauth', disabled: true },
-      { id: 'qoder', name: 'Qoder', canOAuth: false, category: 'oauth', disabled: true },
-      { id: 'codex', name: 'OpenAI Codex', canOAuth: true, category: 'oauth' },
-      { id: 'qoder-cn', name: 'Qoder CN', canOAuth: false, category: 'oauth' },
-      { id: 'copilot', name: 'GitHub Copilot', canOAuth: true, category: 'oauth' },
-      { id: 'cursor', name: 'Cursor IDE', canOAuth: true, category: 'oauth' },
-      { id: 'kilo', name: 'Kilo Code', canOAuth: true, category: 'oauth', tag: 'Free' },
-      { id: 'cline', name: 'Cline', canOAuth: true, category: 'oauth', tag: 'WorkOS' },
-      { id: 'minimax', name: 'MiniMax Code', canOAuth: true, category: 'oauth' },
-      { id: 'minimax-global', name: 'MiniMax Code (Global)', canOAuth: true, category: 'oauth' },
-      { id: 'clinepass', name: 'ClinePass', canOAuth: false, category: 'oauth', disabled: true },
-      { id: 'codebuddy', name: 'CodeBuddy', canOAuth: true, category: 'oauth' },
-      { id: 'codebuddy-cn', name: 'CodeBuddy CN', canOAuth: true, category: 'oauth' },
-      { id: 'muse', name: 'Muse (Meta Model API)', canOAuth: true, category: 'oauth' },
-      { id: 'zai', name: 'Zai GLM Coding', canOAuth: true, category: 'oauth' },
-      { id: 'nous', name: 'Nous Research', canOAuth: true, category: 'oauth', tag: 'Hermes' },
-      { id: 'opencode', name: 'OpenCode Zen', canOAuth: false, category: 'oauth', tag: 'Keyless' },
-      { id: 'deepseek', name: 'DeepSeek Web', canOAuth: false, category: 'oauth', tag: 'Web Pool' },
-    ];
-
-    const CUSTOM_PROVIDERS_CONFIG = [
-      { id: 'unorouter', name: 'Unorouter', type: 'custom', disabled: true },
-      { id: 'agnes', name: 'Agnes', type: 'custom', connectedCount: 1, tag: 'Chat' },
-    ];
-
-    function renderProvidersView() {
-      const searchInput = document.getElementById('providers-search');
-      const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
-      const catSelect = document.getElementById('providers-category-filter');
-      const category = catSelect ? catSelect.value : 'all';
-
-      // 1. Render Custom Providers
-      const customGrid = document.getElementById('custom-providers-grid');
-      if (customGrid) {
-        let customHtml = '';
-        const customList = CUSTOM_PROVIDERS_CONFIG.filter(p => {
-          if (search && !p.name.toLowerCase().includes(search) && !p.id.toLowerCase().includes(search)) return false;
-          if (category === 'oauth') return false;
-          if (category === 'connected' && (!p.connectedCount || p.connectedCount === 0)) return false;
-          return true;
-        });
-
-        if (customList.length === 0) {
-          customHtml = '<div style="grid-column: 1/-1; padding: 16px; text-align: center; color: var(--text-tertiary);">No custom providers matching filter.</div>';
-        } else {
-          customHtml = customList.map(p => {
-            const isConnected = p.connectedCount && p.connectedCount > 0;
-            const statusHtml = p.disabled
-              ? '<span class="provider-box-status disabled"><span style="font-size:0.7rem; font-weight:700;">[II]</span> Disabled</span>'
-              : isConnected
-              ? '<span class="provider-box-status connected"><span class="status-dot emerald"></span> ' + p.connectedCount + ' Connected</span>'
-              : '<span class="provider-box-status disconnected">No connections</span>';
-            const tagHtml = p.tag ? '<span class="badge-tag zinc" style="font-size:0.65rem;">' + p.tag + '</span>' : '';
-
-            return '<div class="provider-box" data-action="open-credentials" data-provider="' + p.id + '">' +
-              '<div class="provider-box-left">' +
-                '<div class="provider-box-icon">' + (PROVIDER_LOGOS_MAP[p.id] || '${ICONS.layers}') + '</div>' +
-                '<div class="provider-box-meta">' +
-                  '<div class="provider-box-name">' + p.name + '</div>' +
-                  '<div style="display:flex; align-items:center; gap:6px;">' + statusHtml + tagHtml + '</div>' +
-                '</div>' +
-              '</div>' +
-            '</div>';
-          }).join('');
-        }
-        customGrid.innerHTML = customHtml;
-      }
-
-      // 2. Render OAuth Providers
-      const oauthGrid = document.getElementById('oauth-providers-grid');
-      if (oauthGrid) {
-        let oauthHtml = '';
-        const accountsByProvider = {};
-        for (const a of allAccountsData) {
-          if (a.status === 'active') {
-            accountsByProvider[a.providerId] = (accountsByProvider[a.providerId] || 0) + 1;
-          }
-        }
-
-        const oauthList = OAUTH_PROVIDERS_CONFIG.filter(p => {
-          if (search && !p.name.toLowerCase().includes(search) && !p.id.toLowerCase().includes(search)) return false;
-          if (category === 'custom') return false;
-          const conn = accountsByProvider[p.id] || 0;
-          if (category === 'connected' && conn === 0) return false;
-          return true;
-        });
-
-        if (oauthList.length === 0) {
-          oauthHtml = '<div style="grid-column: 1/-1; padding: 16px; text-align: center; color: var(--text-tertiary);">No OAuth providers matching filter.</div>';
-        } else {
-          oauthHtml = oauthList.map(p => {
-            const count = accountsByProvider[p.id] || 0;
-            const isConnected = count > 0;
-            const statusHtml = p.disabled
-              ? '<span class="provider-box-status disabled"><span style="font-size:0.7rem; font-weight:700;">[II]</span> Disabled</span>'
-              : isConnected
-              ? '<span class="provider-box-status connected"><span class="status-dot emerald"></span> ' + count + ' Connected</span>'
-              : '<span class="provider-box-status disconnected">No connections</span>';
-
-            const tagHtml = p.tag ? '<span class="badge-tag emerald" style="font-size:0.65rem;">' + p.tag + '</span>' : '';
-            const actionBtn = p.canOAuth
-              ? '<button class="btn btn-secondary btn-sm" data-action="start-oauth" data-provider="' + p.id + '" style="font-size:0.72rem; padding:4px 8px;">OAuth</button>'
-              : isConnected
-              ? '<button class="btn btn-secondary btn-sm" data-action="test-provider" data-provider="' + p.id + '" style="font-size:0.72rem; padding:4px 8px;">Test</button>'
-              : '<button class="btn btn-secondary btn-sm" data-action="open-credentials" data-provider="' + p.id + '" style="font-size:0.72rem; padding:4px 8px;">Connect</button>';
-
-            return '<div class="provider-box" id="provider-card-' + p.id + '" data-action="select-provider" data-provider="' + p.id + '">' +
-              '<div class="provider-box-left">' +
-                '<div class="provider-box-icon">' + (PROVIDER_LOGOS_MAP[p.id] || '${ICONS.cpu}') + '</div>' +
-                '<div class="provider-box-meta">' +
-                  '<div class="provider-box-name">' + p.name + '</div>' +
-                  '<div style="display:flex; align-items:center; gap:6px;">' + statusHtml + tagHtml + '</div>' +
-                '</div>' +
-              '</div>' +
-              '<div class="provider-box-right">' +
-                actionBtn +
-              '</div>' +
-            '</div>';
-          }).join('');
-        }
-        oauthGrid.innerHTML = oauthHtml;
-      }
-    }
-
-    function filterProvidersCards() {
-      renderProvidersView();
-    }
-
-    async function testAllProviders() {
-      showToast('Testing all active provider connections...', 'info');
-      try {
-        const res = await fetch('/api/providers/test-all', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-          showToast('Health checks complete: ' + data.healthyCount + ' / ' + data.testedCount + ' providers healthy', 'success');
-          fetchAccounts();
-          renderProvidersView();
-        } else {
-          showToast('Test failed: ' + (data.error || 'Server error'), 'error');
-        }
-      } catch (err) {
-        showToast('Network error testing providers: ' + err.message, 'error');
-      }
-    }
 
     // Toast feedback system
     function showToast(message, type = 'info') {
@@ -2547,11 +2442,16 @@ export function getDashboardHtml(): string {
 
     // Tab Navigation
     function switchNavTab(tabId) {
+      if (!tabId || tabId === 'providers') tabId = 'plugins';
+      let targetView = document.getElementById('view-' + tabId);
+      if (!targetView) {
+        tabId = 'overview';
+        targetView = document.getElementById('view-overview');
+      }
       currentTab = tabId;
       document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
-      const targetView = document.getElementById('view-' + tabId);
       if (targetView) targetView.classList.add('active');
 
       const targetNav = document.querySelector('.nav-item[data-tab="' + tabId + '"]');
@@ -2561,7 +2461,7 @@ export function getDashboardHtml(): string {
         history.replaceState(null, '', '#' + tabId);
       }
 
-      if (tabId === 'providers') renderProvidersView();
+      if (tabId === 'plugins') fetchPlugins();
       if (tabId === 'models' && allModels.length === 0) fetchModels();
       if (tabId === 'harnesses' && allHarnesses.length === 0) fetchHarnesses();
       if (tabId === 'telemetry') fetchTelemetry();
@@ -2595,10 +2495,23 @@ export function getDashboardHtml(): string {
         if (json.success && Array.isArray(json.models)) {
           allModels = json.models;
           renderModelsGrid(allModels);
+          const freeCount = allModels.filter(m => m.isFree).length;
+          const oneMCount = allModels.filter(m => m.contextWindow >= 1000000).length;
+
           const counter = document.getElementById('models-free-counter');
-          if (counter) counter.textContent = allModels.length + ' Models Available ($0)';
+          if (counter) counter.textContent = freeCount + ' Free Models Available ($0)';
           const kpi = document.getElementById('kpi-models');
-          if (kpi) kpi.textContent = allModels.length + ' Free';
+          if (kpi) kpi.textContent = freeCount + ' Free';
+          const kpiSub = document.getElementById('kpi-models-sub');
+          if (kpiSub) kpiSub.textContent = oneMCount + ' with >=1M context';
+
+          const filterAll = document.getElementById('filter-models-all');
+          if (filterAll) filterAll.textContent = 'All (' + allModels.length + ')';
+          const filter1M = document.getElementById('filter-models-1m');
+          if (filter1M) filter1M.textContent = '1M Context (' + oneMCount + ')';
+
+          const hubContent = document.getElementById('hub-models-content');
+          if (hubContent) hubContent.textContent = 'Includes ' + oneMCount + ' verified 1,000,000+ token context models across FreeLLMAPI, Kilo, Cline, and OpenCode with instant 1-token test probes.';
         }
       } catch (err) {
         console.error('fetchModels error:', err);
@@ -2848,7 +2761,9 @@ export function getDashboardHtml(): string {
     }
 
     function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return String(str ?? '').replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
     }
 
     // =========================================================================
@@ -2860,7 +2775,7 @@ export function getDashboardHtml(): string {
         const json = await res.json();
         if (json.success && Array.isArray(json.accounts)) {
           allAccountsData = json.accounts;
-          renderProvidersView();
+          fetchPlugins();
           const pBadge = document.getElementById('badge-providers-count');
           if (pBadge) {
             const activeCount = json.accounts.filter(a => a.status === 'active').length;
@@ -2870,16 +2785,16 @@ export function getDashboardHtml(): string {
           if (tbody) {
             tbody.innerHTML = json.accounts.map(a => 
               '<tr>' +
-                '<td style="font-family:var(--font-mono); font-weight:600; color:var(--text-primary);">' + a.id + '</td>' +
-                '<td>' + a.providerId + '</td>' +
-                '<td><span class="badge-tag zinc">' + a.authType + '</span></td>' +
-                '<td><span class="status-pill ' + (a.status === 'active' ? 'emerald' : 'amber') + '">' + a.status + '</span></td>' +
+                '<td style="font-family:var(--font-mono); font-weight:600; color:var(--text-primary);">' + escapeHtml(a.id) + '</td>' +
+                '<td>' + escapeHtml(a.providerId) + '</td>' +
+                '<td><span class="badge-tag zinc">' + escapeHtml(a.authType) + '</span></td>' +
+                '<td><span class="status-pill ' + (a.status === 'active' ? 'emerald' : 'amber') + '">' + escapeHtml(a.status) + '</span></td>' +
                 '<td>' + (a.errorCount || 0) + '</td>' +
-                '<td style="font-family:var(--font-mono); font-size:0.75rem;">' + (a.credentials.email || a.credentials.apiKey || a.credentials.accessToken || 'configured') + '</td>' +
+                '<td style="font-family:var(--font-mono); font-size:0.75rem;">' + escapeHtml(a.credentials ? (a.credentials.email || a.credentials.apiKey || a.credentials.accessToken || 'configured') : 'configured') + '</td>' +
                 '<td>' +
                   '<div style="display:flex; gap:6px;">' +
-                    '<button class="btn btn-secondary btn-sm" data-action="test-account" data-id="' + a.id + '">Test</button>' +
-                    '<button class="btn btn-danger btn-sm" data-action="delete-account" data-id="' + a.id + '">Delete</button>' +
+                    '<button class="btn btn-secondary btn-sm" data-action="test-account" data-id="' + escapeHtml(a.id) + '">Test</button>' +
+                    '<button class="btn btn-danger btn-sm" data-action="delete-account" data-id="' + escapeHtml(a.id) + '">Delete</button>' +
                   '</div>' +
                 '</td>' +
               '</tr>'
@@ -2925,16 +2840,40 @@ export function getDashboardHtml(): string {
     }
 
     async function syncLocalAccounts() {
-      showToast('Scanning 9router and Cline Proxy stores on disk...', 'info');
+      const source = (window.prompt('Import source (jsonAccounts or sqlite9router):', 'jsonAccounts') || '').trim();
+      if (!source) return;
+      const path = (window.prompt('Full path to your accounts JSON export:') || '').trim();
+      if (!path) return;
       try {
-        const res = await fetch('/api/accounts/sync-local', { method: 'POST' });
-        const json = await res.json();
-        if (json.success) {
-          showToast(json.message, 'success');
+        const previewRes = await fetch('/api/accounts/import/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source, path }),
+        });
+        const preview = await previewRes.json();
+        if (!preview.success) {
+          showToast('Import preview failed: ' + preview.error, 'error');
+          return;
+        }
+        const ok = window.confirm(
+          'Import ' + preview.count + ' account(s) from ' + preview.providers.join(', ') +
+          '? No tokens or emails will be shown.'
+        );
+        if (!ok) return;
+        const confirmRes = await fetch('/api/accounts/import/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: preview.token }),
+        });
+        const result = await confirmRes.json();
+        if (result.success) {
+          showToast('Imported ' + result.count + ' account(s)', 'success');
           fetchAccounts();
+        } else {
+          showToast('Import failed: ' + result.error, 'error');
         }
       } catch (err) {
-        showToast('Local sync error: ' + err.message, 'error');
+        showToast('Import error: ' + err.message, 'error');
       }
     }
 
@@ -2945,18 +2884,61 @@ export function getDashboardHtml(): string {
         if (json.success && Array.isArray(json.combos)) {
           const tbody = document.getElementById('combos-table-body');
           if (tbody) {
-            tbody.innerHTML = json.combos.map(c => 
-              '<tr>' +
+            tbody.innerHTML = json.combos.map(c => {
+              const healthBadge = c.health === 'healthy'
+                ? '<span class="status-pill emerald"><span class="status-dot emerald"></span> Healthy</span>'
+                : c.health === 'degraded'
+                ? '<span class="status-pill amber"><span class="status-dot amber"></span> Degraded</span>'
+                : '<span class="status-pill coral"><span class="status-dot coral"></span> Exhausted</span>';
+
+              const targetsHtml = (c.targetDetails && Array.isArray(c.targetDetails))
+                ? c.targetDetails.map((td, idx) => {
+                    let badgeClass = 'zinc';
+                    let statusIcon = '&#x25CB;';
+                    let tooltip = td.target;
+                    let depthBadge = '';
+                    if (td.accountDepth && td.accountDepth.total > 0) {
+                      depthBadge = ' <span style="opacity:0.8; font-size:0.68rem; margin-left:3px;">[' + td.accountDepth.active + '/' + td.accountDepth.total + ' accts]</span>';
+                    } else if (td.availableAccounts !== undefined) {
+                      depthBadge = ' <span style="opacity:0.8; font-size:0.68rem; margin-left:3px;">[' + td.availableAccounts + ' accts]</span>';
+                    }
+
+                    if (td.status === 'reachable') {
+                      badgeClass = 'emerald';
+                      statusIcon = '&#x2714;';
+                      tooltip = td.target + ' (Reachable - ' + (td.availableAccounts || td.accountDepth?.active || 0) + ' active accounts)';
+                    } else if (td.status === 'cooldown') {
+                      badgeClass = 'amber';
+                      statusIcon = '&#x23F3;';
+                      tooltip = td.target + ' (In Cooldown' + (td.accountDepth?.lowestCooldownSec ? ' - ' + td.accountDepth.lowestCooldownSec + 's left' : '') + ')';
+                    } else if (td.status === 'quota_exhausted') {
+                      badgeClass = 'coral';
+                      statusIcon = '&#x2716;';
+                      tooltip = td.target + ' (Quota Exhausted)';
+                    } else if (td.status === 'disabled') {
+                      badgeClass = 'zinc';
+                      statusIcon = '&#x25CB;';
+                      tooltip = td.target + ' (Plugin Disabled)';
+                    } else if (td.status === 'no_accounts') {
+                      badgeClass = 'zinc';
+                      statusIcon = '&#x25CB;';
+                      tooltip = td.target + ' (No Accounts Configured)';
+                    }
+                    const prefix = idx > 0 ? '<span style="color:var(--text-tertiary); font-size:0.75rem;">&rarr;</span>' : '';
+                    return prefix + '<span class="badge-tag ' + badgeClass + '" title="' + tooltip + '" style="font-family:var(--font-mono);">' + statusIcon + ' ' + td.target + depthBadge + '</span>';
+                  }).join(' ')
+                : (c.targets || []).map(t => '<span class="badge-tag zinc">' + t + '</span>').join(' ');
+
+              return '<tr>' +
                 '<td style="font-family:var(--font-mono); font-weight:600; color:var(--cyan-text);">' + c.id + '</td>' +
                 '<td>' + (c.name || c.id) + '</td>' +
-                '<td><div style="display:flex; flex-wrap:wrap; gap:4px;">' +
-                  (c.targets || []).map(t => '<span class="badge-tag zinc">' + t + '</span>').join('') +
-                '</div></td>' +
+                '<td>' + healthBadge + '</td>' +
+                '<td><div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px;">' + targetsHtml + '</div></td>' +
                 '<td>' +
                   '<button class="btn btn-danger btn-sm" data-action="delete-combo" data-id="' + encodeURIComponent(c.id) + '">Delete</button>' +
                 '</td>' +
-              '</tr>'
-            ).join('');
+              '</tr>';
+            }).join('');
           }
           const badge = document.getElementById('badge-combos-count');
           if (badge) badge.textContent = json.combos.length;
@@ -2988,26 +2970,75 @@ export function getDashboardHtml(): string {
         const json = await res.json();
         if (json.success && Array.isArray(json.plugins)) {
           const tbody = document.getElementById('plugins-table-body');
+          const enabledCount = json.plugins.filter(p => p.enabled).length;
+          const activeAccountsCount = allAccountsData.filter(a => a.status === 'active').length;
+
           if (tbody) {
-            tbody.innerHTML = json.plugins.map(p => 
-              '<tr>' +
-                '<td style="font-family:var(--font-mono); font-weight:600;">' + p.id + '</td>' +
-                '<td>' + p.displayName + '</td>' +
-                '<td style="font-family:var(--font-mono); font-size:0.75rem;">' + p.defaultBaseUrl + '</td>' +
-                '<td>' + (p.supportedAuthTypes || []).join(', ') + '</td>' +
-                '<td><span class="status-pill ' + (p.enabled ? 'emerald' : 'zinc') + '">' + (p.enabled ? 'Enabled' : 'Disabled') + '</span></td>' +
+            tbody.innerHTML = json.plugins.map(p => {
+              const pAccounts = allAccountsData.filter(a => a.providerId === p.id);
+              const pActiveAccounts = pAccounts.filter(a => a.status === 'active');
+              const accountsCountStr = p.id === 'opencode'
+                ? '<span class="status-pill zinc"><span class="status-dot emerald"></span> Keyless</span>'
+                : (p.id === 'lattice-combo' || p.id === 'lattice')
+                ? '<span class="status-pill zinc">Virtual Cascade</span>'
+                : pActiveAccounts.length > 0
+                ? '<span class="status-pill emerald"><span class="status-dot emerald"></span> ' + pActiveAccounts.length + ' active</span>'
+                : '<span class="status-pill zinc"><span class="status-dot zinc"></span> 0 accounts</span>';
+
+              const authBadges = (p.supportedAuthTypes || []).map(t => 
+                '<span class="badge-tag zinc" style="font-size:0.68rem;">' + t + '</span>'
+              ).join(' ');
+
+              const icon = PROVIDER_LOGOS_MAP[p.id] || '${ICONS.layers}';
+
+              const connectBtn = (p.id !== 'lattice-combo' && p.id !== 'lattice' && p.id !== 'opencode')
+                ? '<button class="btn btn-emerald btn-sm" onclick="openCredentialsModal(\\'' + p.id + '\\')">${ICONS.plus} Connect</button>'
+                : '';
+
+              return '<tr>' +
                 '<td>' +
-                  '<button class="btn btn-secondary btn-sm" data-action="toggle-plugin" data-id="' + p.id + '">' +
-                    (p.enabled ? 'Disable' : 'Enable') +
-                  '</button>' +
+                  '<div style="display:flex; align-items:center; gap:10px;">' +
+                    '<div style="width:28px; height:28px; border-radius:6px; background:var(--bg-canvas); border:1px solid var(--border-subtle); display:flex; align-items:center; justify-content:center; color:var(--text-primary); flex-shrink:0;">' + icon + '</div>' +
+                    '<div>' +
+                      '<div style="font-weight:600; color:var(--text-primary); font-size:0.88rem;">' + p.displayName + '</div>' +
+                      '<div style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-tertiary);">' + p.id + '</div>' +
+                    '</div>' +
+                  '</div>' +
                 '</td>' +
-              '</tr>'
-            ).join('');
+                '<td style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary);">' + p.defaultBaseUrl + '</td>' +
+                '<td><div style="display:flex; flex-wrap:wrap; gap:4px;">' + (authBadges || '<span style="color:var(--text-tertiary); font-size:0.75rem;">None</span>') + '</div></td>' +
+                '<td>' + accountsCountStr + '</td>' +
+                '<td><span class="status-pill ' + (p.enabled ? 'emerald' : 'zinc') + '"><span class="status-dot ' + (p.enabled ? 'emerald' : 'zinc') + '"></span> ' + (p.enabled ? 'Active' : 'Disabled') + '</span></td>' +
+                '<td>' +
+                  '<div style="display:flex; align-items:center; gap:6px;">' +
+                    '<button class="btn btn-secondary btn-sm" data-action="toggle-plugin" data-id="' + p.id + '">' +
+                      (p.enabled ? 'Disable' : 'Enable') +
+                    '</button>' +
+                    connectBtn +
+                  '</div>' +
+                '</td>' +
+              '</tr>';
+            }).join('');
           }
-          const badge = document.getElementById('badge-plugins-count');
-          if (badge) badge.textContent = json.plugins.filter(p => p.enabled).length;
+
+          // KPI Grid elements
+          const kpiTotal = document.getElementById('plugins-kpi-total');
+          if (kpiTotal) kpiTotal.textContent = json.plugins.length;
+          const kpiActive = document.getElementById('plugins-kpi-active');
+          if (kpiActive) kpiActive.textContent = enabledCount;
+          const kpiAccounts = document.getElementById('plugins-kpi-accounts');
+          if (kpiAccounts) kpiAccounts.textContent = activeAccountsCount;
+          const kpiModels = document.getElementById('plugins-kpi-models');
+          const freeCount = allModels.filter(m => m.isFree).length;
+          if (kpiModels) kpiModels.textContent = freeCount > 0 ? (freeCount + ' Free') : '-- Free';
+
+          // Badges
+          const badgeNav = document.getElementById('badge-plugins-nav');
+          if (badgeNav) badgeNav.textContent = enabledCount + ' Active';
+          const badgePlugins = document.getElementById('badge-plugins-count');
+          if (badgePlugins) badgePlugins.textContent = enabledCount;
           const kpi = document.getElementById('kpi-plugins');
-          if (kpi) kpi.textContent = json.plugins.filter(p => p.enabled).length + ' Active';
+          if (kpi) kpi.textContent = enabledCount + ' Active';
         }
       } catch (err) {
         console.error('fetchPlugins error:', err);
@@ -3188,6 +3219,51 @@ export function getDashboardHtml(): string {
         legend.innerHTML = legendHtml;
       }
 
+      // Render Real Token Usage Chart (Phase 7)
+      const chartContainer = document.getElementById('usage-chart-container');
+      if (chartContainer && usageProvidersData && usageProvidersData.length > 0) {
+        let chartHtml = '';
+        const grandTotal = stats.totalTokens || 1;
+
+        for (const p of usageProvidersData) {
+          const pTotal = p.totalTokens || 0;
+          const pPrompt = p.promptTokens || 0;
+          const pCompletion = p.completionTokens || 0;
+          const pCached = p.cachedTokens || 0;
+          const pRequests = p.requests || 0;
+
+          const promptPct = pTotal > 0 ? Math.round((pPrompt / pTotal) * 100) : 0;
+          const completionPct = pTotal > 0 ? Math.max(0, 100 - promptPct) : 0;
+          const sharePct = Math.round((pTotal / grandTotal) * 100);
+
+          chartHtml += '<div class="token-chart-row">' +
+            '<div class="token-chart-header">' +
+              '<div class="token-chart-provider-name">' +
+                '<span>' + p.name + '</span>' +
+                '<span class="badge-tag zinc" style="font-size:0.68rem; font-family:var(--font-mono);">' + p.id + '</span>' +
+                '<span style="font-size:0.72rem; color:var(--text-tertiary); font-family:var(--font-mono);">' + sharePct + '% gateway volume</span>' +
+              '</div>' +
+              '<div class="token-chart-totals">' +
+                '<span style="color:var(--text-primary); font-weight:700;">' + pTotal.toLocaleString() + '</span> total tokens &bull; ' +
+                '<span>' + pRequests.toLocaleString() + ' reqs</span> &bull; ' +
+                '<span style="color:var(--amber-text);">$' + (p.costSaved || 0).toFixed(2) + ' saved</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="token-stacked-bar">' +
+              '<div class="token-stacked-segment" style="width: ' + promptPct + '%; background: var(--cyan-text);" title="Input: ' + pPrompt.toLocaleString() + ' tokens (' + promptPct + '%)"></div>' +
+              '<div class="token-stacked-segment" style="width: ' + completionPct + '%; background: var(--emerald-text);" title="Output: ' + pCompletion.toLocaleString() + ' tokens (' + completionPct + '%)"></div>' +
+            '</div>' +
+            '<div class="token-chart-subbars">' +
+              '<div class="token-subbar-metric"><span class="legend-dot" style="background:var(--cyan-text);"></span><span>Input (Prompt): <strong>' + pPrompt.toLocaleString() + '</strong> (' + promptPct + '%)</span></div>' +
+              '<div class="token-subbar-metric"><span class="legend-dot" style="background:#60a5fa;"></span><span>Cached: <strong>' + pCached.toLocaleString() + '</strong></span></div>' +
+              '<div class="token-subbar-metric"><span class="legend-dot" style="background:var(--emerald-text);"></span><span>Output (Completion): <strong>' + pCompletion.toLocaleString() + '</strong> (' + completionPct + '%)</span></div>' +
+            '</div>' +
+          '</div>';
+        }
+
+        chartContainer.innerHTML = chartHtml;
+      }
+
       // Render Model Breakdown Table
       const tbody = document.getElementById('usage-breakdown-tbody');
       const filterEl = document.getElementById('usage-provider-filter');
@@ -3323,14 +3399,21 @@ export function getDashboardHtml(): string {
     // =========================================================================
     async function fetchQuotas() {
       try {
-        const res = await fetch('/api/quotas');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success) {
-            quotaData = json;
-            renderQuotasView();
+        const [resQuotas, resProviderQuota] = await Promise.all([
+          fetch('/api/quotas'),
+          fetch('/api/quota').catch(() => null),
+        ]);
+        if (resQuotas && resQuotas.ok) {
+          const json = await resQuotas.json();
+          if (json.success) quotaData = json;
+        }
+        if (resProviderQuota && resProviderQuota.ok) {
+          const pJson = await resProviderQuota.json();
+          if (pJson.success && Array.isArray(pJson.providers)) {
+            providerQuotaData = pJson.providers;
           }
         }
+        renderQuotasView();
       } catch (err) {
         console.error('Failed to fetch quotas:', err);
       }
@@ -3387,6 +3470,108 @@ export function getDashboardHtml(): string {
         }
       }
 
+      // Render Provider Quota Overview Panel (Phase 7)
+      const providerContainer = document.getElementById('provider-quota-cards-container');
+      const badgeProviderStatus = document.getElementById('badge-provider-quota-status');
+      if (providerContainer && providerQuotaData && providerQuotaData.length > 0) {
+        let hasExhausted = false;
+        let hasWarning = false;
+        let pCardsHtml = '';
+
+        for (const p of providerQuotaData) {
+          if (p.status === 'exhausted') hasExhausted = true;
+          if (p.status === 'warning' || p.status === 'critical') hasWarning = true;
+
+          const pStatusBadge = p.status === 'exhausted'
+            ? '<span class="status-pill coral"><span class="status-dot coral"></span> Exhausted</span>'
+            : p.status === 'critical'
+            ? '<span class="status-pill coral"><span class="status-dot coral"></span> Critical</span>'
+            : p.status === 'warning'
+            ? '<span class="status-pill amber"><span class="status-dot amber"></span> Warning</span>'
+            : '<span class="status-pill emerald"><span class="status-dot emerald"></span> Healthy</span>';
+
+          const pName = p.providerId.toUpperCase();
+          const pThresholdClass = 'threshold-' + (p.status === 'exhausted' ? 'critical' : p.status);
+
+          let capacityText = 'Unlimited / Pay-As-You-Go';
+          let barFillWidth = 100;
+          let barThreshold = 'threshold-unlimited';
+
+          if (p.quotaLimit !== undefined && p.quotaLimit > 0) {
+            const rem = p.quotaRemaining !== undefined ? p.quotaRemaining : 0;
+            const pct = p.quotaPercent !== undefined ? p.quotaPercent : Math.round((rem / p.quotaLimit) * 100);
+            capacityText = rem.toLocaleString() + ' / ' + p.quotaLimit.toLocaleString() + ' rem (' + pct + '%)';
+            barFillWidth = Math.min(100, Math.max(2, pct));
+            barThreshold = pThresholdClass;
+          }
+
+          let resetText = 'Rolling window / Active';
+          if (p.nextResetAt) {
+            const sec = Math.max(0, Math.round((p.nextResetAt - Date.now()) / 1000));
+            let countdown = sec + 's';
+            if (sec >= 60) {
+              const m = Math.floor(sec / 60);
+              const s = sec % 60;
+              countdown = m + 'm ' + s + 's';
+            }
+            resetText = 'Reset: in ' + countdown + ' (' + new Date(p.nextResetAt).toLocaleTimeString() + ')';
+          }
+
+          let accountsNote = p.activeAccounts + ' / ' + p.totalAccounts + ' accounts active';
+          if (p.cooldownAccounts > 0) {
+            accountsNote += ' <span style="color:var(--amber-text);">(' + p.cooldownAccounts + ' in cooldown)</span>';
+          }
+          if (p.quotaExhaustedAccounts > 0) {
+            accountsNote += ' <span style="color:var(--coral-text);">(' + p.quotaExhaustedAccounts + ' exhausted)</span>';
+          }
+
+          pCardsHtml += '<div class="quota-card">' +
+            '<div class="quota-card-header">' +
+              '<div>' +
+                '<div class="quota-card-title" style="display:flex; align-items:center; gap:8px;">' +
+                  '<span>' + pName + '</span>' +
+                  '<span class="badge-tag zinc" style="font-size:0.68rem; font-family:var(--font-mono);">' + p.providerId + '</span>' +
+                '</div>' +
+                '<div style="font-size:0.75rem; color:var(--text-tertiary); margin-top:2px;">' + accountsNote + '</div>' +
+              '</div>' +
+              '<div>' + pStatusBadge + '</div>' +
+            '</div>' +
+            '<div class="quota-item">' +
+              '<div class="quota-item-header">' +
+                '<span class="quota-item-name">Quota Capacity</span>' +
+                '<span class="quota-item-meta">' + capacityText + '</span>' +
+              '</div>' +
+              '<div class="quota-bar-track">' +
+                '<div class="quota-bar-fill ' + barThreshold + '" style="width: ' + barFillWidth + '%;"></div>' +
+              '</div>' +
+              '<div class="quota-reset-schedule">' +
+                '${ICONS.clock}' +
+                '<span>' + resetText + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-subtle); padding-top:10px; font-size:0.75rem; font-family:var(--font-mono);">' +
+              '<div><span style="color:var(--text-tertiary);">Real Tokens:</span> <span style="color:var(--cyan-text); font-weight:600;">' + (p.tokensUsed || 0).toLocaleString() + '</span> <span style="color:var(--text-tertiary); font-size:0.7rem;">(' + (p.promptTokens || 0).toLocaleString() + ' in / ' + (p.completionTokens || 0).toLocaleString() + ' out)</span></div>' +
+              '<div><span style="color:var(--text-tertiary);">Requests:</span> <span style="color:var(--text-primary); font-weight:600;">' + (p.requestsUsed || 0) + '</span></div>' +
+            '</div>' +
+          '</div>';
+        }
+
+        providerContainer.innerHTML = pCardsHtml;
+
+        if (badgeProviderStatus) {
+          if (hasExhausted) {
+            badgeProviderStatus.className = 'badge-tag coral';
+            badgeProviderStatus.textContent = 'Quota Exhausted';
+          } else if (hasWarning) {
+            badgeProviderStatus.className = 'badge-tag amber';
+            badgeProviderStatus.textContent = 'Degraded Quota';
+          } else {
+            badgeProviderStatus.className = 'badge-tag emerald';
+            badgeProviderStatus.textContent = 'All Providers Healthy';
+          }
+        }
+      }
+
       // Filter quotas
       let filtered = quotas;
       if (quotaFilter === 'active') {
@@ -3409,7 +3594,7 @@ export function getDashboardHtml(): string {
           ? '<span class="status-pill coral"><span class="status-dot coral"></span> In Cooldown (' + (card.cooldownRemainingSeconds || 30) + 's)</span>'
           : card.status === 'active'
           ? '<span class="status-pill emerald"><span class="status-dot emerald"></span> Active</span>'
-          : '<span class="status-pill zinc">' + card.status + '</span>';
+          : '<span class="status-pill zinc">' + escapeHtml(card.status) + '</span>';
 
         let itemsHtml = '';
         for (const item of card.items) {
@@ -3418,32 +3603,32 @@ export function getDashboardHtml(): string {
 
           itemsHtml += '<div class="quota-item">' +
             '<div class="quota-item-header">' +
-              '<span class="quota-item-name">' + item.name + '</span>' +
-              '<span class="quota-item-meta">' + item.percentage + '% rem (' + item.remaining.toLocaleString() + ' / ' + item.total.toLocaleString() + ' ' + item.unit + ')</span>' +
+              '<span class="quota-item-name">' + escapeHtml(item.name) + '</span>' +
+              '<span class="quota-item-meta">' + item.percentage + '% rem (' + item.remaining.toLocaleString() + ' / ' + item.total.toLocaleString() + ' ' + escapeHtml(item.unit) + ')</span>' +
             '</div>' +
             '<div class="quota-bar-track">' +
               '<div class="quota-bar-fill ' + thresholdClass + '" style="width: ' + Math.min(100, Math.max(2, item.percentage)) + '%;"></div>' +
             '</div>' +
             '<div class="quota-reset-schedule">' +
               resetIcon +
-              '<span>Reset: ' + item.resetFormatted + '</span>' +
+              '<span>Reset: ' + escapeHtml(item.resetFormatted) + '</span>' +
             '</div>' +
           '</div>';
         }
 
         const actionBtn = card.inCooldown || card.status === 'cooldown'
-          ? '<button class="btn btn-emerald btn-sm" data-action="reset-quota" data-id="' + card.accountId + '" style="margin-top:6px;">${ICONS.play} Reset Cooldown</button>'
+          ? '<button class="btn btn-emerald btn-sm" data-action="reset-quota" data-id="' + escapeHtml(card.accountId) + '" style="margin-top:6px;">${ICONS.play} Reset Cooldown</button>'
           : '';
 
         cardsHtml += '<div class="quota-card">' +
           '<div class="quota-card-header">' +
             '<div>' +
-              '<div class="quota-card-title">' + card.name + '</div>' +
-              '<div class="quota-card-email" title="' + card.email + '">' + card.email + '</div>' +
+              '<div class="quota-card-title">' + escapeHtml(card.name) + '</div>' +
+              '<div class="quota-card-email" title="' + escapeHtml(card.email) + '">' + escapeHtml(card.email) + '</div>' +
             '</div>' +
             '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">' +
               statusBadge +
-              '<span class="badge-tag zinc" style="font-size:0.65rem;">Auth: ' + card.authType + '</span>' +
+              '<span class="badge-tag zinc" style="font-size:0.65rem;">Auth: ' + escapeHtml(card.authType) + '</span>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex; flex-direction:column; gap:12px; margin-top:4px;">' +
@@ -3711,7 +3896,7 @@ export function getDashboardHtml(): string {
           if (json.success && json.done) {
             clearInterval(interval);
             if (json.status === 'success') {
-              if (statusEl) statusEl.innerHTML = '<span style="color:var(--emerald-text);">Authentication complete for ' + (json.email || 'account') + '!</span>';
+              if (statusEl) statusEl.innerHTML = '<span style="color:var(--emerald-text);">Authentication complete for ' + escapeHtml(json.email || 'account') + '!</span>';
               showToast('OAuth account registered live!', 'success');
               fetchAccounts();
             } else {
@@ -3727,6 +3912,9 @@ export function getDashboardHtml(): string {
     // =========================================================================
     // Virtual Combo Wizard
     // =========================================================================
+    let wizardModelFilter = 'all';
+    let wizardModelSearchQuery = '';
+
     function openComboWizard() {
       const modal = document.getElementById('modal-combo-wizard');
       if (modal) {
@@ -3735,6 +3923,10 @@ export function getDashboardHtml(): string {
       }
       wizardCurrentStep = 1;
       wizardTargets = ['kilo/particle-ai/particle-1:free', 'kilo/code-fast:free'];
+      wizardModelFilter = 'all';
+      wizardModelSearchQuery = '';
+      const searchInput = document.getElementById('wizard-model-search');
+      if (searchInput) searchInput.value = '';
       updateWizardView();
     }
 
@@ -3768,7 +3960,10 @@ export function getDashboardHtml(): string {
         else if (wizardCurrentStep === 4) btnNext.textContent = 'Deploy Virtual Combo';
       }
 
-      if (wizardCurrentStep === 2) renderWizardTargets();
+      if (wizardCurrentStep === 2) {
+        renderWizardTargets();
+        renderWizardModelDirectory();
+      }
       if (wizardCurrentStep === 4) generateComboBlueprint();
     }
 
@@ -3800,13 +3995,34 @@ export function getDashboardHtml(): string {
 
     function renderWizardTargets() {
       const list = document.getElementById('wizard-targets-list');
+      const countEl = document.getElementById('wizard-chain-count');
+      if (countEl) countEl.textContent = wizardTargets.length;
+
       if (list) {
-        list.innerHTML = wizardTargets.map((t, idx) => 
-          '<div style="display:flex; align-items:center; justify-content:space-between; background:var(--bg-canvas); border:1px solid var(--border-subtle); border-radius:6px; padding:6px 10px;">' +
-            '<span style="font-family:var(--font-mono); font-size:0.78rem;">' + (idx + 1) + '. ' + t + '</span>' +
-            '<button class="btn btn-secondary btn-sm" onclick="removeWizardTarget(' + idx + ')">${ICONS.x}</button>' +
-          '</div>'
-        ).join('');
+        if (wizardTargets.length === 0) {
+          list.innerHTML = '<div style="padding:14px; text-align:center; color:var(--text-tertiary); font-size:0.8rem; background:var(--bg-canvas); border:1px dashed var(--border-subtle); border-radius:6px;">No fallback targets configured yet. Select models below to build your zero-drop failover chain.</div>';
+        } else {
+          list.innerHTML = wizardTargets.map((t, idx) => {
+            let providerId = t.includes('/') ? t.split('/')[0] : t;
+            if (t.startsWith('cline-free/')) providerId = 'cline';
+            const pAccounts = allAccountsData.filter(a => a.providerId === providerId);
+            const activeCount = pAccounts.filter(a => a.status === 'active').length;
+            const rankLabel = idx === 0 ? 'Primary' : (idx === 1 ? 'Secondary' : 'Fallback #' + idx);
+
+            return '<div style="display:flex; align-items:center; justify-content:space-between; background:var(--bg-surface); border:1px solid var(--border-muted); border-radius:6px; padding:6px 10px;">' +
+              '<div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; margin-right:8px;">' +
+                '<span class="badge-tag zinc" style="font-family:var(--font-mono); font-size:0.68rem; font-weight:700;">#' + (idx + 1) + ' ' + rankLabel + '</span>' +
+                '<span style="font-family:var(--font-mono); font-size:0.78rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + t + '</span>' +
+                '<span class="badge-tag emerald" style="font-size:0.68rem; padding:1px 6px;">🟢 ' + activeCount + ' acct' + (activeCount === 1 ? '' : 's') + '</span>' +
+              '</div>' +
+              '<div style="display:flex; align-items:center; gap:4px;">' +
+                '<button class="btn btn-secondary btn-sm" onclick="moveWizardTarget(' + idx + ', -1)" ' + (idx === 0 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Up">▲</button>' +
+                '<button class="btn btn-secondary btn-sm" onclick="moveWizardTarget(' + idx + ', 1)" ' + (idx === wizardTargets.length - 1 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Down">▼</button>' +
+                '<button class="btn btn-danger btn-sm" onclick="removeWizardTarget(' + idx + ')" title="Remove target" style="padding:4px 8px;">✕</button>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        }
       }
 
       const preview = document.getElementById('wizard-chain-preview');
@@ -3815,10 +4031,138 @@ export function getDashboardHtml(): string {
       }
     }
 
+    function setWizardModelFilter(filter, el) {
+      wizardModelFilter = filter;
+      document.querySelectorAll('#wizard-model-chips .filter-pill').forEach(btn => btn.classList.remove('active'));
+      if (el) el.classList.add('active');
+      renderWizardModelDirectory();
+    }
+
+    function filterWizardModels() {
+      const input = document.getElementById('wizard-model-search');
+      wizardModelSearchQuery = (input?.value || '').toLowerCase().trim();
+      renderWizardModelDirectory();
+    }
+
+    function clearWizardModelSearch() {
+      const input = document.getElementById('wizard-model-search');
+      if (input) input.value = '';
+      wizardModelSearchQuery = '';
+      renderWizardModelDirectory();
+    }
+
+    function moveWizardTarget(idx, direction) {
+      const targetIdx = idx + direction;
+      if (targetIdx < 0 || targetIdx >= wizardTargets.length) return;
+      const temp = wizardTargets[idx];
+      wizardTargets[idx] = wizardTargets[targetIdx];
+      wizardTargets[targetIdx] = temp;
+      renderWizardTargets();
+      renderWizardModelDirectory();
+    }
+
+    function toggleTargetInChain(target) {
+      const idx = wizardTargets.indexOf(target);
+      if (idx >= 0) {
+        wizardTargets.splice(idx, 1);
+      } else {
+        wizardTargets.push(target);
+      }
+      renderWizardTargets();
+      renderWizardModelDirectory();
+    }
+
+    function renderWizardModelDirectory() {
+      const dirEl = document.getElementById('wizard-model-directory');
+      if (!dirEl) return;
+
+      const fallbackCatalog = [
+        { id: 'kilo/nvidia/nemotron-3.5-lightning:free', name: 'NVIDIA Nemotron 3.5 Lightning Free (1M Context)', providerId: 'kilo', isFree: true, contextWindow: 1000000, tags: ['free', '1m', 'coding', 'lightning'] },
+        { id: 'kilo/particle-ai/particle-1:free', name: 'Particle AI Particle 1 Free (1M Context)', providerId: 'kilo', isFree: true, contextWindow: 1048576, tags: ['free', '1m', 'fast'] },
+        { id: 'kilo/baidu/ernie-5.5-flash-preview:free', name: 'Baidu Ernie 5.5 Flash Preview Free (1M Context)', providerId: 'kilo', isFree: true, contextWindow: 1024000, tags: ['free', '1m'] },
+        { id: 'kilo/code-fast:free', name: 'Kilo Code Fast Free', providerId: 'kilo', isFree: true, contextWindow: 128000, tags: ['free', 'coding'] },
+        { id: 'kilo/kilo-auto/free', name: 'Kilo Auto Free Router', providerId: 'kilo', isFree: true, contextWindow: 128000, tags: ['free', 'auto'] },
+        { id: 'cline/sonnet-agent', name: 'Cline Claude 3.5 Sonnet Agent', providerId: 'cline', isFree: false, contextWindow: 200000, tags: ['coding', 'flagship'] },
+        { id: 'cline-free/step-5-preview', name: 'Cline Free Step-5 Preview (1M)', providerId: 'cline', isFree: true, contextWindow: 1048576, tags: ['free', '1m'] },
+        { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat (V3)', providerId: 'deepseek', isFree: false, contextWindow: 64000, tags: ['coding'] },
+        { id: 'nous/hermes-3-llama-3.1-70b', name: 'Nous Hermes 3 Llama 3.1 70B', providerId: 'nous', isFree: false, contextWindow: 128000, tags: ['reasoning', 'hermes'] },
+        { id: 'nous/upstage/solar-mini4:free', name: 'Nous Solar Mini 4 Free', providerId: 'nous', isFree: true, contextWindow: 128000, tags: ['free', 'fast'] },
+        { id: 'nous/stepfun/step-3.7-flash:free', name: 'Nous Step 3.7 Flash Free', providerId: 'nous', isFree: true, contextWindow: 128000, tags: ['free', 'reasoning'] }
+      ];
+
+      const modelsToFilter = (allModels && allModels.length > 0) ? allModels : fallbackCatalog;
+
+      const filtered = modelsToFilter.filter(m => {
+        if (wizardModelFilter === 'free' && !m.isFree && !m.id.includes(':free')) return false;
+        if (wizardModelFilter === '1m' && (!m.contextWindow || m.contextWindow < 1000000)) return false;
+        if (wizardModelFilter === 'coding' && !(m.tags || []).includes('coding') && !m.id.includes('code') && !m.name.toLowerCase().includes('code')) return false;
+        if (wizardModelFilter === 'kilo' && m.providerId !== 'kilo') return false;
+        if (wizardModelFilter === 'cline' && m.providerId !== 'cline') return false;
+        if (wizardModelFilter === 'nous' && m.providerId !== 'nous') return false;
+        if (wizardModelFilter === 'deepseek' && m.providerId !== 'deepseek') return false;
+
+        if (wizardModelSearchQuery) {
+          const matchName = (m.name || '').toLowerCase().includes(wizardModelSearchQuery);
+          const matchId = (m.id || '').toLowerCase().includes(wizardModelSearchQuery);
+          const matchProv = (m.providerId || '').toLowerCase().includes(wizardModelSearchQuery);
+          const matchTags = (m.tags || []).some(t => t.toLowerCase().includes(wizardModelSearchQuery));
+          if (!matchName && !matchId && !matchProv && !matchTags) return false;
+        }
+
+        return true;
+      });
+
+      const countLabel = document.getElementById('wizard-models-count-label');
+      if (countLabel) {
+        countLabel.textContent = filtered.length + ' of ' + modelsToFilter.length + ' models available';
+      }
+
+      if (filtered.length === 0) {
+        dirEl.innerHTML = '<div style="padding:16px; text-align:center; color:var(--text-tertiary); font-size:0.8rem; background:var(--bg-canvas); border:1px dashed var(--border-subtle); border-radius:6px;">No models match search & filter criteria</div>';
+        return;
+      }
+
+      dirEl.innerHTML = filtered.map(m => {
+        const inChain = wizardTargets.includes(m.id);
+        const pAccounts = allAccountsData.filter(a => a.providerId === m.providerId);
+        const activeAccounts = pAccounts.filter(a => a.status === 'active');
+        const depthText = activeAccounts.length > 0 
+          ? '<span style="font-size:0.7rem; color:var(--emerald-text); font-weight:600;">🟢 ' + activeAccounts.length + ' active acct' + (activeAccounts.length > 1 ? 's' : '') + '</span>'
+          : '<span style="font-size:0.7rem; color:var(--coral-text);">⚠️ No active accounts</span>';
+
+        const ctxText = m.contextWindow 
+          ? (m.contextWindow >= 1000000 ? Math.round(m.contextWindow / 1000000) + 'M ctx' : Math.round(m.contextWindow / 1000) + 'k ctx')
+          : '128k ctx';
+
+        const isFree = m.isFree || m.id.includes(':free');
+        const freeBadge = isFree ? '<span class="badge-tag emerald" style="font-size:0.68rem; padding:1px 6px;">Free</span>' : '';
+        const provBadge = '<span class="badge-tag zinc" style="font-size:0.68rem; padding:1px 6px; font-family:var(--font-mono);">' + m.providerId + '</span>';
+
+        return '<div style="display:flex; align-items:center; justify-content:space-between; background:var(--bg-canvas); border:1px solid ' + (inChain ? 'var(--emerald-border)' : 'var(--border-subtle)') + '; border-radius:6px; padding:7px 10px;">' +
+          '<div style="display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; margin-right:8px;">' +
+            '<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
+              '<span style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">' + (m.name || m.id) + '</span>' +
+              provBadge +
+              freeBadge +
+              '<span class="badge-tag cyan" style="font-size:0.68rem; padding:1px 6px;">' + ctxText + '</span>' +
+            '</div>' +
+            '<div style="display:flex; align-items:center; gap:10px; margin-top:1px;">' +
+              '<span style="font-family:var(--font-mono); font-size:0.72rem; color:var(--cyan-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + m.id + '</span>' +
+              depthText +
+            '</div>' +
+          '</div>' +
+          '<button class="btn ' + (inChain ? 'btn-secondary' : 'btn-primary') + ' btn-sm" data-target="' + m.id + '" onclick="toggleTargetInChain(this.dataset.target)" style="white-space:nowrap; font-size:0.75rem; padding:4px 10px;">' +
+            (inChain ? '✓ Added' : '+ Add') +
+          '</button>' +
+        '</div>';
+      }).join('');
+    }
+
     function addTargetToChain(target) {
       if (!wizardTargets.includes(target)) {
         wizardTargets.push(target);
         renderWizardTargets();
+        renderWizardModelDirectory();
       }
     }
 
@@ -3829,12 +4173,14 @@ export function getDashboardHtml(): string {
         wizardTargets.push(val);
         input.value = '';
         renderWizardTargets();
+        renderWizardModelDirectory();
       }
     }
 
     function removeWizardTarget(idx) {
       wizardTargets.splice(idx, 1);
       renderWizardTargets();
+      renderWizardModelDirectory();
     }
 
     function generateComboBlueprint() {
@@ -3898,28 +4244,35 @@ export function getDashboardHtml(): string {
 
     // Initialization
     function initDashboard() {
-      window.addEventListener('hashchange', () => {
-        const tab = window.location.hash.replace('#', '');
-        if (tab && document.getElementById('view-' + tab)) {
-          switchNavTab(tab);
+      try {
+        window.addEventListener('hashchange', () => {
+          const tab = window.location.hash.replace('#', '');
+          switchNavTab(tab || 'overview');
+        });
+
+        const initialTab = window.location.hash.replace('#', '') || 'overview';
+        switchNavTab(initialTab);
+
+        fetchAccounts().catch(() => {});
+        fetchCombos().catch(() => {});
+        fetchPlugins().catch(() => {});
+        fetchModels().catch(() => {});
+        fetchHarnesses().catch(() => {});
+        fetchTelemetry().catch(() => {});
+        fetchUsageStats().catch(() => {});
+        fetchQuotas().catch(() => {});
+        initLogStream();
+        switchProviderTab('cline');
+        renderWizardTargets();
+      } catch (err) {
+        console.error('Initialization error in Mission Control:', err);
+      } finally {
+        // Guarantee at least one tab view is active and visible
+        if (!document.querySelector('.tab-view.active')) {
+          const fallback = document.getElementById('view-overview');
+          if (fallback) fallback.classList.add('active');
         }
-      });
-
-      const initialTab = window.location.hash.replace('#', '') || 'overview';
-      switchNavTab(document.getElementById('view-' + initialTab) ? initialTab : 'overview');
-
-      fetchAccounts().catch(() => {});
-      fetchCombos().catch(() => {});
-      fetchPlugins().catch(() => {});
-      fetchModels().catch(() => {});
-      fetchHarnesses().catch(() => {});
-      fetchTelemetry().catch(() => {});
-      fetchUsageStats().catch(() => {});
-      fetchQuotas().catch(() => {});
-      initLogStream();
-      switchProviderTab('cline');
-      renderWizardTargets();
-      renderProvidersView();
+      }
 
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
@@ -3997,21 +4350,6 @@ export function getDashboardHtml(): string {
           case 'close-combo-wizard':
             closeComboWizard();
             break;
-          case 'add-anthropic':
-            openCredentialsModal('anthropic');
-            break;
-          case 'add-openai':
-            openCredentialsModal('openai');
-            break;
-          case 'test-all-providers':
-            testAllProviders();
-            break;
-          case 'test-provider':
-            if (provider) testAccount('acc_' + provider);
-            break;
-          case 'select-provider':
-            if (provider) openCredentialsModal(provider);
-            break;
           case 'sync-local':
             syncLocalAccounts();
             break;
@@ -4035,6 +4373,12 @@ export function getDashboardHtml(): string {
       window.addTargetToChain = addTargetToChain;
       window.addCustomTarget = addCustomTarget;
       window.removeWizardTarget = removeWizardTarget;
+      window.moveWizardTarget = moveWizardTarget;
+      window.toggleTargetInChain = toggleTargetInChain;
+      window.setWizardModelFilter = setWizardModelFilter;
+      window.filterWizardModels = filterWizardModels;
+      window.clearWizardModelSearch = clearWizardModelSearch;
+      window.renderWizardModelDirectory = renderWizardModelDirectory;
       window.onBackdropClick = onBackdropClick;
       window.fetchAccounts = fetchAccounts;
       window.fetchCombos = fetchCombos;
@@ -4065,9 +4409,6 @@ export function getDashboardHtml(): string {
       window.filterQuotas = filterQuotas;
       window.resetQuotaCooldown = resetQuotaCooldown;
       window.renderQuotasView = renderQuotasView;
-      window.renderProvidersView = renderProvidersView;
-      window.filterProvidersCards = filterProvidersCards;
-      window.testAllProviders = testAllProviders;
     }
 
     if (document.readyState === 'loading') {

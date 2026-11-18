@@ -16,6 +16,8 @@ import type {
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
+import { globalSessionAffinityStore, type SessionAffinityStore } from '../core/session-affinity';
+import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
 
 export interface ChromeSessionExport {
   userToken?: string;
@@ -224,7 +226,9 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
   constructor(
     defaultBaseUrl = 'https://chat.deepseek.com/api/v0',
-    initialAccounts?: StoredAccount[]
+    initialAccounts?: StoredAccount[],
+    private readonly affinityStore: SessionAffinityStore = globalSessionAffinityStore,
+    private readonly credentialResolver: CredentialResolver = globalCredentialResolver
   ) {
     this.defaultBaseUrl = defaultBaseUrl.replace(/\/+$/, '');
     if (initialAccounts) {
@@ -260,8 +264,8 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
     return acc;
   }
 
-  getNextAccount(): StoredAccount {
-    const active = this.getActiveAccounts();
+  getNextAccount(preferredId?: string, triedIds: Set<string> = new Set()): StoredAccount {
+    const active = this.getActiveAccounts().filter((account) => !triedIds.has(account.id));
     if (active.length === 0) {
       const now = Date.now();
       const cooling = this.accounts.filter((a) => a.cooldownUntil && a.cooldownUntil > now);
@@ -272,7 +276,8 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
         retryAfter,
       });
     }
-    const acc = active[this.activeIndex % active.length];
+    const preferred = preferredId ? active.find((account) => account.id === preferredId) : undefined;
+    const acc = preferred ?? active[this.activeIndex % active.length];
     this.activeIndex++;
     return acc;
   }
@@ -364,9 +369,10 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
   private buildHeaders(account?: StoredAccount, clientUserAgent?: string): Record<string, string> {
     const acc = account || this.getActiveAccount();
+    const creds = this.credentialResolver.credentialsFor(acc);
     const ua =
       clientUserAgent ||
-      (acc?.credentials?.customData?.userAgent as string | undefined) ||
+      (creds.customData?.userAgent as string | undefined) ||
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36';
 
     const headers: Record<string, string> = {
@@ -381,24 +387,24 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
       Referer: 'https://chat.deepseek.com/',
     };
 
-    if (acc?.credentials?.accessToken) {
-      headers['Authorization'] = `Bearer ${acc.credentials.accessToken}`;
+    if (creds.accessToken) {
+      headers['Authorization'] = `Bearer ${creds.accessToken}`;
     }
 
-    if (acc?.credentials?.cookies) {
+    if (creds.cookies) {
       headers['Cookie'] =
-        typeof acc.credentials.cookies === 'string'
-          ? acc.credentials.cookies.replace(/[\r\n\0]+/g, '').trim()
-          : Object.entries(acc.credentials.cookies)
+        typeof creds.cookies === 'string'
+          ? creds.cookies.replace(/[\r\n\0]+/g, '').trim()
+          : Object.entries(creds.cookies)
               .map(([k, v]) => `${k}=${v}`)
               .join('; ');
     }
 
-    if (acc?.credentials?.customData?.hif_dliq) {
-      headers['x-hif-dliq'] = String(acc.credentials.customData.hif_dliq);
+    if (creds.customData?.hif_dliq) {
+      headers['x-hif-dliq'] = String(creds.customData.hif_dliq);
     }
-    if (acc?.credentials?.customData?.hif_leim) {
-      headers['x-hif-leim'] = String(acc.credentials.customData.hif_leim);
+    if (creds.customData?.hif_leim) {
+      headers['x-hif-leim'] = String(creds.customData.hif_leim);
     }
 
     return headers;
@@ -494,9 +500,13 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
     const attempts = Math.max(1, activeAccounts.length);
     let lastError: any = null;
+    const triedIds = new Set<string>();
+    const sessionKey = req.affinity?.sessionKey;
+    const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
 
     for (let attempt = 0; attempt < attempts; attempt++) {
-      const account = this.getNextAccount();
+      const account = this.getNextAccount(preferredId, triedIds);
+      triedIds.add(account.id);
       account.lastUsedAt = Date.now();
 
       const headers = this.buildHeaders(account, req.rawHeaders?.['user-agent']);
@@ -549,6 +559,7 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
         }
 
         account.errorCount = 0;
+        if (sessionKey) this.affinityStore.pinAccount(sessionKey, this.id, account.id);
         const data = (await res.json()) as any;
         const choice = data.choices?.[0];
 
@@ -627,9 +638,13 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
     let lastError: any = null;
     let streamRes: Response | null = null;
     let servingAccount: StoredAccount | null = null;
+    const triedIds = new Set<string>();
+    const sessionKey = req.affinity?.sessionKey;
+    const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
 
     for (let attempt = 0; attempt < attempts; attempt++) {
-      const account = this.getNextAccount();
+      const account = this.getNextAccount(preferredId, triedIds);
+      triedIds.add(account.id);
       account.lastUsedAt = Date.now();
 
       const headers = this.buildHeaders(account, req.rawHeaders?.['user-agent']);
@@ -687,6 +702,7 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
         servingAccount = account;
         servingAccount.errorCount = 0;
+        if (sessionKey) this.affinityStore.pinAccount(sessionKey, this.id, account.id);
         streamRes = res;
         break;
       } catch (err) {

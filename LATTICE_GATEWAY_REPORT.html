@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="en" data-voice="field-notes">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lattice Gateway — The Honest Report</title>
+<meta name="description" content="A code-grounded, no-sugarcoat audit of Project Lattice, a comparison with 9router, Cline-proxy and FreeLLMAPI, and a roadmap to make it genuinely unbeatable.">
+<style>
+/* ============================================================
+   INK & PAPER SYSTEM — no blue, no purple, no glass, no glow.
+   Made to read like an engineer's notebook that got photocopied.
+   ============================================================ */
+:root{
+  --paper:#f2ead9;
+  --paper-2:#e8dcc4;
+  --paper-3:#fbf6ea;
+  --ink:#241f19;
+  --ink-soft:#51483b;
+  --ink-faint:#756a59;
+  --rust:#a9432c;
+  --rust-dark:#7c2d1c;
+  --ochre:#b27c21;
+  --moss:#4e6a4c;
+  --line:#c9b899;
+  --line-strong:#a88f68;
+  --tape:rgba(168,143,104,.30);
+  --shadow:0 2px 0 rgba(60,44,24,.10);
+  --serif:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,"Times New Roman",serif;
+  --sans:"Segoe UI",Inter,system-ui,-apple-system,sans-serif;
+  --mono:"Cascadia Mono","Courier New",Courier,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:88px;background:var(--paper)}
+body{
+  margin:0;
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:17px;
+  line-height:1.68;
+  background-color:var(--paper);
+  background-image:
+    radial-gradient(circle at 12% 8%,rgba(160,128,72,.055) 0 1px,transparent 1px),
+    radial-gradient(circle at 83% 22%,rgba(120,90,50,.05) 0 1px,transparent 1px),
+    repeating-linear-gradient(0deg,rgba(100,78,44,.018) 0 1px,transparent 1px 4px);
+  background-size:7px 7px,11px 11px,100% 4px;
+}
+::selection{background:var(--ochre);color:var(--paper-3)}
+a{color:var(--rust-dark);text-decoration-thickness:1px;text-underline-offset:3px}
+a:hover{color:var(--rust)}
+:focus-visible{outline:3px solid var(--ochre);outline-offset:3px}
+img,svg{max-width:100%}
+.skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:var(--paper-3);padding:10px 14px;z-index:100}
+.skip:focus{left:12px;top:12px}
+
+/* progress rule */
+.progress{position:fixed;top:0;left:0;height:4px;width:0;background:var(--rust);z-index:90;transition:width .1s linear}
+
+/* masthead */
+.masthead{padding:74px 0 46px;border-bottom:2px solid var(--ink);position:relative;overflow:hidden}
+.masthead:after{content:"";position:absolute;right:-60px;top:-50px;width:280px;height:280px;border:1px dashed var(--line-strong);border-radius:50%;opacity:.55}
+.wrap{width:min(1180px,calc(100% - 48px));margin-inline:auto}
+.kicker{font:700 12px/1.2 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--rust);margin:0 0 18px}
+.masthead h1{font-family:var(--serif);font-weight:700;font-size:clamp(2.6rem,9vw,7rem);line-height:.94;letter-spacing:-.045em;margin:0 0 22px;max-width:100%;overflow-wrap:anywhere}
+.masthead h1 em{font-style:italic;color:var(--rust-dark);display:block}
+.deck{font-family:var(--serif);font-size:clamp(1.2rem,2.4vw,1.65rem);line-height:1.45;max-width:52ch;color:var(--ink-soft);margin:0 0 30px}
+.byline{font:600 12px/1.7 var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint)}
+.stamp{
+  position:absolute;right:6%;top:62px;transform:rotate(-9deg);
+  border:3px double var(--rust);color:var(--rust);padding:9px 14px;
+  font:800 13px/1.25 var(--mono);letter-spacing:.1em;text-transform:uppercase;
+  opacity:.85;max-width:210px;text-align:center;
+}
+@media(max-width:860px){
+  .stamp{display:none}
+  .rail .wrap{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .rail .wrap::-webkit-scrollbar{display:none}
+}
+
+/* nav rail */
+.rail{position:sticky;top:0;z-index:80;background:rgba(242,234,217,.96);border-bottom:1px solid var(--line-strong);backdrop-filter:blur(2px)}
+.rail .wrap{display:flex;gap:4px 20px;flex-wrap:wrap;padding:11px 0}
+.rail a{font:700 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);text-decoration:none;white-space:nowrap;padding:6px 2px;border-bottom:2px solid transparent}
+.rail a:hover{color:var(--rust);border-bottom-color:var(--rust)}
+
+/* sections */
+main section{padding:78px 0 26px;border-bottom:1px solid var(--line)}
+.sec-head{display:grid;grid-template-columns:78px 1fr;gap:22px;align-items:start;margin-bottom:34px}
+.sec-num{font:700 34px/1 var(--serif);color:var(--rust);border-right:1px solid var(--line-strong);padding-right:14px;text-align:right}
+h2{font-family:var(--serif);font-size:clamp(2rem,4.6vw,3.1rem);line-height:1.04;letter-spacing:-.025em;margin:0 0 10px}
+h3{font-family:var(--serif);font-size:1.55rem;line-height:1.2;margin:36px 0 12px;letter-spacing:-.01em}
+h4{font:700 15px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.08em;margin:24px 0 8px;color:var(--rust-dark)}
+p{margin:0 0 16px}
+.lede{font-family:var(--serif);font-size:1.28rem;line-height:1.5;color:var(--ink-soft);max-width:62ch}
+.small{font-size:14px;color:var(--ink-soft)}
+.mono{font-family:var(--mono)}
+em.hl{font-style:normal;background:linear-gradient(transparent 58%,rgba(178,124,33,.35) 58%);padding:0 2px}
+code{font-family:var(--mono);font-size:.92em;background:var(--paper-2);padding:1px 5px;border-radius:2px;color:var(--rust-dark);word-break:break-word}
+
+/* callouts */
+.note{background:var(--paper-3);border:1px solid var(--line);border-left:5px solid var(--ochre);padding:18px 22px;margin:22px 0;box-shadow:var(--shadow)}
+.note.bad{border-left-color:var(--rust)}
+.note.good{border-left-color:var(--moss)}
+.note .tag{display:block;font:800 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--ochre);margin-bottom:8px}
+.note.bad .tag{color:var(--rust)}
+.note.good .tag{color:var(--moss)}
+.note p:last-child{margin-bottom:0}
+
+/* sticky notes */
+.sticky{background:#efe0a8;color:#3b3020;padding:18px 20px;transform:rotate(-1.4deg);box-shadow:3px 4px 0 rgba(70,52,26,.16);position:relative;margin:26px 0;font-family:var(--serif);font-size:1.08rem;line-height:1.5}
+.sticky:before{content:"";position:absolute;top:-10px;left:38%;width:86px;height:20px;background:var(--tape);transform:rotate(2deg)}
+.sticky.warm{background:#f0cbb4}
+.sticky.green{background:#dce3c8}
+
+/* finding cards */
+.finding{border:1px solid var(--line);background:var(--paper-3);margin:18px 0;box-shadow:var(--shadow)}
+.finding>summary{cursor:pointer;list-style:none;padding:16px 20px;display:flex;gap:14px;align-items:flex-start;font-weight:700}
+.finding>summary::-webkit-details-marker{display:none}
+.finding>summary:hover{background:var(--paper-2)}
+.sev{flex:0 0 auto;font:800 10px/1 var(--mono);letter-spacing:.08em;padding:6px 8px;border:1px solid currentColor;text-transform:uppercase}
+.sev.crit{color:#fff;background:var(--rust-dark);border-color:var(--rust-dark)}
+.sev.high{color:var(--rust);border-color:var(--rust)}
+.sev.med{color:var(--ochre);border-color:var(--ochre)}
+.finding .body{padding:4px 20px 20px;border-top:1px dashed var(--line)}
+.finding .body h4{margin-top:18px}
+.finding .body ul{padding-left:20px;margin:8px 0}
+.finding .body li{margin-bottom:7px}
+.plain{background:var(--paper-2);padding:12px 14px;margin:14px 0;border-left:3px solid var(--moss)}
+.plain b{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--moss)}
+
+/* data blocks */
+.grid{display:grid;gap:20px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.card{border:1px solid var(--line);background:var(--paper-3);padding:20px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 8px;font-size:1.35rem}
+.card .num{font:700 3rem/1 var(--serif);color:var(--rust);display:block;margin-bottom:6px}
+.card .cap{font:600 11px/1.4 var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--ink-faint)}
+
+/* bar chart */
+.chart{border:1px solid var(--line);background:var(--paper-3);padding:24px;margin:24px 0}
+.chart h4{margin-top:0}
+.bar-row{display:grid;grid-template-columns:130px 1fr 42px;gap:12px;align-items:center;margin:11px 0;font:600 12px/1.2 var(--mono)}
+.bar-track{height:15px;background:var(--paper-2);border:1px solid var(--line)}
+.bar-fill{height:100%;background:var(--rust);display:block}
+.bar-fill.o{background:var(--ochre)}
+.bar-fill.m{background:var(--moss)}
+.chart .foot{font:11px/1.5 var(--mono);color:var(--ink-faint);margin-top:16px;border-top:1px dashed var(--line);padding-top:12px}
+
+/* timeline */
+.timeline{border-left:2px solid var(--line-strong);padding-left:24px;margin:26px 0 26px 8px}
+.tl-item{position:relative;margin-bottom:24px}
+.tl-item:before{content:"";position:absolute;left:-31px;top:7px;width:12px;height:12px;background:var(--rust);border:2px solid var(--paper);border-radius:50%}
+.tl-date{font:700 11px/1 var(--mono);letter-spacing:.1em;color:var(--rust);text-transform:uppercase}
+.tl-item p{margin:4px 0 0}
+
+/* table */
+.table-wrap{overflow-x:auto;margin:22px 0;border:1px solid var(--line);background:var(--paper-3)}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:14.5px}
+th,td{border-bottom:1px solid var(--line);padding:12px 14px;text-align:left;vertical-align:top}
+th{font:700 11px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.1em;background:var(--paper-2);color:var(--ink-soft)}
+tbody tr:hover{background:#f7f0e1}
+td b{color:var(--rust-dark)}
+
+/* flow diagram */
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:stretch;margin:26px 0}
+.flow .box{border:1.5px solid var(--ink);background:var(--paper-3);padding:14px 10px;text-align:center;font:700 12px/1.35 var(--mono);position:relative}
+.flow .box span{display:block;font:400 11px/1.4 var(--sans);margin-top:6px;color:var(--ink-soft)}
+.flow .arrow{display:flex;align-items:center;justify-content:center;font:700 22px var(--mono);color:var(--rust)}
+@media(max-width:860px){.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);height:28px}}
+
+/* doodle captions */
+.doodle{font:italic 15px/1.5 var(--serif);color:var(--ink-faint);margin:10px 0 20px}
+
+/* checklist */
+.check{list-style:none;padding:0;margin:18px 0}
+.check li{position:relative;padding:10px 0 10px 34px;border-bottom:1px dashed var(--line)}
+.check li:before{content:"□";position:absolute;left:4px;top:8px;font:20px var(--mono);color:var(--rust)}
+.check li.done:before{content:"✓";color:var(--moss)}
+.check li b{display:block}
+.check li span{font-size:14px;color:var(--ink-soft)}
+
+/* roadmap cards */
+.phase{border-top:6px solid var(--rust);background:var(--paper-3);border:1px solid var(--line);padding:22px}
+.phase.p2{border-top-color:var(--ochre)}
+.phase.p3{border-top-color:var(--moss)}
+.phase .pn{font:700 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+.phase h3{margin:8px 0 12px}
+.phase ul{padding-left:18px;font-size:14.5px}
+
+/* footer */
+footer{background:var(--ink);color:var(--paper-2);padding:60px 0 40px;margin-top:60px}
+footer h2{color:var(--paper-3);font-size:2rem}
+footer a{color:#e6b978}
+footer .fine{font:12px/1.7 var(--mono);color:#b8ad99;border-top:1px solid #4a4238;padding-top:18px;margin-top:28px}
+
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.progress{transition:none}}
+@media print{
+  .rail,.progress{display:none}
+  body{background:#fff}
+  .finding{break-inside:avoid}
+  main section{padding:34px 0}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#tldr">Skip to the report</a>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="masthead" id="top">
+  <div class="wrap">
+    <p class="kicker">Field notes · 18 November 2026 · read-only audit</p>
+    <h1>Lattice Gateway<em>The honest report.</em></h1>
+    <p class="deck">I read the code. All of it. Then I ran the tests, checked the git history, looked at what the dashboard actually serves, and went digging through three other open-source gateways. This is not a pitch deck. It is what is really happening, what is genuinely brilliant, what is quietly on fire, and what we could build if we stop patching symptoms.</p>
+    <p class="byline">Written for Aditya · by someone who cares enough to be blunt · no vibes, only evidence</p>
+    <div class="stamp" aria-hidden="true">Read the code<br>not the README</div>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Report sections">
+  <div class="wrap">
+    <a href="#tldr">TL;DR</a>
+    <a href="#product">The product</a>
+    <a href="#amazing">Amazingness</a>
+    <a href="#danger">Serious problems</a>
+    <a href="#drift">Drift</a>
+    <a href="#compare">The three rivals</a>
+    <a href="#unique">Uniqueness</a>
+    <a href="#coping">Coping</a>
+    <a href="#unbeatable">Unbeatable thesis</a>
+    <a href="#plan">Rescue plan</a>
+    <a href="#inventions">Coming inventions</a>
+    <a href="#dont">Do not do this</a>
+    <a href="#worklog">Work log</a>
+    <a href="#appendix">Evidence</a>
+  </div>
+</nav>
+
+<main>
+<!-- ============================================================ TLDR -->
+<section id="tldr">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">01</div><div>
+      <h2>The five-minute version</h2>
+      <p class="lede">You asked for the seriously bad things. So here they are first, in plain language, before any of the nice stuff.</p>
+    </div></div>
+
+    <div class="grid g4">
+      <div class="card"><span class="num">0</span><span class="cap">authentication checks on the admin API</span></div>
+      <div class="card"><span class="num">813,700</span><span class="cap">tokens the dashboard claims before one request is sent</span></div>
+      <div class="card"><span class="num">1</span><span class="cap">hardcoded Windows path to somebody else's database</span></div>
+      <div class="card"><span class="num">✗</span><span class="cap">typecheck currently passes</span></div>
+    </div>
+
+    <div class="note bad">
+      <span class="tag">The one-line truth</span>
+      <p><b>Lattice is a genuinely clever gateway wearing a costume made of hardcoded numbers.</b> The engine is better than it looks. The dashboard, the catalog and the telemetry are worse than they look. Right now the project is lying to you about its own health, and that is the most dangerous thing in the repo — worse than any single bug.</p>
+    </div>
+
+    <h3>The five things that actually hurt</h3>
+    <div class="finding" open>
+      <summary><span class="sev crit">Critical</span><span>Anyone who can reach the port owns the gateway — and the keys inside it</span></summary>
+      <div class="body">
+        <p>The admin routes have no login. CORS is <code>*</code> by default. The OAuth status endpoint hands back the <b>whole account object, refresh token included</b>. The "setup all harnesses" endpoint rewrites your Claude Code, Cursor, VS Code and Kilo config files. None of it asks who is calling.</p>
+        <div class="plain"><b>In plain English</b>Imagine your house has a front door with no lock, a sign saying "keys are in the drawer", and a button that lets a stranger rearrange your furniture. The locksmith is standing right there in the code — it just was not wired up yet.</div>
+        <p><b>Example:</b> a page you open in your browser can silently call <code>http://127.0.0.1:4000/api/accounts</code> and read the account list, or call <code>/api/harness/setup-all</code> and overwrite seven config files. No password needed.</p>
+        <p class="small mono">Evidence: src/core/config.ts:41 · src/admin/admin-router.ts:151-204, 567, 934-957</p>
+      </div>
+    </div>
+    <div class="finding">
+      <summary><span class="sev crit">Critical</span><span>The numbers on the dashboard are invented, not measured</span></summary>
+      <div class="body">
+        <p><code>globalTokenMetrics</code> is initialised with 524,300 prompt tokens, 289,400 completion tokens and 462 requests — before the gateway has served anything. The usage endpoints multiply those numbers by made-up factors. The log list ships four fake log rows when real logs are empty. There is even a "simulate" endpoint that injects fake traffic into the telemetry.</p>
+        <div class="plain"><b>In plain English</b>The speedometer is glued to a number someone typed in. It is not connected to the wheels. That feels nice for a screenshot and is poison for decisions.</div>
+        <p><b>Example:</b> fresh install, send zero requests, open <code>/api/telemetry</code>. It reports 813,700 tokens and a "money saved" figure. That is not a bug in the UI. It is the design.</p>
+        <p class="small mono">Evidence: src/admin/admin-router.ts:53-66, 997-1040, 1045-1174, 1189-1244</p>
+      </div>
+    </div>
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>"Zero-drop failover" stops working the moment a stream breaks</span></summary>
+      <div class="body">
+        <p>Before a stream starts, combos fail over properly. But once a stream is running, a mid-stream error is caught inside the generator and turned into a <code>stream_error</code> event. It does <b>not</b> try the next target. The promise in the README — transparent failover that does not break your IDE session — is only half true.</p>
+        <div class="plain"><b>In plain English</b>It can change trains before you board. It cannot rescue you when the train stops halfway.</div>
+        <p class="small mono">Evidence: src/plugins/combo.ts:276-299 (compare with the working pre-stream loop at 232-274)</p>
+      </div>
+    </div>
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>The launcher kills whatever is on port 4000. Not just Lattice. Whatever.</span></summary>
+      <div class="body">
+        <p>Both <code>start.bat</code> and <code>start.ps1</code> enumerate every process listening on 4000 and force-kill it. <code>src/index.ts</code> does the same on startup with a <code>netstat | findstr :4000</code> pipe. <code>findstr :4000</code> also matches <code>:40000</code>. No ownership check, no confirmation.</p>
+        <div class="plain"><b>In plain English</b>If some other tool is using that port, Lattice murders it and takes the seat. That is not "reclaiming a port". That is collateral damage.</div>
+        <p class="small mono">Evidence: start.bat:13-17 · start.ps1:12-23 · src/index.ts:83-95</p>
+      </div>
+    </div>
+    <div class="finding">
+      <summary><span class="sev crit">Critical</span><span>The whole "free" story stands on borrowed ground</span></summary>
+      <div class="body">
+        <p>The one-click sync reads <code>C:/Users/adity/AppData/Roaming/9router/db/data.sqlite</code> and <code>C:/Users/adity/Videos/cline-proxy-main/.../.cline-accounts.json</code> and imports access tokens and refresh tokens found there. The local store currently holds 12 accounts with plaintext <code>accessToken</code> fields. Some of those accounts have names that are not yours. <b>And the worst part: <code>data/lattice-store.json</code> is tracked by git, with full JWTs and refresh tokens, across 13 commits.</b> Every clone and every fork of this repo carries live credentials in its history.</p>
+        <div class="plain"><b>In plain English</b>This is the bit nobody writes in the README. A gateway that runs on other people's free-tier logins is not a product yet — it is a technique. And we published the keys to it. That is not a small oops; it needs token rotation and a history scrub, not just a <code>git rm</code>.</div>
+        <p><b>Example:</b> the test output printed account IDs like <code>acc_kilo_thelazzycoders_gmail_com</code> and <code>acc_nous_portal_local</code>. Those are real identities in your dev store, your test suite loads them on every run, and git has been keeping a copy since the first commit.</p>
+        <p class="small mono">Evidence: git ls-files data · git log -- data/lattice-store.json (13 commits) · src/pool/storage.ts:65-71 · src/admin/admin-router.ts:574-703</p>
+      </div>
+    </div>
+
+    <div class="sticky green">
+      But before you get sad: the core engine is actually good. The plugin seam is clean, the dialect work is real, and our take on context-aware combo routing does sharper token math than anything in the three rivals (9router has a broader capability-tier version, which we should borrow). We keep the engine. We throw away the costume.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ PRODUCT -->
+<section id="product">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">02</div><div>
+      <h2>What Lattice actually is</h2>
+      <p class="lede">Forget the markdown for a second. Here is the machine, described the way you would explain it to a friend who vibecodes.</p>
+    </div></div>
+
+    <p>Lattice is a <b>local switchboard for AI coding tools</b>. Claude Code, Cursor, Kilo, Roo, OpenCode — they all speak slightly different dialects of "give me a language model answer". Lattice sits in the middle, speaks all of them, and forwards each request to whichever upstream account is still alive. When one provider says "429, slow down", Lattice tries the next one. That is the whole idea, and it is a good idea.</p>
+
+    <div class="flow" role="img" aria-label="Request flow: coding tool, dialect normalizer, provider resolver, combo engine or plugin, upstream provider, streamed response">
+      <div class="box">Coding tool<span>Claude Code / Cursor / Roo</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="box">Dialect gate<span>OpenAI ⇄ Anthropic ⇄ Responses</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="box">Resolver + combos<span>pick a live target</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="box">Plugin + account pool<span>kilo / nous / cline / …</span></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="box">Upstream<span>SSE stream back to the tool</span></div>
+    </div>
+    <p class="doodle">← the arrows are the product. Everything else is furniture.</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <h3>The immutable core</h3>
+        <p>HTTP server (Hono on Bun), three ingress dialects, a canonical request/response shape, streaming adapters, an XML-tool-call interceptor, token counting, timeouts, error normalisation. This part is genuinely reusable.</p>
+        <p class="small mono">src/core/* · src/engine/dialect/* · src/utils/*</p>
+      </div>
+      <div class="card">
+        <h3>The plugin layer</h3>
+        <p>Seven plugins: Kilo, Nous, Cline, OpenCode, DeepSeek, FreeLLMAPI and the virtual-combo engine. Each implements one interface: list models, execute, executeStream, health check. Adding a provider should mean one new file.</p>
+        <p class="small mono">src/plugins/* · src/core/types/plugin.ts</p>
+      </div>
+      <div class="card">
+        <h3>The pool layer</h3>
+        <p>Accounts with round-robin, cooldown on 429, quota tracking, "retry-after" parsing (including natural language), a proxy pool, and virtual combos that chain targets in priority order.</p>
+        <p class="small mono">src/pool/*</p>
+      </div>
+      <div class="card">
+        <h3>The admin layer</h3>
+        <p>A large single-file dashboard with tabs for accounts, combos, models, quotas, logs, telemetry, harness setup and OAuth flows. Impressive volume. Currently also the source of most of the lies.</p>
+        <p class="small mono">src/admin/*</p>
+      </div>
+    </div>
+
+    <h3>Reproducible facts, not claims</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Check</th><th>What I ran</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Unit tests</td><td><code>bun test tests/unit</code></td><td>228 pass, 0 fail</td></tr>
+        <tr><td>Full suite</td><td><code>bun test</code></td><td>527 pass, 0 fail, 63 files</td></tr>
+        <tr><td>Typecheck</td><td><code>bun run typecheck</code></td><td><b>Fails</b> — 3 errors, all in <code>src/plugins/freellmapi.ts</code></td></tr>
+        <tr><td>README claim</td><td>README.md:111</td><td>"382 suites, 49 files" — stale; reality is 527 / 63</td></tr>
+        <tr><td>Uncommitted work</td><td><code>git diff --stat</code></td><td>27 files, +2,874 / −939 lines; 1 staged binary deletion</td></tr>
+        <tr><td>Persisted store</td><td><code>data/lattice-store.json</code></td><td>12 accounts, 3 combos, 0 proxies, plaintext tokens, 12,322 bytes</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">
+      <span class="tag">Read this twice</span>
+      <p>All 527 tests pass and the build still does not typecheck. Those are not contradictions — they tell you the tests exercise behaviour through HTTP while the TypeScript compiler is looking at a new plugin nobody finished typing. Green tests are necessary. They are not sufficient.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ AMAZING -->
+<section id="amazing">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">03</div><div>
+      <h2>The amazingness (yes, there is a lot)</h2>
+      <p class="lede">I am not here to dunk. Some of this is legitimately good engineering — measured against real competitors, a few pieces are better than what they ship.</p>
+    </div></div>
+
+    <div class="grid g2">
+      <div class="card">
+        <h3>1. The plugin seam is real</h3>
+        <p><code>ProviderPlugin</code> is a small, honest interface. The router does not know anything about Kilo cookies or Cline refresh tokens. That is the single best architectural decision in the repo, and it is why the project can still be saved without a rewrite.</p>
+      </div>
+      <div class="card">
+        <h3>2. Dialects are translated, not faked</h3>
+        <p>Normalizers and serializers for OpenAI Chat, Anthropic Messages and OpenAI Responses, plus SSE adapters that emit canonical events. Thinking deltas, tool calls and usage are first-class in the canonical type. Most small gateways just forward JSON and pray.</p>
+      </div>
+      <div class="card">
+        <h3>3. The XML tool interceptor</h3>
+        <p>Models that emit <code>&lt;tool_call&gt;&lt;function=…&gt;</code> as plain text get converted into real tool-call events mid-stream, with a 4 KB fail-safe flush and a partial-parse recovery at stream end. That is a gnarly problem solved properly.</p>
+        <p class="small mono">src/engine/dialect/xml-tool-interceptor.ts:120-295</p>
+      </div>
+      <div class="card">
+        <h3>4. Context-aware combo routing</h3>
+        <p>Combos do not just try the next provider. They estimate the prompt with a real BPE tokenizer, look up each target's context window, skip targets that cannot fit, clamp <code>max_tokens</code> to the headroom, and fall through on context-overflow errors. 9router has a broader capability-tier version; ours is the sharpest of the four on exact context-fit math. Keep that edge and add their capability scoring.</p>
+        <p class="small mono">src/plugins/combo.ts:100-209</p>
+      </div>
+      <div class="card">
+        <h3>5. Real token counting at the edge</h3>
+        <p><code>gpt-tokenizer</code> counts messages, system prompts, tool schemas and content parts before forwarding. Even with its rough image baseline, this is more rigorous than "characters divided by four".</p>
+      </div>
+      <div class="card">
+        <h3>6. Harness auto-configuration</h3>
+        <p>One API call writes correct provider blocks into seven different coding tools, with timestamped backups. It is a genuinely lovely onboarding trick. It just needs a lock and a confirmation dialog before it earns its place.</p>
+      </div>
+      <div class="card">
+        <h3>7. The test matrix is unusually serious</h3>
+        <p>527 tests across 63 files, with tiers for boundary cases, combinations, and real IDE-shaped scenarios (Cursor loop, Claude Code thinking + tools, XML recovery, 429 marathon). The tests are better than the product around them.</p>
+      </div>
+      <div class="card">
+        <h3>8. The idle-timeout wrapper</h3>
+        <p>Races upstream <code>iterator.next()</code> against idle and total-request deadlines, cleans up listeners and closes the iterator in <code>finally</code>. Small, careful, correct. This is the standard the rest of the repo should be held to.</p>
+      </div>
+      <div class="card">
+        <h3>9. Intra-model rotation</h3>
+        <p>On a 401/429, Kilo and Nous do not just jump providers — they retry the <i>same</i> model with the next account in the pool, updating cooldown state. The mock-upstream tests actually exercise it. This is subtly different from cross-provider failover, and it is the right first move for keeping a session coherent.</p>
+        <p class="small mono">src/plugins/kilo.ts:717-1008 · tests/unit/intra-model-rotation.test.ts</p>
+      </div>
+    </div>
+
+    <div class="sticky">
+      The engine is the asset. Keep it. Everything else in this report is about giving the engine an honest body.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ DANGER -->
+<section id="danger">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">04</div><div>
+      <h2>The things harming us now, and the things that will harm us later</h2>
+      <p class="lede">Grouped by "how much it will hurt". Open any card for the plain-English version and the exact line to look at.</p>
+    </div></div>
+
+    <div class="chart" role="img" aria-label="Bar chart of findings by area: security 11, correctness 15, honesty and data 9, portability and operations 7, legal and trust 3">
+      <h4>Where the bodies are buried <span class="small mono">(my count from this read — a human tally, not a scanner score)</span></h4>
+      <div class="bar-row"><span>Security</span><span class="bar-track"><span class="bar-fill" style="width:73%"></span></span><span>11</span></div>
+      <div class="bar-row"><span>Correctness</span><span class="bar-track"><span class="bar-fill" style="width:100%"></span></span><span>15</span></div>
+      <div class="bar-row"><span>Honesty / data</span><span class="bar-track"><span class="bar-fill o" style="width:60%"></span></span><span>9</span></div>
+      <div class="bar-row"><span>Portability / ops</span><span class="bar-track"><span class="bar-fill m" style="width:47%"></span></span><span>7</span></div>
+      <div class="bar-row"><span>Legal / trust</span><span class="bar-track"><span class="bar-fill m" style="width:20%"></span></span><span>3</span></div>
+      <p class="foot">Counts include the findings in this section. "Correctness" is high because several features only work on the happy path. "Honesty" is a real category — see the fake telemetry above.</p>
+    </div>
+
+    <h3>Security &amp; trust boundary</h3>
+
+    <div class="finding">
+      <summary><span class="sev crit">Critical</span><span>No authentication on ingress or admin</span></summary>
+      <div class="body">
+        <p>No API key check on <code>/v1/*</code>. No session or token check on <code>/admin</code> or <code>/api/*</code>. CORS defaults to <code>*</code> and <code>allowHeaders: ['*']</code>. Binding defaults to loopback, which helps, but browser-based DNS rebinding and any machine on the same network when host is changed both walk straight in.</p>
+        <div class="plain"><b>In plain English</b>The dashboard and the credential drawer use the same lock: none.</div>
+        <p class="small mono">src/core/config.ts:41 · src/core/server.ts:53-63 · src/core/router.ts:56-57</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev crit">Critical</span><span>OAuth status leaks full credentials</span></summary>
+      <div class="body">
+        <p><code>/api/oauth/status</code> returns <code>account: session.account</code>, a complete <code>StoredAccount</code> including <code>accessToken</code> / <code>refreshToken</code>. Session IDs are <code>oauth_&lt;provider&gt;_&lt;timestamp&gt;</code> — guessable if you know roughly when someone logged in. Nothing cleans up old sessions.</p>
+        <div class="plain"><b>In plain English</b>The "are we there yet?" endpoint also hands over the house keys and never forgets a conversation.</div>
+        <p class="small mono">src/admin/admin-router.ts:69-84, 554-569</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev crit">Critical</span><span>Secrets sit in plaintext and writes are not atomic</span></summary>
+      <div class="body">
+        <p><code>save()</code> uses synchronous <code>writeFileSync</code> to one JSON file with no temp-file-and-rename, no file mode restriction, and no encryption. Every admin mutation calls it. Two concurrent mutations can interleave. Worse: the file is <b>already tracked in git</b>, containing full JWTs and refresh tokens across 13 commits. Deleting it now does not remove it from history — that needs rotation plus a history scrub. Note the inconsistency: <code>harness-manager.ts:58-60</code> gets atomic tmp-write-and-rename right, the credential store does not.</p>
+        <div class="plain"><b>In plain English</b>All the keys live in one unlocked notebook, two people writing in it at once can tear the page, and somebody already photocopied the notebook into thirteen public snapshots.</div>
+        <p class="small mono">src/pool/storage.ts:62-74 · git ls-files data · harness-manager.ts:58-60</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Hardcoded API key in source</span></summary>
+      <div class="body">
+        <p><code>FREELLMAPI_DEFAULT_KEY</code> is a literal string in <code>src/plugins/freellmapi.ts:19-21</code>. If it is real, it is already public. If it is not real, it is still teaching the wrong habit. The harness configs also hardcode <code>sk-lattice-master</code> into seven tools — a token the gateway never actually checks.</p>
+        <div class="plain"><b>In plain English</b>A key typed into source code is not a secret. It is a sticker on the window.</div>
+        <p class="small mono">src/plugins/freellmapi.ts:18-21 · src/admin/harness-manager.ts:366-624</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Unauthenticated endpoints rewrite your other tools' config</span></summary>
+      <div class="body">
+        <p><code>/api/harness/setup</code> and <code>/api/harness/setup-all</code> call <code>configureHarness</code>, which overwrites <code>~/.claude/settings.json</code>, VS Code <code>settings.json</code>, Cursor settings, OpenCode config, Kilo config, Gemini and Crush config. Backups are made, which is kind, but there is no confirmation, no diff preview and no caller check.</p>
+        <div class="plain"><b>In plain English</b>The helpful button is also a loaded gun. Point it at the wrong request and it rewrites your editor for you.</div>
+        <p class="small mono">src/admin/admin-router.ts:934-957 · src/admin/harness-manager.ts:661-693</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Uncaught errors leak their message to the client</span></summary>
+      <div class="body">
+        <p>The global error handler puts <code>err.message</code> into the 500 response. Upstream fetch errors can include URLs, query strings and headers. A stack-free leak is still a leak.</p>
+        <div class="plain"><b>In plain English</b>When something breaks, the gateway tells the caller exactly how it broke, including details meant for you only.</div>
+        <p class="small mono">src/core/server.ts:87-95</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>Probe endpoints can spend your credentials</span></summary>
+      <div class="body">
+        <p><code>/api/models/probe</code> and <code>/api/models/:id/test</code> accept an arbitrary model and prompt and send a real upstream request with stored credentials. Unauthenticated, that is a free inference proxy for anyone who can reach the port. The "authentic measurement" shown in the model catalog is also <code>Math.random()</code> latency, not a probe.</p>
+        <p class="small mono">src/admin/admin-router.ts:905-920 · src/admin/models-catalog.ts:1261-1271</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>SSRF: anyone can point a provider at an internal address</span></summary>
+      <div class="body">
+        <p>Unauthenticated <code>POST /api/accounts</code> accepts any <code>credentials</code> object, including a custom <code>baseUrl</code>. The OpenCode plugin uses that URL directly for every upstream fetch and returns the response body to the caller. A cross-origin page can set <code>baseUrl</code> to <code>http://169.254.169.254/</code> (cloud metadata), to an internal service, or back to <code>http://127.0.0.1:4000/admin</code>, then send a chat request through that "provider" and read what comes back.</p>
+        <div class="plain"><b>In plain English</b>The attacker does not need to break in. They just fill in the "where should this provider send traffic?" box with an address only you can reach, and ask Lattice to fetch it for them.</div>
+        <p class="small mono">src/admin/admin-router.ts:174-204 · src/plugins/opencode.ts:448-453, 515-534</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Stored XSS in the admin dashboard</span></summary>
+      <div class="body">
+        <p>The account table interpolates <code>a.id</code>, <code>a.providerId</code>, email, apiKey and accessToken straight into <code>tbody.innerHTML</code>. Since account creation is unauthenticated, an attacker can plant a crafted id or email that executes script in the admin origin. From there every control API is reachable. The whole UI is one inline script with no Content-Security-Policy, so there is no second line of defence.</p>
+        <div class="plain"><b>In plain English</b>Someone can write a poisoned name into the address book that, when you open the dashboard, runs their code as if you had typed it.</div>
+        <p class="small mono">src/admin/dashboard-ui.ts:2760-2775, 3849 · src/admin/admin-router.ts:174-204</p>
+      </div>
+    </div>
+
+    <h3>Correctness &amp; behaviour</h3>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Failover gives up when a stream dies halfway</span></summary>
+      <div class="body">
+        <p>The streaming combo loop returns a generator. Inside it, a thrown stream error is converted to a <code>stream_error</code> event rather than rethrown, so the outer <code>for (const target of combo.targets)</code> loop can never see it. No second target is tried. The non-streaming path does fail over correctly.</p>
+        <div class="plain"><b>In plain English</b>Failover works at the starting line, not at the finish line. Agents stream. This matters.</div>
+        <p class="small mono">src/plugins/combo.ts:276-299</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Token usage is charged to the wrong account</span></summary>
+      <div class="body">
+        <p><code>recordProviderUsage</code> attributes usage to the active account with the newest <code>lastUsedAt</code> — but <code>getNextRotatedAccount</code> also writes <code>lastUsedAt</code> at <i>selection</i> time, and concurrent requests share that field. Under rotation or load, quota and token numbers drift away from the account that actually did the work. The streaming path logs <code>status: 200</code> in <code>finally</code> even when the stream failed or timed out.</p>
+        <div class="plain"><b>In plain English</b>The accountant charges the receipt to whoever touched the pen last, not who bought the thing.</div>
+        <p class="small mono">src/pool/account-pool.ts:106-117, 360-386 · src/core/router.ts:293-312, 418-437</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Disabling a plugin does not fully disable it</span></summary>
+      <div class="body">
+        <p>The router's <code>resolveProvider</code> checks only <code>plugins.has(providerId)</code>, not <code>isEnabled()</code>. Combo resolution has a similar split: prefix resolution uses <code>registry.has()</code> while the catalog fallback uses <code>getEnabled()</code>. The admin toggle therefore changes badges, not always behaviour. The existing model audit also verified that turning every plugin off still returns all 64 catalog entries.</p>
+        <div class="plain"><b>In plain English</b>The on/off switch is connected to a light bulb, not to the machine.</div>
+        <p class="small mono">src/core/router.ts:181-199 · src/utils/model-resolver.ts:50-69 · crush_model_report.md:92</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span><code>/v1/responses</code> never streams</span></summary>
+      <div class="body">
+        <p>The Responses route always calls <code>provider.execute</code> and returns one JSON object. If a client sends <code>stream: true</code>, it gets a single blob. The other two dialects have full SSE pipelines.</p>
+        <div class="plain"><b>In plain English</b>One of the three advertised front doors is boarded up.</div>
+        <p class="small mono">src/core/router.ts:461-503</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>Context windows are guessed from model names</span></summary>
+      <div class="body">
+        <p><code>getModelContextWindow</code> falls back to string matching: if the model id contains <code>1m</code>, <code>opus</code>, <code>sonnet</code>, <code>ernie-5.5</code>, <code>ling-3.2</code> and so on, it claims 1,048,576 tokens. Routing decisions — which target to skip, how much to clamp <code>max_tokens</code> — are made from that guess.</p>
+        <div class="plain"><b>In plain English</b>The router decides how much luggage fits by reading the label on the suitcase, not by measuring it.</div>
+        <p class="small mono">src/plugins/combo.ts:58-75</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>One plugin means any model routes anywhere</span></summary>
+      <div class="body">
+        <p>If exactly one plugin is registered, <code>resolveProvider</code> returns it for every model without checking its catalog. Convenient for the mock-provider tests, surprising in a real single-provider deployment.</p>
+        <p class="small mono">src/core/router.ts:156-160</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>Catalog cache is stale for 60 seconds</span></summary>
+      <div class="body">
+        <p><code>getModelPluginMap</code> caches for 60s and swallows per-plugin failures. A newly added account or a temporarily failing plugin can leave a model unroutable (or wrongly mapped) until the cache expires. Bare-name aliases are inserted only when unambiguous at build time — but later plugins can overwrite them.</p>
+        <p class="small mono">src/core/router.ts:86-121</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Non-streaming requests have no deadline at all</span></summary>
+      <div class="body">
+        <p>Only streams get <code>withIdleTimeout</code>. All three <code>provider.execute()</code> calls are bare awaits. A hung upstream holds the request until Bun's socket idle timeout (255s), and under load that exhausts connections. A configuration key called <code>requestTimeoutMs</code> exists but is never applied here.</p>
+        <div class="plain"><b>In plain English</b>Streams have a watchdog. Normal requests have a wish.</div>
+        <p class="small mono">src/core/router.ts:235, 360, 482 · src/index.ts:73</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>"Retry-After" as a date poisons an account forever</span></summary>
+      <div class="body">
+        <p>RFC 7231 allows <code>Retry-After</code> to be either seconds or an HTTP date. Kilo and Nous parse it with <code>Number(header || 10)</code>. On a date, <code>Number('Wed, 18 Nov 2026 ...')</code> is <code>NaN</code>, so <code>cooldownUntil = NaN</code>. Every auto-heal comparison against <code>now</code> is then false, so the account sits in cooldown permanently until someone resets it by hand. The pool quietly shrinks.</p>
+        <div class="plain"><b>In plain English</b>One provider writes the "come back at 3pm" format instead of "wait 30 seconds", and Lattice puts that account to sleep forever.</div>
+        <p class="small mono">src/plugins/kilo.ts:773-776 · src/plugins/nous.ts:751, 859 · src/pool/account-pool.ts:50, 86, 258</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>Aborted streams leak upstream connections</span></summary>
+      <div class="body">
+        <p><code>parseSSEStream</code> calls <code>reader.releaseLock()</code> in <code>finally</code> but never <code>reader.cancel()</code>. The idle wrapper calls <code>iterator.return?.()</code> but does not abort the underlying <code>Response.body</code>, and the SSE parser is called without the abort signal. A client disconnect or 504 leaves upstream bodies open. Buffers and sockets accumulate under churn.</p>
+        <div class="plain"><b>In plain English</b>When you hang up, the gateway keeps the other phone off the hook. Do it a thousand times and the switchboard is full of dead calls.</div>
+        <p class="small mono">src/utils/sse-parser.ts:127-129 · src/utils/idle-timeout.ts:119-127 · src/engine/dialect/stream-adapter.ts:266-269</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>Two registries, three resolvers, one duplicate combo plugin</span></summary>
+      <div class="body">
+        <p>The router resolves through the startup <code>plugins</code> Map; the combo engine resolves through <code>globalPluginRegistry</code>. Separately, the admin router registers a second <code>LatticeComboPlugin</code> under key <code>lattice-combo</code> while its own <code>.id</code> is <code>lattice</code>. Result: duplicate catalog entries, toggle state applied to one registry but not the other, and three different answers to "which plugin serves this model?".</p>
+        <div class="plain"><b>In plain English</b>There are three filing cabinets with slightly different copies of the same address book. Nobody knows which one the postman reads.</div>
+        <p class="small mono">src/index.ts:27, 45 · src/admin/admin-router.ts:142-144 · src/core/router.ts:144 · src/utils/model-resolver.ts:50 · src/plugins/combo.ts:35</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>Runtime cooldown/quota state vanishes on restart</span></summary>
+      <div class="body">
+        <p><code>reportRateLimit()</code> and <code>recordTokenUsage()</code> mutate in-memory state. <code>globalStorage.save()</code> is called only from admin mutations, never from the request path. Restart the gateway and rate-limited accounts wake up active and get hammered again, while persisted <code>quotaRemaining</code> stays stale.</p>
+        <div class="plain"><b>In plain English</b>The memory of who was tired is forgotten every time you turn the machine off, so the gateway immediately makes them work again.</div>
+        <p class="small mono">src/pool/account-pool.ts:141-162, 331-386 · src/pool/storage.ts</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>No request body limit; double load at startup</span></summary>
+      <div class="body">
+        <p>Zod validation happens only after the entire JSON body is buffered, with no <code>Content-Length</code> cap — a single large base64-image request can exhaust memory. Separately, the store is loaded twice (constructor plus explicit call in <code>index.ts</code>), and <code>addAccount</code> overwrites <code>updatedAt</code> on every load. Two smaller wastes: an unused <code>estimatePromptTokens</code> import in the router, and a <code>TransformStream</code> constructed then thrown away on every request because only its <code>.transform()</code> generator is used.</p>
+        <div class="plain"><b>In plain English</b>Anybody can hand the gateway an enormous suitcase and it will try to carry it. Meanwhile it reads the same notebook twice on purpose.</div>
+        <p class="small mono">src/core/router.ts:217, 342, 466 · src/pool/storage.ts:23 · src/index.ts:18 · src/engine/dialect/xml-tool-interceptor.ts:337</p>
+      </div>
+    </div>
+
+    <h3>Portability, operations &amp; honesty</h3>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Personal paths and personal accounts baked into the product</span></summary>
+      <div class="body">
+        <p>Two absolute <code>C:/Users/adity/...</code> paths in the sync endpoint. The store has 12 accounts including emails that are not yours. Test runs print those identities to the console. For an open-source project this is both broken (sync does nothing on anyone else's machine) and a privacy problem.</p>
+        <div class="plain"><b>In plain English</b>The "one-click import" button is wired to one specific laptop. On yours it is a decorative button. On that laptop it is a data vacuum.</div>
+        <p class="small mono">src/admin/admin-router.ts:579, 656</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>Binaries, stale docs and broken typecheck</span></summary>
+      <div class="body">
+        <p><code>bin/lattice.exe</code> is staged for deletion while <code>lattice.exe</code> sits at the root. README says 382 tests / 49 files; reality is 527 / 63. <code>bun run typecheck</code> fails on the new FreeLLMAPI plugin (missing <code>checkedAt</code>, wrong stream event type). The dashboard is a ~95 KB inline script inside a TypeScript template literal — a single mis-escaped quote kills every button, which is why a special guard test exists.</p>
+        <div class="plain"><b>In plain English</b>The map is older than the territory, and the smoke alarm is taped to the wall on purpose because it keeps going off.</div>
+        <p class="small mono">package.json:13-16 · README.md:111 · TEST_INFRA.md:110-116 · tsc output</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>FreeLLMAPI is a hard local dependency with a fake catalogue</span></summary>
+      <div class="body">
+        <p>The plugin defaults to <code>http://127.0.0.1:31415/v1</code>. If that app is not running, the plugin falls back to seven hardcoded model descriptors that claim 1M context and <code>isFree: true</code> regardless of reality. Its streaming path emits fallback usage numbers (15 prompt / 20 completion) when upstream gives none. Combo targets include those descriptors.</p>
+        <div class="plain"><b>In plain English</b>A core part of the "1M free" promise is a placeholder that pretends to be a live provider when the real one is asleep. Meanwhile the real upstream project (53,958 stars) ships AES-256-GCM encrypted keys, in-flight quota leases to fix race conditions, an Ed25519-signed model catalog, and honest "available: false" flags. We copied its endpoint and its key format. We did not copy any of the engineering that makes it work.</div>
+        <p class="small mono">src/plugins/freellmapi.ts:18-21, 83-226, 308-311, 435-443 · upstream: github.com/tashfeenahmed/freellmapi</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev med">Medium</span><span>The catalog drifts away from reality</span></summary>
+      <div class="body">
+        <p>An existing audit in the repo (<code>crush_model_report.md</code>) found 6 phantom models in <code>/api/models</code> that no serving plugin can handle, 21 entries counted as free that are not, hardcoded dashboard numbers ("6 with 1M context" when the API has 15), and 36 Crush entries whose context window is an invented default. That audit is dated 17 Nov 2026 — yesterday.</p>
+        <div class="plain"><b>In plain English</b>The shop window lists six items the kitchen cannot cook, and the price tags are guessed.</div>
+        <p class="small mono">crush_model_report.md:9, 88-100</p>
+      </div>
+    </div>
+
+    <div class="finding">
+      <summary><span class="sev high">High</span><span>Two advertised features do not exist in the code</span></summary>
+      <div class="body">
+        <p>README promises "egress proxy rotation" and "uTLS Bun ClientHello". There is no <code>dispatcher</code> or <code>ProxyAgent</code> anywhere in <code>src/</code>: <code>ProxyPoolManager.getNextProxy()</code> has no consumer, so stored proxies are displayed and saved but never used by a single fetch. Grep for uTLS / ClientHello returns nothing. These are not "partially implemented" — they are vapour in the feature table.</p>
+        <div class="plain"><b>In plain English</b>Two rows in the brochure describe features that were never wired up. If someone installs Lattice expecting them, they get nothing. Delete the rows or build the features — but do not leave them there.</div>
+        <p class="small mono">README.md:10, 28, 56 · src/pool/proxy-pool.ts:38-45 · grep: no uTLS/ClientHello in src/</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ DRIFT -->
+<section id="drift">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">05</div><div>
+      <h2>Drift: how a good engine ended up wearing a costume</h2>
+      <p class="lede">I read the git log like a doctor reads a temperature chart. The pattern is not random. It is the pattern of building fast and then patching the cracks with more paint.</p>
+    </div></div>
+
+    <div class="timeline">
+      <div class="tl-item"><div class="tl-date">17 Nov 2026 · 00:06</div><p><b>"resolve opencode multi-turn serialization, restore 9router-style providers view with authentic logos, and ensure standalone independence."</b> Three different concerns in one commit: a routing fix, a UI imitation and a packaging goal. That is drift in a single sentence.</p></div>
+      <div class="tl-item"><div class="tl-date">Earlier that day</div><p>"audit context windows, free providers catalog, token usage and quota tracker views" — adds views. The audit itself later lands in <code>crush_model_report.md</code> saying the numbers are stale.</p></div>
+      <div class="tl-item"><div class="tl-date">A few commits back</div><p>"resolve in-browser script parse SyntaxError and verify UI in headless Edge", then "resolve JS syntax errors in client template string preventing tab and modal clicks", then "true SPA tab navigation" and "bulletproof event delegation". Four commits fixing the same fragile 95 KB inline script. Symptom, symptom, symptom, symptom.</p></div>
+      <div class="tl-item"><div class="tl-date">More recent history</div><p>"complete human-engineered UI rebuild, free models explorer &amp; 1-click harness setup" — a lot of surface area, built while the core still had no auth and no real telemetry.</p></div>
+      <div class="tl-item"><div class="tl-date">Right now</div><p>27 modified files, +2,874 / −939 lines uncommitted. New files include a token estimator, idle timeout, intra-model rotation tests and a FreeLLMAPI plugin that does not typecheck. The work is good. The integration is unfinished.</p></div>
+    </div>
+
+    <p class="doodle">Two extra tells: the README still advertises proxy rotation and uTLS, neither of which exists in <code>src/</code>. And one of the 527 tests asserts that the account-creation endpoint returns the full credentials — the leak is not just untested, it is <i>locked in</i> by a passing test.</p>
+
+    <h3>The drift loop, drawn honestly</h3>
+    <div class="chart" role="img" aria-label="A cycle diagram in words: build a feature, fake the data for the demo, ship a screenshot, discover drift, patch the UI instead of the source">
+      <div class="grid g4">
+        <div class="card"><span class="cap">1 · Build</span><h3>A real engine feature</h3><p class="small">Combos, dialects, pool. Usually solid.</p></div>
+        <div class="card"><span class="cap">2 · Decor</span><h3>Hardcode a demo number</h3><p class="small">"6 models", "813,700 tokens", 0.36 provider shares.</p></div>
+        <div class="card"><span class="cap">3 · Drift</span><h3>Reality moves on</h3><p class="small">Providers change, catalog grows, numbers rot.</p></div>
+        <div class="card"><span class="cap">4 · Patch</span><h3>Fix the label, not the source</h3><p class="small">Another syntax fix, another UI rebuild.</p></div>
+      </div>
+      <p class="foot">The exit from this loop is not "more discipline". It is making the UI derive every number from a measured source so lying becomes structurally impossible.</p>
+    </div>
+
+    <div class="note bad">
+      <span class="tag">The uncomfortable sentence</span>
+      <p>The most damaging line of code in this repository is not a bug. It is the initialiser at <code>src/admin/admin-router.ts:53-66</code> that writes fake telemetry into global state at startup. It taught the whole dashboard to lie, and every "fix" since has been decorating the lie.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ COMPARE -->
+<section id="compare">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">06</div><div>
+      <h2>9router, Cline-proxy, FreeLLMAPI: what we actually learned</h2>
+      <p class="lede">I did not guess. I searched their repos, cloned the code, read the source, the docs and the issue trackers, then compared all of it with what is sitting in our own tree. Here is what is real.</p>
+    </div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Project</th><th>Stars / forks</th><th>Stack</th><th>Last push</th><th>License</th><th>What it really is</th></tr></thead>
+      <tbody>
+        <tr><td><b><a href="https://github.com/decolua/9router">decolua/9router</a></b> <span class="cap">canonical</span></td><td>32,562 / 6,377</td><td>JavaScript / Next.js</td><td>16 Nov 2026</td><td>MIT</td><td>The 800-pound gorilla. Local gateway + dashboard, 40+ providers, 3-tier fallback, 1,986 files, <b>2,864 open issues</b>.</td></tr>
+        <tr><td><b><a href="https://github.com/YangYuHou/Cline-proxy">YangYuHou/Cline-proxy</a></b> <span class="cap">frozen</span></td><td>217 / 91</td><td>Go</td><td>10 Aug 2026</td><td><b>None</b></td><td>The one we import from. Cline account pool + OpenCode Zen free models, Chinese admin panel. Popular, unmaintained, no license.</td></tr>
+        <tr><td><b><a href="https://github.com/foxy1402/cline-proxy">foxy1402/cline-proxy</a></b> <span class="cap">hardened fork</span></td><td>9 / 3</td><td>Go</td><td>11 Nov 2026</td><td>None</td><td>Same idea, grown-up engineering: auth, egress pinning, combos, a dated bug ledger. The most useful one to study.</td></tr>
+        <tr><td><b><a href="https://github.com/jacek4yang/cline-proxy">jacek4yang/cline-proxy</a></b> <span class="cap">Rust rewrite</span></td><td>9 / 2</td><td>Rust</td><td>3 Nov 2026</td><td>None</td><td>Correctness obsessive. Sticky pools, effective-429-only switching, persisted cooldowns, cache-locality work, ADRs.</td></tr>
+        <tr><td><b><a href="https://github.com/tashfeenahmed/freellmapi">tashfeenahmed/freellmapi</a></b> <span class="cap">canonical</span></td><td>53,958 / 7,587</td><td>TypeScript / Electron</td><td>17 Nov 2026</td><td>MIT <span class="cap">(feed paid)</span></td><td>Not a provider — a local router with 87 sources, signed catalog, encrypted keys, real rate-limit ledgers. Our plugin targets its port 31415.</td></tr>
+        <tr><td><b>Lattice Gateway</b> <span class="cap">ours</span></td><td>—</td><td>TypeScript / Bun</td><td>17 Nov 2026</td><td>MIT</td><td>Plugin-based gateway with the best dialect layer of the four and the worst relationship with its own data.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Also in the wild: <a href="https://github.com/Thinker-Joe/cline-pin-proxy">Thinker-Joe/cline-pin-proxy</a>, <a href="https://github.com/DDG0808/Cline-Proxy">DDG0808/Cline-Proxy</a>, <a href="https://github.com/luqman-v1/9router-go">9router-go</a> (301★), <a href="https://github.com/yanstd888/9routerx">9routerx</a> (249★). The star counts above are from the live GitHub API during this audit; they move.</p>
+
+    <h3>What each one does that we should be doing</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>From</th><th>The idea</th><th>Code / proof</th><th>Why it beats our version</th></tr></thead>
+      <tbody>
+        <tr><td><b>9router</b></td><td>Credential fault <i>vs</i> request-scoped failure. A context-overflow 400 must not cool a healthy account; per-model lock keys, exponential backoff, reset on success.</td><td><a href="https://github.com/decolua/9router/blob/master/open-sse/services/accountFallback.js">accountFallback.js</a></td><td>Our pool has one <code>reportRateLimit</code> for everything and a date-format bug that freezes accounts forever.</td></tr>
+        <tr><td><b>9router</b></td><td>Capability-tiered combo ordering: scan only the trailing user turn for media needs, stable-sort targets into tiers, sticky round-robin, and detect an empty 2xx SSE stream then replay a buffered stream before falling through.</td><td><a href="https://github.com/decolua/9router/blob/master/open-sse/services/combo.js">combo.js</a>, <code>emptyFailover.js</code></td><td>Our combos have priority order and context fit, but a "successful" empty stream is treated as success.</td></tr>
+        <tr><td><b>9router</b></td><td>Fail-open token compression applied <i>before</i> translation: five payload shapes, never return empty, never grow the input, preserve error tool results.</td><td><a href="https://github.com/decolua/9router/blob/master/open-sse/rtk/index.js">rtk/index.js</a></td><td>We count tokens after translation and do nothing about payload bloat.</td></tr>
+        <tr><td><b>9router</b></td><td>Proactive, deduplicated OAuth refresh with per-credential locks; stale-age rules (Codex 8 days).</td><td><a href="https://github.com/decolua/9router/blob/master/open-sse/services/oauthCredentialManager.js">oauthCredentialManager.js</a></td><td>Our OAuth device flow is fire-and-forget with sessions that never expire.</td></tr>
+        <tr><td><b>Cline-proxy</b> <span class="cap">(Rust)</span></td><td>Only an <b>effective upstream 429</b> may switch keys. Bounded body inspection; number "429" in prose does not count; no retry after SSE starts.</td><td><a href="https://github.com/jacek4yang/cline-proxy">README §565-611</a></td><td>Our "zero-drop failover" can repeat a tool call after a stream breaks — a correctness bug, not just a UX bug.</td></tr>
+        <tr><td><b>Cline-proxy</b> <span class="cap">(hardened fork)</span></td><td>One egress proxy pinned per identity, persisted as a truncated SHA-256, skip surplus identities when proxies run out, no direct fallback; and a bounded <code>max429KeySwitches = 4</code> fan-out budget.</td><td><a href="https://github.com/foxy1402/cline-proxy">egress.go</a>, <code>zen.go:90-96</code>, <code>TODO.md</code></td><td>Our proxy pool is a stub nobody calls; our failover has no switch budget.</td></tr>
+        <tr><td><b>Cline-proxy</b> <span class="cap">(hardened fork)</span></td><td>Fail-closed secrets: an unreadable <code>ADMIN_PASSWORD_FILE</code> becomes an unmatchable random sentinel, never <code>""</code>. HMAC admin sessions, login rate limit, TLS timeouts.</td><td><a href="https://github.com/foxy1402/cline-proxy">admin_auth.go</a>, <code>config.go:221-242</code></td><td>Our gateway has no auth and wildcard CORS.</td></tr>
+        <tr><td><b>FreeLLMAPI</b></td><td>In-flight quota leases: usage is written after the call, so concurrent requests would all read the same pre-check; leases make caller #2 see caller #1. Account-wide caps across all models, UTC-midnight windows.</td><td><a href="https://github.com/tashfeenahmed/freellmapi/blob/main/server/src/services/ratelimit.ts">ratelimit.ts:60-160, 582-625</a></td><td>Our usage attribution picks "most recently touched account" — the exact race they fixed.</td></tr>
+        <tr><td><b>FreeLLMAPI</b></td><td>Ed25519-signed model catalog with pinned key, 12-hour refresh, tier lag. AES-256-GCM keys in SQLite, key file separate at 0600, pinned 16-byte auth tag, wrong-key probe, ≤4-char masking.</td><td><a href="https://github.com/tashfeenahmed/freellmapi/blob/main/server/src/services/catalog-sync.ts">catalog-sync.ts</a>, <a href="https://github.com/tashfeenahmed/freellmapi/blob/main/server/src/lib/crypto.ts">crypto.ts</a></td><td>We ship seven fake descriptors and a plaintext JSON keyring committed to git.</td></tr>
+        <tr><td><b>FreeLLMAPI</b></td><td>Keyless sentinel auto-enable: a fresh install enables only no-key providers actually present in the signed catalog, and respects removals.</td><td><a href="https://github.com/tashfeenahmed/freellmapi/blob/main/server/src/services/keyless-defaults.ts">keyless-defaults.ts:72-100</a></td><td>Our "free models" list is hardcoded and drifts by the day.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>The worst of each — the things we must not inherit</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Project</th><th>The rot</th><th>Proof</th></tr></thead>
+      <tbody>
+        <tr><td><b>9router</b></td><td>Upstream churn treadmill. OpenCode Zen policy changes break it repeatedly; some issues conclude "no header/session fix can pass the gate" because the gate checks request origin. 2,864 open issues. Hardcoded 20s/30s timeouts that kill reasoning models before first token, with 85% of a reporter's errors being connect timeouts.</td><td><a href="https://github.com/decolua/9router/issues/4983">#4983</a>, <a href="https://github.com/decolua/9router/issues/4781">#4781</a>, <a href="https://github.com/decolua/9router/issues/1692">#1692</a></td></tr>
+        <tr><td><b>9router</b></td><td>Default password <code>123456</code>, plaintext provider secrets in <code>db.json</code>, optional cloud sync that uploads keys, MITM tooling, fingerprint/anti-ban arms race.</td><td><code>src/app/api/auth/login/route.js</code>, <a href="https://github.com/decolua/9router/blob/master/docs/ARCHITECTURE.md">ARCHITECTURE.md</a></td></tr>
+        <tr><td><b>YangYuHou/Cline-proxy</b></td><td>Open <code>/admin/api/*</code> with CORS <code>*</code> and an endpoint that exports every account's refresh token. Default bind <code>0.0.0.0:3457</code>. "API Key: any value". Silent unknown-model substitution. No license, frozen since August.</td><td><code>admin.go:1033-1051</code>, <code>proxy.go:326-330</code>, <a href="https://github.com/YangYuHou/Cline-proxy/issues/14">#14</a>, <a href="https://github.com/YangYuHou/Cline-proxy/issues/8">#8</a></td></tr>
+        <tr><td><b>Cline forks</b></td><td>Even the good forks document self-inflicted bugs: unbounded retry delay overflowing into a hot loop, sleeping while holding a semaphore, UTF-8 runes split at byte 2048, response bodies leaked, truncation dropping the newest turn. Pinning is admittedly unreliable on several models.</td><td><a href="https://github.com/foxy1402/cline-proxy/blob/main/TODO.md">foxy1402 TODO.md</a>, <a href="https://github.com/Thinker-Joe/cline-pin-proxy/blob/main/docs/CODE_REVIEW.md">CODE_REVIEW.md:185-194</a></td></tr>
+        <tr><td><b>FreeLLMAPI</b></td><td>Free catalog omitted providers so 29 healthy keys were permanently unroutable; Cloudflare benching burned 9,393 of 9,000 estimated neurons from 8 chat calls when GraphQL reconciliation silently failed; embeddings path had zero rate limiting; unsigned Windows installer blocked by Smart App Control. 47 open issues, one maintainer, "hobby project".</td><td><a href="https://github.com/tashfeenahmed/freellmapi/issues/1887">#1887</a>, <a href="https://github.com/tashfeenahmed/freellmapi/pull/1984">PR #1984</a>, <a href="https://github.com/tashfeenahmed/freellmapi/issues/1967">#1967</a></td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note bad">
+      <span class="tag">The pattern you cannot ignore</span>
+      <p>All four projects are built on the same fragile foundation: undocumented private APIs and other people's free-tier quotas. Every one of them is fighting the same churn — 9router has 2,864 open issues about it, the Cline forks keep a dated bug ledger about it, FreeLLMAPI's own SECURITY.md calls itself a hobby project, and our last commit message says "restore 9router-style providers view". <b>This is not a category with a winner yet. Whoever stops depending on the churn wins the category.</b> That is the real opening for Lattice — not another provider row.</p>
+    </div>
+
+    <h3>Where we actually stand</h3>
+    <div class="chart" role="img" aria-label="Qualitative comparison: Lattice leads on dialect design and plugin seam, trails on secret handling, quota rigor, catalog integrity and operational discipline">
+      <div class="bar-row"><span>Dialect design</span><span class="bar-track"><span class="bar-fill m" style="width:95%"></span></span><span>A+</span></div>
+      <div class="bar-row"><span>Plugin seam</span><span class="bar-track"><span class="bar-fill m" style="width:90%"></span></span><span>A</span></div>
+      <div class="bar-row"><span>Context-aware routing</span><span class="bar-track"><span class="bar-fill m" style="width:82%"></span></span><span>A−</span></div>
+      <div class="bar-row"><span>Test breadth</span><span class="bar-track"><span class="bar-fill o" style="width:78%"></span></span><span>B+</span></div>
+      <div class="bar-row"><span>Catalog integrity</span><span class="bar-track"><span class="bar-fill" style="width:30%"></span></span><span>D</span></div>
+      <div class="bar-row"><span>Quota / lease rigor</span><span class="bar-track"><span class="bar-fill" style="width:25%"></span></span><span>D</span></div>
+      <div class="bar-row"><span>Secret handling</span><span class="bar-track"><span class="bar-fill" style="width:12%"></span></span><span>F</span></div>
+      <div class="bar-row"><span>Operational honesty</span><span class="bar-track"><span class="bar-fill" style="width:10%"></span></span><span>F</span></div>
+      <p class="foot">My subjective read from the code, not a benchmark. The four rows at the bottom are fixable in weeks — they are decisions, not research problems. The three at the top are the asset; protect them.</p>
+    </div>
+
+    <div class="note good">
+      <span class="tag">Legal footnote, please read</span>
+      <p>The two big Cline-proxy repos and the Rust fork have <b>no license at all</b>. Learn from them; do not copy their source. 9router and FreeLLMAPI are MIT, but FreeLLMAPI's live catalog feed is a paid service and its docs say "personal experimentation only". Reimplement the ideas in our own TypeScript, keep attribution in comments where ideas came from, and never vendored-copy code from an unlicensed repo. That is both the ethical and the boringly correct move.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ UNIQUE -->
+<section id="unique">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">07</div><div>
+      <h2>Uniqueness: what we invent vs what we copy</h2>
+      <p class="lede">You asked me not to pretend. So: most of the individual pieces exist elsewhere. The combination, done properly, could still be new.</p>
+    </div></div>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>Thing</th><th>Where it really comes from</th><th>What Lattice adds</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Multi-account pool + 429 cooldown</td><td>Standard in every proxy gateway; we literally import from 9router and Cline-proxy stores</td><td>Quota window reset, natural-language retry-after parsing, depth health</td><td><b>Borrowed, extended</b></td></tr>
+        <tr><td>Free-model catalog</td><td>Others aggregate provider catalogs far more completely (the local audit measured 22% coverage in one config)</td><td>Context window metadata and combo-aware probing</td><td><b>Behind</b></td></tr>
+        <tr><td>OAuth device login</td><td>Borrowed flow shape from Cline / Kilo / Nous ecosystems</td><td>One-click UX in a single dashboard</td><td><b>Borrowed, nicer UI</b></td></tr>
+        <tr><td>Dialect translation</td><td>Every serious gateway has some version</td><td>Canonical event model + XML tool interception + Anthropic SSE block state machine</td><td><b>Genuinely strong</b></td></tr>
+        <tr><td>Context-aware combo routing</td><td>9router has capability-tiered combo ordering + empty-stream failover; I was wrong to call this unique</td><td>Real BPE tokenizer, per-target context lookup, <code>max_tokens</code> clamping, differentiated context-overflow errors</td><td><b>Deeper on context math, not unique</b></td></tr>
+        <tr><td>Intra-model account rotation</td><td>Account pools exist elsewhere, but usually only as "next provider"</td><td>Retry the same model with the next account before changing models — exactly what session continuity needs</td><td><b>Ours, extend it</b></td></tr>
+        <tr><td>Egress proxy rotation / uTLS</td><td>Others really do have these</td><td>Currently README-only: no dispatcher in src, no uTLS code</td><td><b>Build or delete</b></td></tr>
+        <tr><td>Harness auto-config</td><td>Nobody else wires seven tools in one click, as far as the code shows</td><td>Backup-first config merge</td><td><b>Nice, needs safety</b></td></tr>
+        <tr><td>Telemetry dashboard</td><td>Others show real counters</td><td>Currently fabricated</td><td><b>Liability, not invention</b></td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="sticky warm">
+      Stop trying to win on "we have more providers". That is a race to the bottom and you will lose it to projects with more maintainers. Win on <b>truth, continuity and measurement</b>. Nobody else is doing those properly.
+    </div>
+
+    <h3>The three things that are actually ours to own</h3>
+    <div class="grid g3">
+      <div class="card"><span class="num">01</span><h3>Capability over name</h3><p>Route by what a model can actually do, measured locally, not by the label it ships with. Turn the context-window guessing in <code>combo.ts</code> into a general "model passport" system.</p></div>
+      <div class="card"><span class="num">02</span><h3>Session continuity</h3><p>Pin an agent to one model for a whole task. Only fail over at a turn boundary, with an explicit handoff. Directly answers your "not a different model every message" requirement.</p></div>
+      <div class="card"><span class="num">03</span><h3>Proof, not dashboards</h3><p>Signed receipts per request: which account served it, which model answered, real tokens, real latency. Make the honest number the default by construction.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ COPING -->
+<section id="coping">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">08</div><div>
+      <h2>Coping: the band-aids the project uses to survive</h2>
+      <p class="lede">Every codebase has coping mechanisms. Here are ours, what they are protecting us from, and the adult version of each.</p>
+    </div></div>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>The coping move</th><th>What it is really saying</th><th>Healthy replacement</th></tr></thead>
+      <tbody>
+        <tr><td>Hardcode a number in the UI ("6 with 1M", "31 Free")</td><td>"I don't trust the catalog to be right right now."</td><td>Derive from probed catalog; show "unknown" honestly when a probe has not run.</td></tr>
+        <tr><td>Seed telemetry with fake totals</td><td>"An empty dashboard looks broken to a viewer."</td><td>Empty states with real copy: "No requests yet. Send one."</td></tr>
+        <tr><td>Four commits fixing inline script quotes</td><td>"This 95 KB string is not a safe way to ship a UI."</td><td>Extract to a real .js file served as a static asset; keep one compile-time guard test.</td></tr>
+        <tr><td>Kill whatever holds port 4000</td><td>"Startup keeps failing and I need it to just work."</td><td>Detect, tell the user who owns the port, offer a choice, default to a free port.</td></tr>
+        <tr><td>Fallback model descriptors when upstream is offline</td><td>"The combo list must never look empty."</td><td>Mark targets offline, surface them as unavailable, and remove them from routing until probed healthy.</td></tr>
+        <tr><td>Fallback usage numbers (10/15/25)</td><td>"A request without usage looks like zero."</td><td>Use our own tokenizer estimate, clearly labelled <code>estimated: true</code>.</td></tr>
+        <tr><td>Advertise proxy rotation and uTLS</td><td>"The feature table should look complete."</td><td>Delete the rows until the code exists. A shorter honest table beats a longer fictional one.</td></tr>
+        <tr><td>Test asserts the secret-returning response</td><td>"The API returns the account, so the test checks the account."</td><td>Assert that secrets are <i>absent</i>. A test that enshrines a leak is a guard dog guarding the thief.</td></tr>
+        <tr><td>Sync from somebody else's local DB</td><td>"Manual account setup is painful."</td><td>Import with explicit consent, show a diff, redact by default, store in an OS keychain.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="doodle">Coping is not failure. It is information. Each band-aid is telling you exactly where to build the real fix.</p>
+  </div>
+</section>
+
+<!-- ============================================================ UNBEATABLE -->
+<section id="unbeatable">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">09</div><div>
+      <h2>The unbeatable thesis</h2>
+      <p class="lede">You said: no hundreds of providers, no roulette where every message goes to a different model. Good. That constraint is the strategy. Here is the thing I would actually try to build.</p>
+    </div></div>
+
+    <div class="note good">
+      <span class="tag">The one-sentence product</span>
+      <p><b>Lattice is the gateway that tells the truth about models and keeps an agent on one model until it is safe to move.</b> Everything else is in service of that sentence.</p>
+    </div>
+
+    <h3>The four pillars</h3>
+    <div class="grid g2">
+      <div class="card"><h3>1. The model passport</h3><p>On first use — and on a schedule — send a tiny standard probe to every target: tool calling, structured JSON, thinking, image input, a 32K and a 200Kcontext stretch. Store a signed passport: <code>measured_context</code>, <code>tool_accuracy</code>, <code>json_validity</code>, <code>ttft</code>, <code>stream_stability</code>. Routing reads the passport, never the marketing name. The existing context-window lookup becomes the first, crude version of this. Prior art to build on: 9router's capability-tier ordering and FreeLLMAPI's signed catalog — combine them, then add our tokenizer-driven context fit and per-model scores. That combination is the new part.</p></div>
+      <div class="card"><h3>2. Session continuity with safe handoff</h3><p>A task gets pinned to one provider + model + account. On a 429, first rotate accounts <i>within</i> the same model. Only at a turn boundary do you consider another model, and when you must, Lattice writes a short structured handoff summary into the conversation so the new model continues the same mind. No mid-sentence jumps, no personality whiplash. Bonus from the Rust Cline proxy: derive a stable task id from an HMAC of session + chosen key and canonicalise tool-argument JSON, so long contexts keep their prompt-cache hits (that project measured 99.8–100% on a ~300K-token session). Continuity and cache locality are the same idea.</p></div>
+      <div class="card"><h3>3. The receipt ledger</h3><p>Every request produces a small append-only record: request id, chosen target, actual account (hashed), real tokens, latency, outcome, failover events. Hash-chain them so they cannot be quietly edited. The dashboard reads only the ledger. Fake telemetry becomes impossible because there is no other source to read.</p></div>
+      <div class="card"><h3>4. The dialect conformance suite as a public good</h3><p>Publish the canonical translator as a standalone library with a public conformance page: "here are 200 real Anthropic/OpenAI edge cases and how we translate each." If Claude Code, Roo and Cursor behave correctly through Lattice and break through others, developers will pick Lattice for the translator alone. That is a moat you can ship.</p></div>
+    </div>
+
+    <div class="sticky green">
+      Notice what is missing from this plan: "add 100 providers". A passport makes any provider plug in correctly. Twenty well-measured providers beat two hundred unmeasured ones.
+    </div>
+
+    <h3>What "unbeatable" would actually mean</h3>
+    <p>Not "most stars". Not "most models". It means: a developer installs Lattice once, points seven tools at it, and <b>never has to think about it again</b>. When something breaks, they get a receipt that explains why, a fallback that preserved their session, and a fix that arrives before they notice. That is the bar. It is hard. It is possible. It will not be done in one night — and that is fine.</p>
+  </div>
+</section>
+
+<!-- ============================================================ PLAN -->
+<section id="plan">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">10</div><div>
+      <h2>The rescue plan, in the order I would actually do it</h2>
+      <p class="lede">No redesign. No rewrite. Just a sequence where each step makes the next one safer. Tick boxes for the vibecoder in all of us.</p>
+    </div></div>
+
+    <h3>Phase A — stop the bleeding (days 1–7)</h3>
+    <div class="phase">
+      <ul class="check">
+        <li class="done"><b>Read this report and keep the engine</b><span>Done. Do not start a rewrite. The core is worth keeping.</span></li>
+        <li><b>Rotate every token in the store, untrack it, scrub history</b><span><code>data/lattice-store.json</code> has live credentials in 13 commits. Rotate first, then <code>git rm --cached</code>, add to <code>.gitignore</code>, and run <code>git filter-repo</code>. A plain delete leaves the keys in history. Nothing else in Phase A matters if this is skipped.</span></li>
+        <li><b>Put a lock on the door</b><span>One gateway token checked on both <code>/v1/*</code> and <code>/api/*</code>. Admin gets its own secret. CORS stops being <code>*</code>. Accept <code>Origin</code> only from the dashboard you serve.</span></li>
+        <li><b>Stop leaking the keys</b><span>Redact <code>session.account</code> in <code>/api/oauth/status</code>. Session ids become random UUIDs with expiry and cleanup.</span></li>
+        <li><b>Delete the fake telemetry</b><span>Remove the seeded numbers, the simulate endpoint, the multiplied stats, the fake log rows. Empty means empty. This will feel like the dashboard got worse. It got honest.</span></li>
+        <li><b>Stop killing strangers</b><span>Launchers check process identity or simply choose the next free port and tell the user. Remove the <code>findstr :4000</code> taskkill.</span></li>
+        <li><b>Make typecheck green</b><span>Fix the three FreeLLMAPI errors: add <code>checkedAt</code>, align stream event types. Add <code>bun run typecheck</code> to <code>verify</code> (it is already there — make CI actually run it).</span></li>
+      </ul>
+    </div>
+
+    <h3>Phase B — make the numbers true (weeks 2–6)</h3>
+    <div class="phase p2">
+      <ul class="check">
+        <li><b>Ledger v1</b><span>Append-only NDJSON of real requests, real outcomes, real token estimates labelled as estimates. Dashboard reads only this.</span></li>
+        <li><b>Quota attribution fix with in-flight leases</b><span>Pass the chosen account id through the canonical request; charge usage to that id. Borrow the upstream FreeLLMAPI idea of provisional leases: a concurrent request must see the previous request's reserved quota before it picks an account, otherwise both pick the same "most recent" one. Keep a per-provider aggregate as a separate truth.</span></li>
+        <li><b>Catalog from probes, not literals</b><span>Build <code>/v1/models</code> and <code>/api/models</code> from live plugin catalogs plus probe results. Remove phantom models or mark them unavailable. Delete the hardcoded "6" and "31" labels.</span></li>
+        <li><b>Mid-stream failover, properly — and only on effective 429</b><span>A stream that dies before any content token was emitted can be retried on the next target. After content was emitted, hand off explicitly with a summary — never silently switch. Borrow the Rust Cline proxy's discipline: only an actual upstream 429 (or a bounded, explicit wrapper with rate-limit semantics) may switch accounts. A generic 5xx, a network blip or the number "429" appearing in prose must not — otherwise the agent repeats a tool call or file edit and corrupts state.</span></li>
+        <li><b>Account health state machine with persisted cooldowns</b><span>Healthy → Cooling → HalfOpen, keyed by account name (not array index), wall-clock deadlines, atomic temp-write + rename, debounced off the request path, secrets never written, corrupted file non-fatal. Right now a restart wakes every tired account and a date-format Retry-After freezes one forever.</span></li>
+        <li><b>Secrets into an OS keychain</b><span>Windows Credential Manager / macOS Keychain / libsecret. Keep the JSON file only as a non-secret cache with mode 0600 and atomic rename.</span></li>
+        <li><b>Consentful import</b><span>Replace the hardcoded <code>C:/Users/adity/...</code> paths with a user-picked file or a discovered path, show a diff, redact emails by default.</span></li>
+        <li><b>Security regression tests that assert absence</b><span>Cross-origin request rejected; no secret in any response; XSS payload in an account id stays text; <code>baseUrl</code> allow-list rejects link-local; a store crash mid-write leaves the old file intact. Today zero of the 527 tests check any of this, and one of them asserts the leaking behaviour is correct.</span></li>
+        <li><b>Wire the proxy pool — but pin, don't rotate</b><span>A dispatcher on every upstream fetch, or delete "egress proxy rotation" from the README today. Same for uTLS. If you build it, copy the better design from the hardened Cline fork: one egress proxy pinned per account identity, persisted as a truncated hash, skip surplus identities when proxies run out, never fall back to direct. Their upstream started flagging keys seen from multiple IPs; per-request rotation got the whole pool marked. Also parse both forms of <code>Retry-After</code>, cap request bodies, and apply deadlines to non-streaming calls.</span></li>
+      </ul>
+    </div>
+
+    <h3>Phase C — build the moat (weeks 7–16 and beyond)</h3>
+    <div class="phase p3">
+      <ul class="check">
+        <li><b>Model passport v1</b><span>Turn <code>getModelContextWindow</code> from name-guessing into measured capability records. Publish them in the admin UI as evidence, not claims.</span></li>
+        <li><b>Capability-tiered combos + empty-stream detection</b><span>Stable-sort targets into tiers by measured capability, scan only the trailing user turn for media needs, and treat a 200 with an empty SSE body as a failure worth replaying a buffered stream for — both straight from 9router's playbook.</span></li>
+        <li><b>Session continuity</b><span>Pin + rotate within model + handoff at turn boundary. Add tests that assert the model id never changes mid-turn.</span></li>
+        <li><b>Dialect conformance suite</b><span>Publish 200+ translation cases with a public results page. Make it the reason people install Lattice.</span></li>
+        <li><b><code>/v1/responses</code> streaming</b><span>Close the one boarded-up door so all three dialects are equal citizens.</span></li>
+        <li><b>Receipts become a CLI</b><span><code>lattice why &lt;request-id&gt;</code> explains exactly what happened. This is the feature people will screenshot.</span></li>
+        <li><b>Open-source the honest parts first</b><span>Release the ledger format and the conformance suite before the whole gateway. Trust arrives before adoption.</span></li>
+      </ul>
+    </div>
+
+    <div class="note">
+      <span class="tag">Definition of done for Phase A</span>
+      <p>A fresh clone, on a fresh machine, with no personal paths and no credentials, starts, typechecks, passes all tests, shows zero tokens in the dashboard until you send a request, and cannot be controlled by a web page you happen to visit. That is a real v1.0.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ INVENTIONS -->
+<section id="inventions">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">11</div><div>
+      <h2>Coming inventions: the stuff that should blow minds</h2>
+      <p class="lede">Not today's roadmap. These are the "maybe we fail, but if we don't, nobody has this" ideas. I will tell you which are plausible and which are wild.</p>
+    </div></div>
+
+    <div class="grid g2">
+      <div class="card"><h3>A. The flight recorder</h3><p><span class="cap">Plausible · high value</span><br>Every canonical event for every request is stored, replayable against any plugin. A bug report becomes "here is the exact stream, run it again". Debugging agent failures stops being archaeology.</p></div>
+      <div class="card"><h3>B. Quota as a scheduler</h3><p><span class="cap">Plausible · genuinely new</span><br>Treat accounts, quotas and reset times like a compute cluster. Ask for "a 400K-token task finishing in 10 minutes" and Lattice reserves capacity across providers, with an ETA and a plan. Nothing else does this.</p></div>
+      <div class="card"><h3>C. Consentful quota commons</h3><p><span class="cap">Wild · ethically important</span><br>Instead of silently importing other people's accounts, build an opt-in protocol: I share my spare quota, I see exactly who used it, I can revoke instantly, and the gateway gives me credit when mine is used. Turns the current legal liability into a feature.</p></div>
+      <div class="card"><h3>D. The gateway as a test harness</h3><p><span class="cap">Plausible · developer magnet</span><br>Point a model at Lattice, run "conformance", get a scorecard of tools, JSON, thinking, streaming and context. Vendors would run it. Your scores become the reference everyone cites.</p></div>
+      <div class="card"><h3>E. A tiny DSL for combos</h3><p><span class="cap">Plausible · power-user lock-in</span><br>Today combos are a flat array. A small language — <code>prefer model where json_valid &gt; 0.9 within 400ms else …</code> — makes routing programmable. Ship it with a visual editor in the dashboard.</p></div>
+      <div class="card"><h3>F. Local model mesh</h3><p><span class="cap">Wild · long horizon</span><br>Let Lattice route part of a task to a small local model for the boring 80% and a frontier model only where the passport says it is needed — with continuity preserved by the handoff layer. Privacy plus cost, without model roulette.</p></div>
+      <div class="card"><h3>G. Compaction as a first-class gateway service</h3><p><span class="cap">Plausible · borrow and improve</span><br>The Go Cline proxy ported an anchored summary template (Objective / Important Details / Work State / Next Move / Relevant Files) from the official client. Move that into Lattice: when a context fills up, compact at the gateway with a deterministic template, persist the summary, and keep the last N messages verbatim. Threshold should be <code>context − max(output, 80000)</code>, because some clients cap input at 128K and never trigger compaction with the naive formula. This makes handoff between models actually work.</p></div>
+    </div>
+
+    <div class="sticky warm">
+      Pick one. Not six. If I had to choose, it is C paired with B: make the sharing honest, then schedule it like a cluster. That is a company, not just a repo.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ DONT -->
+<section id="dont">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">12</div><div>
+      <h2>What I would explicitly not do</h2>
+      <p class="lede">Anti-roadmap. The things that feel like progress and are not.</p>
+    </div></div>
+    <ul class="check">
+      <li><b>Add hundreds of providers</b><span>It dilutes the one advantage you have: measurement depth. Twenty measured providers beat two hundred decorative ones.</span></li>
+      <li><b>Switch model on every message</b><span>You already said no. Encode it as a rule in code, not a preference in a README.</span></li>
+      <li><b>Polish the dashboard while the core lies</b><span>A prettier fake speedometer is still a fake speedometer.</span></li>
+      <li><b>Another inline-script syntax rescue</b><span>Extract the script. Stop paying the same tax four times.</span></li>
+      <li><b>Commit the binary or the store</b><span>One is a release artifact, the other is a keyring. Neither belongs in git.</span></li>
+      <li><b>Call a technique a product</b><span>"Free because we found accounts" is a demo trick. Say what it is, get consent, or replace it.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ WORK LOG -->
+<section id="worklog">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">14</div><div>
+      <h2>Work log — what got fixed after this report</h2>
+      <p class="lede">The report was the diagnosis. This is the treatment, written after the fact so the diagnosis does not pretend the patient is still sick.</p>
+    </div></div>
+
+    <div class="note good">
+      <span class="tag">Status: Phase A + B + Phase C1 shipped</span>
+      <p>The rescue and all seven moat increments were implemented test-first in the working tree. Latest full run: <b>662 tests pass, 0 fail, 81 files</b>. No commits were made — the pre-existing uncommitted work is untouched.</p>
+    </div>
+
+    <h3>Phase A — stop the bleeding</h3>
+    <ul class="check">
+      <li class="done"><b>Credentials out of git</b><span>Store untracked and ignored; <code>SECURITY.md</code> documents rotate → untrack → scrub. Provider-side rotation is still yours to do.</span></li>
+      <li class="done"><b>Control plane locked</b><span>Gateway + admin bearer tokens generated at startup, dashboard prompts for its token, CORS locked to loopback, foreign Origin rejected.</span></li>
+      <li class="done"><b>Credential leaks closed</b><span><code>/api/accounts</code> and OAuth status return no credentials; session ids are random UUIDs with expiry.</span></li>
+      <li class="done"><b>No more process murder</b><span>All taskkill / Stop-Process / netstat killing removed.</span></li>
+      <li class="done"><b>Typecheck green</b><span>FreeLLMAPI canonical stream events fixed, with a permanent compile-guard test.</span></li>
+      <li class="done"><b>SSRF + XSS closed</b><span>Upstream baseUrl allow-list; dashboard account and quota fields escaped.</span></li>
+    </ul>
+
+    <h3>Phase B — make the numbers true</h3>
+    <ul class="check">
+      <li class="done"><b>Fabricated telemetry deleted</b><span>Seeded counters, simulated telemetry, fake logs, multiplier stats and random probe measurements are gone. A model with no real health check now says "not measured".</span></li>
+      <li class="done"><b>Real request ledger</b><span>Append-only NDJSON at <code>data/request-ledger.ndjson</code> is the single source for telemetry, usage stats, provider breakdowns and logs. Edge-inferred numbers are labelled <code>estimated</code>.</span></li>
+      <li class="done"><b>Honest outcomes</b><span>Failed streams carry their real status instead of 200; quota is not charged for failed requests.</span></li>
+      <li class="done"><b>Correctness fixes</b><span>Retry-After accepts HTTP dates, non-streaming calls get deadlines, oversized bodies get 413, disabled plugins stop serving traffic.</span></li>
+      <li class="done"><b>Honest failover</b><span>A stream that fails before content is emitted retries the next target; after content it reports an error and stops instead of silently switching models. Target switches are bounded.</span></li>
+      <li class="done"><b>Vapourware claims removed</b><span>Proxy rotation and uTLS deleted from the README until the code exists.</span></li>
+    </ul>
+
+    <h3>Phase C1 — make the catalogue prove what it knows</h3>
+    <ul class="check">
+      <li class="done"><b>Signed model passports</b><span>Every observed descriptor becomes a deterministic Ed25519-signed record with its evidence source intact. The signature proves integrity, not provider truth.</span></li>
+      <li class="done"><b>Unknown means unknown</b><span>Newly discovered models no longer inherit invented 128k context or 8k output defaults. Legacy hand-maintained rows are visibly marked unverified until observed.</span></li>
+      <li class="done"><b>Real, consentful probes</b><span>A probe executes only the model the operator selected, caps output at one token, records availability and latency only, sanitizes failures, and may consume provider quota. Nothing probes providers at startup or in tests.</span></li>
+      <li class="done"><b>Passports guide context fit</b><span>Combo routing prefers a valid passport context claim, ignores tampered records, then falls back to a live descriptor and compatibility heuristics.</span></li>
+    </ul>
+
+    <h3>Phase C2 — continuity without hidden memory</h3>
+    <ul class="check">
+      <li class="done"><b>Opt-in session pinning</b><span><code>x-lattice-session</code> is hashed immediately; the gateway stores no raw session id, prompt, message, or tool payload.</span></li>
+      <li class="done"><b>Cache-local target continuity</b><span>Repeated turns try the successful combo target first. Separate sessions keep separate pins, and configured combo order is never mutated.</span></li>
+      <li class="done"><b>Account before model rotation</b><span>Kilo, Nous, Cline and DeepSeek prefer the session's healthy account, rotate within that provider/model when needed, then repin the successful account.</span></li>
+      <li class="done"><b>Bounded and disposable</b><span>Affinity is memory-only, expires after 30 idle minutes, and is capped at 10,000 sessions. Restarting the gateway clears it.</span></li>
+      <li class="done"><b>No stitched turns</b><span>Pre-content stream failure may repin a fallback; after content begins, Lattice reports the failure and does not switch models.</span></li>
+    </ul>
+
+    <h3>Phase C3 — a public dialect truth table</h3>
+    <ul class="check">
+      <li class="done"><b>Executable public fixtures</b><span>OpenAI Chat, Anthropic Messages and OpenAI Responses requests run through the real normalizers and serializers with literal semantic expectations.</span></li>
+      <li class="done"><b>Streaming checked honestly</b><span>Chat and Messages SSE event semantics are exercised; Responses streaming is explicitly reported unsupported instead of receiving a fake pass.</span></li>
+      <li class="done"><b>Deterministic evidence</b><span><code>bun run conformance</code> writes stable machine-readable results to <code>conformance/results.json</code> without provider calls.</span></li>
+    </ul>
+
+    <h3>Phase C4 — no more silent sync</h3>
+    <ul class="check">
+      <li class="done"><b>Hardcoded paths deleted</b><span>The old <code>sync-local</code> endpoint read two personal absolute paths and embedded email addresses in account IDs. It is removed entirely.</span></li>
+      <li class="done"><b>Consent before import</b><span>An operator supplies an explicit export path. Preview returns only provider names, a count, and a 60-second token; no token, email, or raw account ID is exposed.</span></li>
+      <li class="done"><b>Opaque identities and separated secrets</b><span>Imported accounts get random IDs and their secrets go to a dedicated 0600 file with an honest <code>file-fallback</code> availability label.</span></li>
+      <li class="done"><b>Single-use, digest-bound confirmation</b><span>A tampered, reused, or expired token cannot import. A behavioral test proves an unsafe <code>baseUrl</code> in an export cannot become an account credential.</span></li>
+    </ul>
+    <h3>Phase C5 — imported accounts actually work</h3>
+    <ul class="check">
+      <li class="done"><b>One credential seam</b><span>A single resolver overlays secret-store values onto account credentials at each plugin read site. The account object is never mutated, so secrets cannot leak back into the tracked-format store.</span></li>
+      <li class="done"><b>Imported accounts are live</b><span>Kilo, Nous, Cline, DeepSeek, OpenCode and FreeLLMAPI all resolve credentials through the store for <code>acc_import_</code> accounts. An end-to-end test proves a store-only apiKey reaches the outbound Authorization header.</span></li>
+      <li class="done"><b>Refresh writes through</b><span>Cline and Nous token refreshes update the secret store, so a refreshed token is never shadowed by the old one.</span></li>
+    </ul>
+    <h3>Phase C6 — secrets in the operating system, not a file</h3>
+    <ul class="check">
+      <li class="done"><b>Real OS backends</b><span>Windows DPAPI, macOS Keychain and Linux libsecret sit behind the same <code>SecretStore</code> interface. The Windows path encrypts secrets for the current user account via PowerShell <code>ProtectedData</code>.</span></li>
+      <li class="done"><b>No fake labels</b><span>A backend is reported as <code>keychain</code> or <code>os-dpapi</code> only after a probe passes. Any failure falls back to the 0600 file and reports <code>file-fallback</code>.</span></li>
+      <li class="done"><b>Lazy and opt-in</b><span>No OS command runs at import time. The OS backend activates only with <code>LATTICE_SECRET_BACKEND=keychain</code>; the availability probe is cached so the admin endpoint does not spawn processes per request.</span></li>
+    </ul>
+    <h3>Phase C7 — the passports learn from reality</h3>
+    <ul class="check">
+      <li class="done"><b>Passive measurement</b><span>A real tool call, thinking block, accepted stream, or context-overflow error upgrades a claim from <code>declared</code> to <code>measured</code> in the signed record. No extra provider call is made.</span></li>
+      <li class="done"><b>No false negatives</b><span>Absence of a tool call is never recorded as "tools unsupported". Only positive evidence and conservative overflow bounds become claims.</span></li>
+      <li class="done"><b>Stable under load</b><span>Identical observations are deduplicated, and catalogue refreshes cannot downgrade measured evidence. The global store keeps independent instances per data directory.</span></li>
+    </ul>
+    <p class="small">Still deferred: effective-429-only account rotation. Ordinary accounts keep reading their own credentials unchanged; only imported accounts use the secret-store overlay.</p>
+  </div>
+</section>
+
+<!-- ============================================================ APPENDIX -->
+<section id="appendix">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">13</div><div>
+      <h2>Evidence index &amp; honesty about limits</h2>
+      <p class="lede">So you can check every claim in ten seconds instead of trusting me.</p>
+    </div></div>
+
+    <h3>Commands I actually ran</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Command</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr><td><code>bun run typecheck</code></td><td>FAILED — <code>src/plugins/freellmapi.ts:242,248,386</code></td></tr>
+        <tr><td><code>bun test tests/unit</code></td><td>228 pass / 0 fail</td></tr>
+        <tr><td><code>bun test</code></td><td>527 pass / 0 fail / 63 files</td></tr>
+        <tr><td><code>git log --oneline -15</code></td><td>commit subjects quoted in the Drift section</td></tr>
+        <tr><td><code>git diff --stat</code></td><td>27 files, +2,874 / −939</td></tr>
+        <tr><td><code>git status --short</code></td><td>1 staged binary deletion (<code>bin/lattice.exe</code>), many untracked utils/tests/plugins</td></tr>
+        <tr><td>store shape check</td><td>12 accounts, 3 combos, 0 proxies, plaintext <code>accessToken</code></td></tr>
+        <tr><td><code>git ls-files data</code> + <code>git log -- data/lattice-store.json</code></td><td>store is TRACKED; 13 commits containing live credentials</td></tr>
+        <tr><td><code>grep -r dispatcher|ProxyAgent|uTLS src/</code></td><td>no proxy dispatcher, no uTLS implementation</td></tr>
+        <tr><td><code>bun scripts/check-dashboard.mjs</code></td><td>OK — script parses (parse-only, does not execute UI)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Files I read closely</h3>
+    <p class="small mono">src/index.ts · src/core/{server,router,config}.ts · src/core/types/* · src/engine/dialect/* · src/pool/{account-pool,combos,proxy-pool,storage}.ts · src/plugins/{combo,freellmapi,registry}.ts · src/admin/{admin-router,harness-manager}.ts · src/utils/{model-resolver,token-counter,idle-timeout}.ts · package.json · README.md · TEST_INFRA.md · crush_model_report.md · start.bat · start.ps1 · data/lattice-store.json (shape only)</p>
+
+    <h3>What I could not fully verify</h3>
+    <div class="note">
+      <span class="tag">Limits, stated plainly</span>
+      <p>Cloudflare's browser search hit a rate limit during the live upstream model check, so the model-id verification in the existing <code>crush_model_report.md</code> is relied upon rather than independently re-run here. I did not send live requests to any provider account, did not rotate or spend any real quota, and did not open the 9router SQLite database directly — the comparison of that project comes from reading its public repository and from the import code in our own tree. No secrets, tokens or emails are reproduced in this report.</p>
+    </div>
+
+    <h3>One last thing</h3>
+    <p class="lede" style="border-left:4px solid var(--rust);padding-left:18px">You asked whether this can become the best open-source gateway. Yes. Not by being louder or bigger. By being the one gateway whose numbers you can trust, whose sessions stay coherent, and whose receipts explain themselves. The engine is already 60% of the way there. The remaining 40% is not glamorous — it is locks, ledgers and honesty. Do that, and the "crazy" inventions stop being crazy.</p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <h2>Read the code. Fix the lies. Keep the engine.</h2>
+    <p>Report generated as a read-only audit. No source files were changed, no credentials were used, no providers were billed.</p>
+    <div class="fine">Lattice Gateway · field notes edition · warm paper, rust ink, no blue, no purple · made to be printed, bookmarked and argued with.</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var bar=document.getElementById('progress');
+  function update(){
+    var h=document.documentElement;
+    var max=h.scrollHeight-h.clientHeight;
+    var p=max>0?(h.scrollTop/max)*100:0;
+    bar.style.width=p+'%';
+  }
+  window.addEventListener('scroll',update,{passive:true});
+  window.addEventListener('resize',update);
+  update();
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'bun:test';
 import { createAdminRouter, broadcastLog } from '../../src/admin/admin-router';
+import { globalPluginRegistry } from '../../src/plugins/registry';
+import type { ProviderPlugin } from '../../src/core/types/plugin';
+import { deriveSessionKey, globalSessionAffinityStore } from '../../src/core/session-affinity';
 
 describe('Admin Mission Control Dashboard & REST Control Plane', () => {
   const router = createAdminRouter();
@@ -17,6 +20,22 @@ describe('Admin Mission Control Dashboard & REST Control Plane', () => {
     expect(html).toContain('tab-btn-cline');
     expect(html).toContain('tab-btn-deepseek');
     expect(html).toContain('wizard-chain-preview');
+  });
+
+  it('serves an inline script that parses — one bad quote kills every tab and button', async () => {
+    const res = await router.request('/admin');
+    expect(res.status).toBe(200);
+    const html = await res.text();
+
+    const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+      .map((m) => m[1])
+      .filter((body) => body.trim().length > 0);
+
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const body of scripts) {
+      // compiles the script without running it; throws on any parse error
+      expect(() => new Function(body)).not.toThrow();
+    }
   });
 
   it('registers Kilo Code credentials via POST /api/accounts', async () => {
@@ -116,25 +135,85 @@ describe('Admin Mission Control Dashboard & REST Control Plane', () => {
     expect(json.success).toBeTrue();
   });
 
-  it('retrieves real-time token telemetry metrics via GET /api/telemetry', async () => {
+  it('retrieves ledger-derived token telemetry via GET /api/telemetry', async () => {
     const res = await router.request('/api/telemetry');
     expect(res.status).toBe(200);
     const json = (await res.json()) as any;
     expect(json.success).toBeTrue();
-    expect(json.telemetry.totalTokens).toBeGreaterThan(0);
-    expect(json.telemetry.promptTokens).toBeGreaterThan(0);
-    expect(json.telemetry.completionTokens).toBeGreaterThan(0);
+    expect(json.telemetry.totalTokens).toBeGreaterThanOrEqual(0);
+    expect(json.telemetry.promptTokens).toBeGreaterThanOrEqual(0);
+    expect(json.telemetry.completionTokens).toBeGreaterThanOrEqual(0);
     expect(typeof json.telemetry.tokensPerSec).toBe('number');
     expect(typeof json.telemetry.savedUsd).toBe('string');
+    expect(json.telemetry.estimated).toBeTrue();
   });
 
-  it('dispatches simulated telemetry packet via POST /api/telemetry/simulate', async () => {
+  it('no longer accepts simulated telemetry packets', async () => {
     const res = await router.request('/api/telemetry/simulate', { method: 'POST' });
+    expect(res.status).toBe(404);
+  });
+
+  it('refreshes and serves a signature-valid model passport', async () => {
+    const plugin = {
+      id: 'passport_api_stub',
+      displayName: 'Passport API Stub',
+      defaultBaseUrl: 'https://example.com',
+      async listModels() {
+        return [{
+          id: 'passport_api_stub/model', name: 'Passport Model', providerId: 'passport_api_stub',
+          contextWindow: 4096, supportsStreaming: false,
+        }];
+      },
+      async execute() { throw new Error('not used'); },
+      async executeStream() { return (async function* () {})(); },
+    } as unknown as ProviderPlugin;
+    globalPluginRegistry.register(plugin);
+    try {
+      const refresh = await router.request('/api/model-passports/refresh', { method: 'POST' });
+      expect(refresh.status).toBe(200);
+      const res = await router.request('/api/model-passports/' + encodeURIComponent('passport_api_stub/model'));
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.passport.id).toBe('passport_api_stub/model');
+      expect(json.signatureValid).toBeTrue();
+    } finally {
+      globalPluginRegistry.unregister(plugin.id);
+    }
+  });
+
+  it('rejects confirm without a valid preview token and reports secret availability', async () => {
+    const confirm = await router.request('/api/accounts/import/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'not-issued' }),
+    });
+    expect(confirm.status).toBe(400);
+
+    const availability = await router.request('/api/secrets/availability');
+    expect(availability.status).toBe(200);
+    const json = (await availability.json()) as any;
+    expect(json.availability).toBe('file-fallback');
+  });
+
+  it('no longer exposes the silent hardcoded sync-local endpoint', async () => {
+    const res = await router.request('/api/accounts/sync-local', { method: 'POST' });
+    expect(res.status).toBe(404);
+  });
+
+  it('serves only hashed, content-free session affinity summaries', async () => {
+    const rawSession = 'private-session-for-admin-test';
+    const sessionKey = deriveSessionKey({ 'x-lattice-session': rawSession })!;
+    globalSessionAffinityStore.pinTarget(sessionKey, 'kilo/model');
+    globalSessionAffinityStore.pinAccount(sessionKey, 'kilo', 'acc_safe_id');
+
+    const res = await router.request('/api/session-affinity');
     expect(res.status).toBe(200);
     const json = (await res.json()) as any;
-    expect(json.success).toBeTrue();
-    expect(json.log.promptTokens).toBeGreaterThan(0);
-    expect(json.log.completionTokens).toBeGreaterThan(0);
+    const body = JSON.stringify(json);
+    expect(body).toContain(sessionKey);
+    expect(body).not.toContain(rawSession);
+    expect(body).not.toContain('prompt');
+    expect(body).not.toContain('credentials');
   });
 
   it('hot-reloads saved account into live running plugin instances in memory', async () => {

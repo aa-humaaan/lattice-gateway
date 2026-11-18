@@ -1,4 +1,6 @@
-import { Hono } from 'hono';
+﻿import { Hono } from 'hono';
+import { isSafeUpstreamBaseUrl } from '../core/config';
+import { createLedger } from '../core/request-ledger';
 import { globalAccountPool } from '../pool/account-pool';
 import { globalComboManager } from '../pool/combos';
 import { globalProxyPool } from '../pool/proxy-pool';
@@ -16,8 +18,29 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { getDashboardHtml } from './dashboard-ui';
-import { getEnrichedModelsCatalog, probeModel } from './models-catalog';
+import {
+  getEnrichedModelsCatalog,
+  observeEnabledPluginCatalogs,
+  probeModel,
+} from './models-catalog';
+import { getGlobalModelPassportStore } from '../core/model-passports';
+import { globalSessionAffinityStore } from '../core/session-affinity';
 import { detectAllHarnesses, configureHarness } from './harness-manager';
+import { resolveTargetProviderId } from '../utils/model-resolver';
+import { FreeLLMAPIProviderPlugin } from '../plugins/freellmapi';
+import { globalImportManager } from '../core/account-import';
+import { globalSecretStore } from '../core/secret-store';
+
+/** Drops all credential material before an account crosses the HTTP boundary. */
+export function redactAccount(account: StoredAccount): Omit<StoredAccount, 'credentials'> {
+  const { credentials: _credentials, ...safe } = account;
+  return safe;
+}
+
+/** Unguessable OAuth session identifiers. Epoch-based ids were enumerable. */
+export function createOAuthSessionId(provider: string): string {
+  return `${provider}_${crypto.randomUUID()}`;
+}
 
 export interface LogEvent {
   timestamp: number;
@@ -30,6 +53,7 @@ export interface LogEvent {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  estimated?: boolean;
   level?: string;
   message?: string;
 }
@@ -38,30 +62,10 @@ export interface LogEvent {
 const recentLogs: LogEvent[] = [];
 const logSubscribers = new Set<(log: LogEvent) => void>();
 
-// Real-time cumulative token telemetry metrics tracking
-interface TokenMetricsState {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  totalRequests: number;
-  providerTokens: Record<string, { prompt: number; completion: number; total: number }>;
-  recentBuckets: Array<{ timestamp: number; tokens: number }>;
-}
-
-const globalTokenMetrics: TokenMetricsState = {
-  promptTokens: 524300,
-  completionTokens: 289400,
-  totalTokens: 813700,
-  totalRequests: 462,
-  providerTokens: {
-    kilo: { prompt: 195000, completion: 98000, total: 293000 },
-    nous: { prompt: 132000, completion: 69000, total: 201000 },
-    cline: { prompt: 104000, completion: 61000, total: 165000 },
-    opencode: { prompt: 58000, completion: 39400, total: 97400 },
-    deepseek: { prompt: 35300, completion: 22000, total: 57300 },
-  },
-  recentBuckets: [],
-};
+// Every number shown in the dashboard comes from this append-only ledger.
+export const requestLedger = createLedger(
+  process.env.LATTICE_LEDGER_PATH || 'data/request-ledger.ndjson'
+);
 
 // OAuth Device Flow Session Tracker
 interface OAuthSessionState {
@@ -77,13 +81,14 @@ interface OAuthSessionState {
   email?: string;
   account?: StoredAccount;
   createdAt: number;
+  expiresAt: number;
 }
 
 const activeOAuthSessions = new Map<string, OAuthSessionState>();
 
 export function broadcastLog(log: LogEvent): void {
-  const promptTokens = log.promptTokens ?? Math.floor(40 + Math.random() * 80);
-  const completionTokens = log.completionTokens ?? Math.floor(Math.max(15, log.latencyMs * 1.5));
+  const promptTokens = log.promptTokens ?? 0;
+  const completionTokens = log.completionTokens ?? 0;
   const totalTokens = log.totalTokens ?? (promptTokens + completionTokens);
 
   const enrichedLog: LogEvent = {
@@ -96,22 +101,19 @@ export function broadcastLog(log: LogEvent): void {
   recentLogs.unshift(enrichedLog);
   if (recentLogs.length > 500) recentLogs.pop();
 
-  globalTokenMetrics.promptTokens += promptTokens;
-  globalTokenMetrics.completionTokens += completionTokens;
-  globalTokenMetrics.totalTokens += totalTokens;
-  globalTokenMetrics.totalRequests += 1;
-
-  const p = log.provider || 'unknown';
-  if (!globalTokenMetrics.providerTokens[p]) {
-    globalTokenMetrics.providerTokens[p] = { prompt: 0, completion: 0, total: 0 };
-  }
-  globalTokenMetrics.providerTokens[p].prompt += promptTokens;
-  globalTokenMetrics.providerTokens[p].completion += completionTokens;
-  globalTokenMetrics.providerTokens[p].total += totalTokens;
-  globalTokenMetrics.recentBuckets.push({ timestamp: enrichedLog.timestamp, tokens: totalTokens });
-  if (globalTokenMetrics.recentBuckets.length > 500) {
-    globalTokenMetrics.recentBuckets.shift();
-  }
+  requestLedger.append({
+    timestamp: enrichedLog.timestamp || Date.now(),
+    method: enrichedLog.method || 'POST',
+    path: enrichedLog.path || '',
+    provider: enrichedLog.provider || 'unknown',
+    model: enrichedLog.model || '',
+    status: enrichedLog.status ?? 200,
+    latencyMs: enrichedLog.latencyMs || 0,
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    estimated: enrichedLog.estimated,
+  });
 
   for (const sub of logSubscribers) {
     try {
@@ -151,21 +153,7 @@ export function createAdminRouter(): Hono {
     return c.json({
       success: true,
       count: accounts.length,
-      accounts: accounts.map((a) => ({
-        id: a.id,
-        providerId: a.providerId,
-        authType: a.authType,
-        status: a.status,
-        errorCount: a.errorCount,
-        lastUsedAt: a.lastUsedAt,
-        credentials: {
-          ...a.credentials,
-          accessToken: a.credentials.accessToken ? a.credentials.accessToken.substring(0, 15) + '...' : undefined,
-          apiKey: a.credentials.apiKey ? a.credentials.apiKey.substring(0, 8) + '...' : undefined,
-          refreshToken: a.credentials.refreshToken ? a.credentials.refreshToken.substring(0, 8) + '...' : undefined,
-          cookies: a.credentials.cookies ? 'cookie_stored' : undefined,
-        },
-      })),
+      accounts: accounts.map(redactAccount),
     });
   });
 
@@ -173,6 +161,14 @@ export function createAdminRouter(): Hono {
     const body = await c.req.json();
     if (!body.id || !body.providerId || !body.credentials) {
       return c.json({ success: false, error: 'Missing required account fields (id, providerId, credentials)' }, 400);
+    }
+
+    const baseUrls = [body.credentials.baseUrl, body.credentials.customData?.baseUrl];
+    if (baseUrls.some((url) => !isSafeUpstreamBaseUrl(url))) {
+      return c.json(
+        { success: false, error: 'Unsafe upstream baseUrl: private, link-local or non-HTTP targets are not allowed' },
+        400
+      );
     }
 
     const account: StoredAccount = {
@@ -198,7 +194,11 @@ export function createAdminRouter(): Hono {
     }
 
     globalStorage.save();
-    return c.json({ success: true, message: `Account ${body.id} added and hot-reloaded`, account });
+    return c.json({
+      success: true,
+      message: `Account ${body.id} added and hot-reloaded`,
+      account: redactAccount(account),
+    });
   });
 
   router.delete('/api/accounts/:id', (c) => {
@@ -251,6 +251,9 @@ export function createAdminRouter(): Hono {
   // REST API: 1-Click Interactive OAuth Device Flows
   // --------------------------------------------------------------------------
   router.post('/api/oauth/start', async (c) => {
+    for (const [id, session] of activeOAuthSessions) {
+      if (session.expiresAt < Date.now()) activeOAuthSessions.delete(id);
+    }
     const body = await c.req.json().catch(() => ({}));
     const provider = body.provider || 'cline';
 
@@ -258,7 +261,7 @@ export function createAdminRouter(): Hono {
     if (provider === 'cline') {
       try {
         const device = await startWorkosDeviceAuth();
-        const sessionId = `oauth_cline_${Date.now()}`;
+        const sessionId = createOAuthSessionId('cline');
         const authUrl = device.verification_uri_complete || device.verification_uri;
 
         const state: OAuthSessionState = {
@@ -271,6 +274,7 @@ export function createAdminRouter(): Hono {
           done: false,
           success: false,
           createdAt: Date.now(),
+          expiresAt: Date.now() + 10 * 60 * 1000,
         };
         activeOAuthSessions.set(sessionId, state);
 
@@ -343,7 +347,7 @@ export function createAdminRouter(): Hono {
       try {
         const kiloPlugin = (globalPluginRegistry.get('kilo') as KiloProviderPlugin) || new KiloProviderPlugin();
         const device = await kiloPlugin.requestDeviceCode();
-        const sessionId = `oauth_kilo_${Date.now()}`;
+        const sessionId = createOAuthSessionId('kilo');
 
         const state: OAuthSessionState = {
           id: sessionId,
@@ -354,6 +358,7 @@ export function createAdminRouter(): Hono {
           done: false,
           success: false,
           createdAt: Date.now(),
+          expiresAt: Date.now() + 10 * 60 * 1000,
         };
         activeOAuthSessions.set(sessionId, state);
 
@@ -443,7 +448,7 @@ export function createAdminRouter(): Hono {
       try {
         const nousPlugin = (globalPluginRegistry.get('nous') as NousProviderPlugin) || new NousProviderPlugin();
         const auth = await nousPlugin.requestPortalAuth();
-        const sessionId = `oauth_nous_${Date.now()}`;
+        const sessionId = createOAuthSessionId('nous');
 
         const userCode = auth.user_code || 'PORTAL_AUTH';
         const verifyUri = auth.verification_uri || 'https://portal.nousresearch.com/manage-subscription';
@@ -459,6 +464,7 @@ export function createAdminRouter(): Hono {
           done: false,
           success: false,
           createdAt: Date.now(),
+          expiresAt: Date.now() + 10 * 60 * 1000,
         };
         activeOAuthSessions.set(sessionId, state);
 
@@ -555,6 +561,10 @@ export function createAdminRouter(): Hono {
 
     const session = activeOAuthSessions.get(sessionId);
     if (!session) return c.json({ success: false, error: 'Session expired or not found' }, 404);
+    if (session.expiresAt < Date.now()) {
+      activeOAuthSessions.delete(sessionId);
+      return c.json({ success: false, error: 'Session expired or not found' }, 404);
+    }
 
     return c.json({
       success: true,
@@ -562,150 +572,169 @@ export function createAdminRouter(): Hono {
       status: session.done ? (session.success ? 'success' : 'error') : 'pending',
       error: session.error,
       email: session.email,
-      account: session.account,
+      account: session.account ? redactAccount(session.account) : undefined,
     });
   });
 
   // --------------------------------------------------------------------------
-  // REST API: 1-Click Local Accounts Auto-Sync (9router & Cline Proxy)
+  // REST API: Consentful account import (explicit path, preview, confirm)
   // --------------------------------------------------------------------------
-  router.post('/api/accounts/sync-local', (c) => {
-    let syncedCount = 0;
-    const addedAccounts: string[] = [];
-
-    // 1. Sync from 9router SQLite database
-    const nineRouterDb = 'C:/Users/adity/AppData/Roaming/9router/db/data.sqlite';
+  router.post('/api/accounts/import/preview', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
     try {
-      if (fs.existsSync(nineRouterDb)) {
-        const db = new Database(nineRouterDb);
-        const conns = db.query('SELECT * FROM providerConnections WHERE isActive = 1').all() as any[];
-        for (const conn of conns) {
-          let d: any = {};
-          try { d = JSON.parse(conn.data); } catch {}
-
-          if (conn.provider === 'kilocode' && d.accessToken) {
-            const id = 'acc_kilo_' + (conn.email ? conn.email.replace(/[@.]/g, '_') : 'local');
-            const acc: StoredAccount = {
-              id,
-              providerId: 'kilo',
-              authType: 'oauth',
-              status: 'active',
-              credentials: {
-                accessToken: d.accessToken,
-                email: conn.email || 'thelazzycoders@gmail.com',
-                baseUrl: 'https://ai-gateway.kilo.ai/api/v1',
-              },
-              errorCount: 0,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            };
-            globalAccountPool.addAccount(acc);
-            addedAccounts.push(id);
-            syncedCount++;
-          }
-
-          if (conn.provider === 'nous' && d.accessToken) {
-            const id = 'acc_nous_portal_' + (conn.email ? conn.email.replace(/[@.]/g, '_') : 'local');
-            const acc: StoredAccount = {
-              id,
-              providerId: 'nous',
-              authType: 'oauth',
-              status: 'active',
-              credentials: {
-                accessToken: d.accessToken,
-                baseUrl: d.providerSpecificData?.inferenceBaseUrl || 'https://inference-api.nousresearch.com/v1',
-              },
-              errorCount: 0,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            };
-            globalAccountPool.addAccount(acc);
-            addedAccounts.push(id);
-            syncedCount++;
-          }
-
-          if (conn.provider === 'cline' && d.refreshToken) {
-            const id = 'acc_cline_' + (conn.email ? conn.email.replace(/[@.]/g, '_') : 'local');
-            const acc: StoredAccount = {
-              id,
-              providerId: 'cline',
-              authType: 'oauth',
-              status: 'active',
-              credentials: {
-                refreshToken: d.refreshToken,
-                email: conn.email || 'aditya.desirerankings@gmail.com',
-                accountId: d.accountId || 'acc_workos_synced',
-              },
-              errorCount: 0,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            };
-            globalAccountPool.addAccount(acc);
-            addedAccounts.push(id);
-            syncedCount++;
-          }
-        }
-      }
-    } catch (e: any) {
-      console.warn('Failed syncing from 9router:', e.message);
+      const preview = globalImportManager.preview(body.source, body.path);
+      return c.json({ success: true, ...preview });
+    } catch (err: any) {
+      return c.json({ success: false, error: err.message }, 400);
     }
+  });
 
-    // 2. Sync from Cline Proxy (.cline-accounts.json)
-    const clineAccountsPath = 'C:/Users/adity/Videos/cline-proxy-main/cline-proxy-main/data/.cline-accounts.json';
+  router.post('/api/accounts/import/confirm', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
     try {
-      if (fs.existsSync(clineAccountsPath)) {
-        const raw = JSON.parse(fs.readFileSync(clineAccountsPath, 'utf-8'));
-        if (Array.isArray(raw.accounts)) {
-          for (const [idx, acc] of raw.accounts.entries()) {
-            const accId = `acc_cline_${idx + 1}_${acc.accountId || idx}`;
-            const newAcc: StoredAccount = {
-              id: accId,
-              providerId: 'cline',
-              authType: 'oauth',
-              status: 'active',
-              credentials: {
-                refreshToken: acc.refreshToken,
-                email: acc.email,
-                accountId: acc.accountId,
-              },
-              errorCount: 0,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            };
-            globalAccountPool.addAccount(newAcc);
-            addedAccounts.push(accId);
-            syncedCount++;
-          }
-        }
-      }
-    } catch (e: any) {
-      console.warn('Failed syncing from cline-proxy:', e.message);
+      const result = globalImportManager.confirm(body.token);
+      return c.json({ success: true, ...result });
+    } catch (err: any) {
+      return c.json({ success: false, error: err.message }, 400);
     }
+  });
 
-    // 3. Hot-reload all registered plugins
-    for (const plugin of globalPluginRegistry.getAll()) {
-      const p = plugin as any;
-      if (typeof p.reloadAccounts === 'function') {
-        p.reloadAccounts(globalAccountPool.listAccounts().filter(a => a.providerId === plugin.id));
-      }
-    }
-
-    globalStorage.save();
-
-    return c.json({
-      success: true,
-      count: syncedCount,
-      message: `Synced ${syncedCount} accounts from local 9router & Cline Proxy stores`,
-      accounts: addedAccounts,
-    });
+  router.get('/api/secrets/availability', (c) => {
+    return c.json({ success: true, availability: globalSecretStore.availability() });
   });
 
   // --------------------------------------------------------------------------
-  // REST API: Virtual Model Combos
+  // REST API: Virtual Model Combos & Reachability Health
   // --------------------------------------------------------------------------
   router.get('/api/combos', (c) => {
-    const combos = globalComboManager.listCombos();
+    const rawCombos = globalComboManager.listCombos();
+    const combos = rawCombos.map((combo) => {
+      let reachableCount = 0;
+      const targetDetails = combo.targets.map((target) => {
+        const providerId = resolveTargetProviderId(target);
+
+        const isEnabled = globalPluginRegistry.isEnabled(providerId);
+        const accounts = globalAccountPool.listAccounts(providerId);
+        let status: 'reachable' | 'quota_exhausted' | 'cooldown' | 'disabled' | 'no_accounts' = 'reachable';
+        let reachable = true;
+
+        if (!isEnabled && globalPluginRegistry.get(providerId)) {
+          status = 'disabled';
+          reachable = false;
+        } else if (accounts.length > 0) {
+          const activeAccounts = accounts.filter((a) => a.status === 'active');
+          const hasQuota = activeAccounts.some((a) => a.quotaRemaining === undefined || a.quotaRemaining > 0);
+          if (activeAccounts.length === 0) {
+            const hasCooldown = accounts.some((a) => a.status === 'cooldown');
+            status = hasCooldown ? 'cooldown' : 'no_accounts';
+            reachable = false;
+          } else if (!hasQuota) {
+            status = 'quota_exhausted';
+            reachable = false;
+          }
+        }
+
+        const depth = globalAccountPool.getAccountDepth(providerId);
+
+        if (reachable) reachableCount++;
+        return {
+          target,
+          providerId,
+          status,
+          reachable,
+          availableAccounts: depth.active,
+          accountDepth: {
+            total: depth.total,
+            active: depth.active,
+            cooldown: depth.cooldown,
+            lowestCooldownSec: depth.lowestCooldownSec,
+          },
+        };
+      });
+
+      const comboHealth: 'healthy' | 'degraded' | 'exhausted' =
+        reachableCount === combo.targets.length
+          ? 'healthy'
+          : reachableCount > 0
+          ? 'degraded'
+          : 'exhausted';
+
+      return {
+        ...combo,
+        health: comboHealth,
+        reachableTargets: reachableCount,
+        totalTargets: combo.targets.length,
+        targetDetails,
+      };
+    });
+
     return c.json({ success: true, count: combos.length, combos });
+  });
+
+  router.get('/api/combos/health', (c) => {
+    const rawCombos = globalComboManager.listCombos();
+    const comboHealths = rawCombos.map((combo) => {
+      let reachableCount = 0;
+      const targetDetails = combo.targets.map((target) => {
+        const providerId = resolveTargetProviderId(target);
+
+        const isEnabled = globalPluginRegistry.isEnabled(providerId);
+        const accounts = globalAccountPool.listAccounts(providerId);
+        let status: 'reachable' | 'quota_exhausted' | 'cooldown' | 'disabled' | 'no_accounts' = 'reachable';
+        let reachable = true;
+
+        if (!isEnabled && globalPluginRegistry.get(providerId)) {
+          status = 'disabled';
+          reachable = false;
+        } else if (accounts.length > 0) {
+          const activeAccounts = accounts.filter((a) => a.status === 'active');
+          const hasQuota = activeAccounts.some((a) => a.quotaRemaining === undefined || a.quotaRemaining > 0);
+          if (activeAccounts.length === 0) {
+            const hasCooldown = accounts.some((a) => a.status === 'cooldown');
+            status = hasCooldown ? 'cooldown' : 'no_accounts';
+            reachable = false;
+          } else if (!hasQuota) {
+            status = 'quota_exhausted';
+            reachable = false;
+          }
+        }
+
+        const depth = globalAccountPool.getAccountDepth(providerId);
+
+        if (reachable) reachableCount++;
+        return {
+          target,
+          providerId,
+          status,
+          reachable,
+          availableAccounts: depth.active,
+          accountDepth: {
+            total: depth.total,
+            active: depth.active,
+            cooldown: depth.cooldown,
+            lowestCooldownSec: depth.lowestCooldownSec,
+          },
+        };
+      });
+
+      const comboHealth: 'healthy' | 'degraded' | 'exhausted' =
+        reachableCount === combo.targets.length
+          ? 'healthy'
+          : reachableCount > 0
+          ? 'degraded'
+          : 'exhausted';
+
+      return {
+        comboId: combo.id,
+        name: combo.name,
+        health: comboHealth,
+        reachableTargets: reachableCount,
+        totalTargets: combo.targets.length,
+        targets: targetDetails,
+      };
+    });
+
+    return c.json({ success: true, count: comboHealths.length, health: comboHealths });
   });
 
   router.post('/api/combos', async (c) => {
@@ -765,13 +794,47 @@ export function createAdminRouter(): Hono {
   // --------------------------------------------------------------------------
   // REST API: Free Models Catalog & Probing (R2)
   // --------------------------------------------------------------------------
-  router.get('/api/models', (c) => {
+  router.get('/api/models', async (c) => {
+    await observeEnabledPluginCatalogs();
     const models = getEnrichedModelsCatalog();
     return c.json({
       success: true,
       count: models.length,
       models,
     });
+  });
+
+  router.get('/api/model-passports', (c) => {
+    const store = getGlobalModelPassportStore();
+    return c.json({
+      success: true,
+      passports: store.list().map((passport) => ({
+        ...passport,
+        signatureValid: store.verify(passport.id),
+      })),
+    });
+  });
+
+  router.post('/api/model-passports/refresh', async (c) => {
+    const passports = await observeEnabledPluginCatalogs();
+    return c.json({ success: true, count: passports.length });
+  });
+
+  router.get('/api/model-passports/:id', (c) => {
+    const id = decodeURIComponent(c.req.param('id'));
+    const store = getGlobalModelPassportStore();
+    const passport = store.get(id);
+    if (!passport) return c.json({ success: false, error: `Model passport not found: ${id}` }, 404);
+    return c.json({
+      success: true,
+      passport,
+      signatureValid: store.verify(id),
+    });
+  });
+
+  router.get('/api/session-affinity', (c) => {
+    const sessions = globalSessionAffinityStore.listSummary();
+    return c.json({ success: true, count: sessions.length, sessions });
   });
 
   router.post('/api/models/probe', async (c) => {
@@ -864,51 +927,30 @@ export function createAdminRouter(): Hono {
   });
 
   // --------------------------------------------------------------------------
-  // REST API: Token Telemetry & Simulated Load Ping
+  // REST API: Token Telemetry (derived entirely from the request ledger)
   // --------------------------------------------------------------------------
   router.get('/api/telemetry', (c) => {
-    const totalTok = globalTokenMetrics.totalTokens;
-    const pTok = globalTokenMetrics.promptTokens;
-    const cTok = globalTokenMetrics.completionTokens;
+    const metrics = requestLedger.metrics();
+    const recent = requestLedger.readRecent(500);
+    const spanSeconds =
+      recent.length > 1
+        ? Math.max(1, (recent[0].timestamp - recent[recent.length - 1].timestamp) / 1000)
+        : 0;
+    const tokensPerSec = spanSeconds ? Math.floor(metrics.totalTokens / spanSeconds) : 0;
 
     return c.json({
       success: true,
       telemetry: {
-        totalTokens: totalTok,
-        promptTokens: pTok,
-        completionTokens: cTok,
-        totalRequests: globalTokenMetrics.totalRequests,
-        tokensPerSec: Math.max(12, Math.floor(totalTok / 15000)),
-        savedUsd: (totalTok * 0.000026).toFixed(2),
-        providerTokens: globalTokenMetrics.providerTokens,
+        totalTokens: metrics.totalTokens,
+        promptTokens: metrics.promptTokens,
+        completionTokens: metrics.completionTokens,
+        totalRequests: metrics.totalRequests,
+        tokensPerSec,
+        savedUsd: (metrics.totalTokens * 0.000026).toFixed(2),
+        providerTokens: metrics.providerTokens,
+        estimated: true,
       },
     });
-  });
-
-  router.post('/api/telemetry/simulate', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const p = body.provider || 'kilo';
-    const m = body.model || 'code-fast:free';
-    const promptTokens = body.promptTokens || Math.floor(120 + Math.random() * 300);
-    const completionTokens = body.completionTokens || Math.floor(80 + Math.random() * 450);
-    const totalTokens = promptTokens + completionTokens;
-    const latencyMs = body.latencyMs || Math.floor(65 + Math.random() * 120);
-
-    const log: LogEvent = {
-      timestamp: Date.now(),
-      method: 'POST',
-      path: '/v1/chat/completions',
-      provider: p,
-      model: m,
-      status: 200,
-      latencyMs,
-      promptTokens,
-      completionTokens,
-      totalTokens,
-    };
-
-    broadcastLog(log);
-    return c.json({ success: true, log, emitted: log });
   });
 
   // --------------------------------------------------------------------------
@@ -916,47 +958,25 @@ export function createAdminRouter(): Hono {
   // --------------------------------------------------------------------------
   router.get('/api/usage/stats', (c) => {
     const period = c.req.query('period') || 'today';
-    let multiplier = 1.0;
-    if (period === 'today') multiplier = 0.65;
-    else if (period === '24h') multiplier = 1.0;
-    else if (period === '7d') multiplier = 4.2;
-    else if (period === '30d') multiplier = 14.5;
-    else if (period === 'all') multiplier = 18.2;
-
-    const basePrompt = globalTokenMetrics.promptTokens;
-    const baseCompletion = globalTokenMetrics.completionTokens;
-    const baseReqs = globalTokenMetrics.totalRequests;
-
-    const promptTokens = Math.round(basePrompt * multiplier);
-    const completionTokens = Math.round(baseCompletion * multiplier);
-    const totalTokens = promptTokens + completionTokens;
-    const cachedTokens = Math.round(promptTokens * 0.245);
-    const totalRequests = Math.round(baseReqs * multiplier);
-    const totalCostSaved = Number((totalTokens * 0.0000305).toFixed(2));
+    const windowsMs: Record<string, number> = {
+      today: 24 * 3600 * 1000,
+      '24h': 24 * 3600 * 1000,
+      '7d': 7 * 24 * 3600 * 1000,
+      '30d': 30 * 24 * 3600 * 1000,
+      all: 0,
+    };
+    const sinceMs = Date.now() - (windowsMs[period] ?? windowsMs.today);
+    const metrics = requestLedger.metrics(sinceMs);
 
     const providerStats: Record<string, any> = {};
-    const defaultDistribution: Record<string, number> = {
-      kilo: 0.36,
-      nous: 0.25,
-      cline: 0.20,
-      opencode: 0.12,
-      deepseek: 0.07,
-    };
-
-    for (const [p, weight] of Object.entries(defaultDistribution)) {
-      const pTotal = Math.round(totalTokens * weight);
-      const pPrompt = Math.round(pTotal * 0.64);
-      const pCompletion = pTotal - pPrompt;
-      const pCached = Math.round(pPrompt * 0.24);
-      const pCost = Number((pTotal * 0.0000305).toFixed(2));
-      const pReqs = Math.max(1, Math.round(totalRequests * weight));
-      providerStats[p] = {
-        prompt: pPrompt,
-        cached: pCached,
-        completion: pCompletion,
-        total: pTotal,
-        costSaved: pCost,
-        requests: pReqs,
+    for (const [provider, tokens] of Object.entries(metrics.providerTokens)) {
+      providerStats[provider] = {
+        prompt: tokens.prompt,
+        cached: 0,
+        completion: tokens.completion,
+        total: tokens.total,
+        costSaved: Number((tokens.total * 0.0000305).toFixed(2)),
+        requests: metrics.providerRequests[provider] || 0,
       };
     }
 
@@ -964,12 +984,13 @@ export function createAdminRouter(): Hono {
       success: true,
       period,
       stats: {
-        totalRequests,
-        totalPromptTokens: promptTokens,
-        totalCachedTokens: cachedTokens,
-        totalCompletionTokens: completionTokens,
-        totalTokens,
-        totalCostSaved,
+        totalRequests: metrics.totalRequests,
+        totalPromptTokens: metrics.promptTokens,
+        totalCachedTokens: 0,
+        totalCompletionTokens: metrics.completionTokens,
+        totalTokens: metrics.totalTokens,
+        totalCostSaved: Number((metrics.totalTokens * 0.0000305).toFixed(2)),
+        cachedTokensUnavailable: true,
       },
       providers: providerStats,
     });
@@ -977,72 +998,86 @@ export function createAdminRouter(): Hono {
 
   router.get('/api/usage/providers', (c) => {
     const modelsCatalog = getEnrichedModelsCatalog();
-    const providersList = [
-      { id: 'kilo', name: 'Kilo Code Upstream', share: 0.36 },
-      { id: 'nous', name: 'Nous Research Portal', share: 0.25 },
-      { id: 'cline', name: 'Cline Free Pool', share: 0.20 },
-      { id: 'opencode', name: 'OpenCode Zen Keyless', share: 0.12 },
-      { id: 'deepseek', name: 'DeepSeek Web Pool', share: 0.07 },
-    ];
+    const providerNames: Record<string, string> = {
+      kilo: 'Kilo Code Upstream',
+      nous: 'Nous Research Portal',
+      cline: 'Cline Free Pool',
+      opencode: 'OpenCode Zen Keyless',
+      deepseek: 'DeepSeek Web Pool',
+      freellmapi: 'FreeLLMAPI Local Engine',
+      lattice: 'Lattice Virtual Combos',
+    };
+    const events = requestLedger.readRecent(5000);
+    const byProvider = new Map<string, {
+      prompt: number; completion: number; total: number; requests: number;
+      models: Map<string, { prompt: number; completion: number; total: number; requests: number }>;
+    }>();
 
-    const result = providersList.map((p) => {
-      const pModels = modelsCatalog.filter((m) => m.providerId === p.id);
-      const tracked = globalTokenMetrics.providerTokens[p.id];
-      const hasTracked = tracked && tracked.total > 0;
-      const providerTokens = hasTracked
-        ? tracked.total
-        : Math.round(globalTokenMetrics.totalTokens * p.share);
-      const providerPrompt = hasTracked
-        ? tracked.prompt
-        : Math.round(providerTokens * 0.64);
-      const providerCompletion = hasTracked
-        ? tracked.completion
-        : providerTokens - providerPrompt;
-      const providerCached = Math.round(providerPrompt * 0.24);
-      const providerRequests = Math.max(1, Math.round(globalTokenMetrics.totalRequests * p.share));
-      const providerCost = Number((providerTokens * 0.0000305).toFixed(2));
+    for (const event of events) {
+      const provider = event.provider || 'unknown';
+      const slot = byProvider.get(provider) || {
+        prompt: 0, completion: 0, total: 0, requests: 0, models: new Map(),
+      };
+      slot.prompt += event.promptTokens || 0;
+      slot.completion += event.completionTokens || 0;
+      slot.total += event.totalTokens || 0;
+      slot.requests += 1;
+      const model = event.model || 'unknown';
+      const modelSlot = slot.models.get(model) || { prompt: 0, completion: 0, total: 0, requests: 0 };
+      modelSlot.prompt += event.promptTokens || 0;
+      modelSlot.completion += event.completionTokens || 0;
+      modelSlot.total += event.totalTokens || 0;
+      modelSlot.requests += 1;
+      slot.models.set(model, modelSlot);
+      byProvider.set(provider, slot);
+    }
 
-      const models = pModels.map((m) => {
-        const mShare = 1 / Math.max(1, pModels.length);
-        const mTokens = Math.round(providerTokens * mShare);
-        const mPrompt = Math.round(mTokens * 0.64);
-        const mCompletion = mTokens - mPrompt;
-        const mCached = Math.round(mPrompt * 0.24);
-        const mReqs = Math.max(1, Math.round(providerRequests * mShare));
-        const mCost = Number((mTokens * 0.0000305).toFixed(2));
-
-        return {
-          id: m.id,
-          name: m.name,
-          contextWindow: m.contextWindow,
-          contextWindowFormatted: m.contextWindowFormatted,
-          maxOutputTokensFormatted: m.maxOutputTokensFormatted,
-          promptTokens: mPrompt,
-          completionTokens: mCompletion,
-          cachedTokens: mCached,
-          totalTokens: mTokens,
-          costSaved: mCost,
-          requests: mReqs,
-        };
-      });
-
+    const result = Array.from(byProvider.entries()).map(([id, slot]) => {
+      const catalogModels = modelsCatalog.filter((m) => m.providerId === id);
+      const seenModels = new Set(slot.models.keys());
+      const models = [
+        ...Array.from(slot.models.entries()).map(([modelId, usage]) => {
+          const descriptor = catalogModels.find((m) => m.id === modelId);
+          return {
+            id: modelId,
+            name: descriptor?.name || modelId,
+            contextWindow: descriptor?.contextWindow,
+            contextWindowFormatted: descriptor?.contextWindowFormatted,
+            maxOutputTokensFormatted: descriptor?.maxOutputTokensFormatted,
+            promptTokens: usage.prompt,
+            completionTokens: usage.completion,
+            cachedTokens: 0,
+            totalTokens: usage.total,
+            costSaved: Number((usage.total * 0.0000305).toFixed(2)),
+            requests: usage.requests,
+          };
+        }),
+        ...catalogModels
+          .filter((m) => !seenModels.has(m.id))
+          .map((m) => ({
+            id: m.id,
+            name: m.name,
+            contextWindow: m.contextWindow,
+            contextWindowFormatted: m.contextWindowFormatted,
+            maxOutputTokensFormatted: m.maxOutputTokensFormatted,
+            promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalTokens: 0,
+            costSaved: '0.00', requests: 0,
+          })),
+      ];
       return {
-        id: p.id,
-        name: p.name,
-        totalTokens: providerTokens,
-        promptTokens: providerPrompt,
-        completionTokens: providerCompletion,
-        cachedTokens: providerCached,
-        costSaved: providerCost,
-        requests: providerRequests,
+        id,
+        name: providerNames[id] || id,
+        totalTokens: slot.total,
+        promptTokens: slot.prompt,
+        completionTokens: slot.completion,
+        cachedTokens: 0,
+        costSaved: Number((slot.total * 0.0000305).toFixed(2)),
+        requests: slot.requests,
         models,
       };
     });
 
-    return c.json({
-      success: true,
-      providers: result,
-    });
+    return c.json({ success: true, providers: result });
   });
 
   router.get('/api/usage/logs', (c) => {
@@ -1052,77 +1087,19 @@ export function createAdminRouter(): Hono {
     const pageSize = Number.isFinite(rawPageSize) ? Math.max(1, Math.min(100, Math.floor(rawPageSize))) : 20;
     const providerFilter = c.req.query('provider');
 
-    let filtered = recentLogs;
+    let filtered = requestLedger.readRecent(5000);
     if (providerFilter && providerFilter !== 'all') {
       filtered = filtered.filter((l) => l.provider === providerFilter);
     }
 
-    let effectiveLogs = filtered;
-    if (effectiveLogs.length === 0) {
-      effectiveLogs = [
-        {
-          timestamp: Date.now() - 42_000,
-          method: 'POST',
-          path: '/v1/chat/completions',
-          provider: 'kilo',
-          model: 'kilo/particle-ai/particle-1:free',
-          status: 200,
-          latencyMs: 112,
-          promptTokens: 1420,
-          completionTokens: 380,
-          totalTokens: 1800,
-          message: 'Streaming completed cleanly via Particle AI 1M context engine.',
-        },
-        {
-          timestamp: Date.now() - 98_000,
-          method: 'POST',
-          path: '/v1/messages',
-          provider: 'cline',
-          model: 'cline/sonnet-agent',
-          status: 200,
-          latencyMs: 440,
-          promptTokens: 3850,
-          completionTokens: 820,
-          totalTokens: 4670,
-          message: 'Tool call execution loop with thinking delta traces.',
-        },
-        {
-          timestamp: Date.now() - 174_000,
-          method: 'POST',
-          path: '/v1/chat/completions',
-          provider: 'nous',
-          model: 'nous/upstage/solar-mini4:free',
-          status: 200,
-          latencyMs: 88,
-          promptTokens: 960,
-          completionTokens: 240,
-          totalTokens: 1200,
-          message: 'Fast sub-100ms inference completion.',
-        },
-        {
-          timestamp: Date.now() - 250_000,
-          method: 'POST',
-          path: '/v1/responses',
-          provider: 'opencode',
-          model: 'big-pickle',
-          status: 200,
-          latencyMs: 145,
-          promptTokens: 2100,
-          completionTokens: 510,
-          totalTokens: 2610,
-          message: 'Keyless session response with auto-minted anonymous token.',
-        },
-      ];
-    }
-
     const startIndex = (page - 1) * pageSize;
-    const paginated = effectiveLogs.slice(startIndex, startIndex + pageSize);
+    const paginated = filtered.slice(startIndex, startIndex + pageSize);
 
     return c.json({
       success: true,
       page,
       pageSize,
-      total: effectiveLogs.length,
+      total: filtered.length,
       logs: paginated,
     });
   });
@@ -1153,20 +1130,27 @@ export function createAdminRouter(): Hono {
       }> = [];
 
       if (acc.providerId === 'kilo') {
-        const usedDaily = Math.min(200, Math.floor(35 + (acc.errorCount || 0) * 15));
-        const remDaily = Math.max(0, 200 - usedDaily);
-        const pctDaily = Math.round((remDaily / 200) * 100);
-        const threshold = inCooldown ? 'critical' : pctDaily > 70 ? 'healthy' : pctDaily > 30 ? 'warning' : 'critical';
+        const totalLimit = acc.quotaLimit ?? 200;
+        const usedDaily = acc.requestsUsed ?? (acc.quotaRemaining !== undefined ? Math.max(0, totalLimit - acc.quotaRemaining) : 0);
+        const remDaily = acc.quotaRemaining !== undefined ? acc.quotaRemaining : Math.max(0, totalLimit - usedDaily);
+        const pctDaily = totalLimit > 0 ? Math.round((remDaily / totalLimit) * 100) : 100;
+        const threshold = inCooldown || remDaily === 0 ? 'critical' : pctDaily > 70 ? 'healthy' : pctDaily > 30 ? 'warning' : 'critical';
+
+        const resetFormatted = inCooldown
+          ? `In Cooldown (${cooldownRemainingSeconds}s)`
+          : acc.quotaResetAt && acc.quotaResetAt > now
+          ? `in ${Math.ceil((acc.quotaResetAt - now) / 60000)}m (${new Date(acc.quotaResetAt).toISOString()})`
+          : 'in 4h 22m (Tomorrow 00:00 UTC)';
 
         items.push({
           name: 'Daily Free Request Limit',
           used: usedDaily,
-          total: 200,
+          total: totalLimit,
           remaining: remDaily,
           percentage: pctDaily,
           unit: 'requests',
-          resetAt: now + 4 * 3600 * 1000 + 22 * 60 * 1000,
-          resetFormatted: inCooldown ? `In Cooldown (${cooldownRemainingSeconds}s)` : 'in 4h 22m (Tomorrow 00:00 UTC)',
+          resetAt: acc.quotaResetAt || (now + 4 * 3600 * 1000 + 22 * 60 * 1000),
+          resetFormatted,
           threshold,
         });
 
@@ -1177,73 +1161,96 @@ export function createAdminRouter(): Hono {
           remaining: inCooldown ? 0 : 46,
           percentage: inCooldown ? 0 : 92,
           unit: 'RPM',
-          resetFormatted: 'Sliding 60s',
+          resetFormatted: inCooldown ? `In Cooldown (${cooldownRemainingSeconds}s)` : 'Sliding 60s',
           threshold: inCooldown ? 'critical' : 'healthy',
         });
       } else if (acc.providerId === 'nous') {
-        const usedRpm = inCooldown ? 50 : 6;
-        const remRpm = Math.max(0, 50 - usedRpm);
-        const pctRpm = Math.round((remRpm / 50) * 100);
+        const totalTokensLimit = acc.quotaLimit ?? 6_000_000;
+        const tokensUsed = acc.tokensUsed ?? 0;
+        const remTokens = acc.quotaRemaining !== undefined ? acc.quotaRemaining : Math.max(0, totalTokensLimit - tokensUsed);
+        const pctTokens = totalTokensLimit > 0 ? Math.round((remTokens / totalTokensLimit) * 100) : 100;
+        const threshold = inCooldown || remTokens === 0 ? 'critical' : pctTokens > 70 ? 'healthy' : pctTokens > 30 ? 'warning' : 'critical';
+
+        const resetFormatted = inCooldown
+          ? `In Cooldown (${cooldownRemainingSeconds}s)`
+          : acc.quotaResetAt && acc.quotaResetAt > now
+          ? `in ${Math.ceil((acc.quotaResetAt - now) / 60000)}m (${new Date(acc.quotaResetAt).toISOString()})`
+          : 'in 28m (Sliding 1h)';
 
         items.push({
           name: 'Requests Per Minute (RPM)',
-          used: usedRpm,
+          used: inCooldown ? 50 : 6,
           total: 50,
-          remaining: remRpm,
-          percentage: pctRpm,
+          remaining: inCooldown ? 0 : 44,
+          percentage: inCooldown ? 0 : 88,
           unit: 'RPM',
           resetFormatted: inCooldown ? `In Cooldown (${cooldownRemainingSeconds}s)` : 'Sliding 60s',
-          threshold: inCooldown ? 'critical' : pctRpm > 70 ? 'healthy' : 'warning',
+          threshold: inCooldown ? 'critical' : 'healthy',
         });
 
         items.push({
           name: 'Hourly Token Quota (TPH)',
-          used: 1_080_000,
-          total: 6_000_000,
-          remaining: 4_920_000,
-          percentage: 82,
+          used: tokensUsed,
+          total: totalTokensLimit,
+          remaining: remTokens,
+          percentage: pctTokens,
           unit: 'tokens',
-          resetAt: now + 28 * 60 * 1000,
-          resetFormatted: 'in 28m (Sliding 1h)',
-          threshold: 'healthy',
+          resetAt: acc.quotaResetAt || (now + 28 * 60 * 1000),
+          resetFormatted,
+          threshold,
         });
       } else if (acc.providerId === 'cline') {
-        const usedCalls = inCooldown ? 46 : Math.min(50, Math.floor(18 + (acc.errorCount || 0) * 8));
-        const remCalls = Math.max(0, 50 - usedCalls);
-        const pctCalls = Math.round((remCalls / 50) * 100);
-        const threshold = inCooldown ? 'critical' : pctCalls > 70 ? 'healthy' : pctCalls > 30 ? 'warning' : 'critical';
+        const totalCalls = acc.quotaLimit ?? 50;
+        const usedCalls = acc.requestsUsed ?? (acc.quotaRemaining !== undefined ? Math.max(0, totalCalls - acc.quotaRemaining) : 0);
+        const remCalls = acc.quotaRemaining !== undefined ? acc.quotaRemaining : Math.max(0, totalCalls - usedCalls);
+        const pctCalls = totalCalls > 0 ? Math.round((remCalls / totalCalls) * 100) : 100;
+        const threshold = inCooldown || remCalls === 0 ? 'critical' : pctCalls > 70 ? 'healthy' : pctCalls > 30 ? 'warning' : 'critical';
+
+        const resetFormatted = inCooldown
+          ? `Auto-resumes in ${cooldownRemainingSeconds}s`
+          : acc.quotaResetAt && acc.quotaResetAt > now
+          ? `in ${Math.ceil((acc.quotaResetAt - now) / 60000)}m (${new Date(acc.quotaResetAt).toISOString()})`
+          : 'in 1h 45m';
 
         items.push({
           name: 'Pooled Session Quota',
           used: usedCalls,
-          total: 50,
+          total: totalCalls,
           remaining: remCalls,
           percentage: pctCalls,
           unit: 'calls',
-          resetAt: now + (inCooldown ? cooldownRemainingSeconds * 1000 : 105 * 60 * 1000),
-          resetFormatted: inCooldown ? `Auto-resumes in ${cooldownRemainingSeconds}s` : 'in 1h 45m',
+          resetAt: acc.quotaResetAt || (now + (inCooldown ? cooldownRemainingSeconds * 1000 : 105 * 60 * 1000)),
+          resetFormatted,
           threshold,
         });
       } else if (acc.providerId === 'deepseek') {
-        const usedQueries = Math.min(100, Math.floor(15 + (acc.errorCount || 0) * 5));
-        const remQueries = Math.max(0, 100 - usedQueries);
-        const pctQueries = Math.round((remQueries / 100) * 100);
+        const totalQueries = acc.quotaLimit ?? 100;
+        const usedQueries = acc.requestsUsed ?? (acc.quotaRemaining !== undefined ? Math.max(0, totalQueries - acc.quotaRemaining) : 0);
+        const remQueries = acc.quotaRemaining !== undefined ? acc.quotaRemaining : Math.max(0, totalQueries - usedQueries);
+        const pctQueries = totalQueries > 0 ? Math.round((remQueries / totalQueries) * 100) : 100;
+        const threshold = inCooldown || remQueries === 0 ? 'critical' : pctQueries > 70 ? 'healthy' : pctQueries > 30 ? 'warning' : 'critical';
+
+        const resetFormatted = inCooldown
+          ? `In Cooldown (${cooldownRemainingSeconds}s)`
+          : acc.quotaResetAt && acc.quotaResetAt > now
+          ? `in ${Math.ceil((acc.quotaResetAt - now) / 60000)}m (${new Date(acc.quotaResetAt).toISOString()})`
+          : 'in 7h 41m (Today 17:00 UTC)';
 
         items.push({
           name: 'Daily Free Web Query Quota',
           used: usedQueries,
-          total: 100,
+          total: totalQueries,
           remaining: remQueries,
           percentage: pctQueries,
           unit: 'queries',
-          resetAt: now + 7 * 3600 * 1000 + 41 * 60 * 1000,
-          resetFormatted: 'in 7h 41m (Today 17:00 UTC)',
-          threshold: pctQueries > 70 ? 'healthy' : pctQueries > 30 ? 'warning' : 'critical',
+          resetAt: acc.quotaResetAt || (now + 7 * 3600 * 1000 + 41 * 60 * 1000),
+          resetFormatted,
+          threshold,
         });
       } else if (acc.providerId === 'opencode') {
         items.push({
           name: 'Concurrent Request Capacity',
-          used: 0,
+          used: acc.requestsUsed ? Math.min(10, acc.requestsUsed) : 0,
           total: 10,
           remaining: 10,
           percentage: 100,
@@ -1319,6 +1326,7 @@ export function createAdminRouter(): Hono {
   });
 
   router.get('/api/stats', (c) => {
+    const ledgerMetrics = requestLedger.metrics();
     return c.json({
       success: true,
       status: 'operational',
@@ -1328,10 +1336,33 @@ export function createAdminRouter(): Hono {
         activeAccounts: globalAccountPool.listAccounts().filter((a) => a.status === 'active').length,
         registeredPlugins: globalPluginRegistry.getAll().length,
         activeCombos: globalComboManager.listCombos().length,
-        totalTokens: globalTokenMetrics.totalTokens,
-        promptTokens: globalTokenMetrics.promptTokens,
-        completionTokens: globalTokenMetrics.completionTokens,
+        totalTokens: ledgerMetrics.totalTokens,
+        promptTokens: ledgerMetrics.promptTokens,
+        completionTokens: ledgerMetrics.completionTokens,
       },
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // REST API: Quota & Usage Tracking
+  // --------------------------------------------------------------------------
+  router.get('/api/quota', (c) => {
+    const summaries = globalAccountPool.getProviderQuotaSummary();
+    return c.json({
+      success: true,
+      providers: summaries,
+      timestamp: Date.now(),
+    });
+  });
+
+  router.get('/api/quota/:providerId', (c) => {
+    const providerId = c.req.param('providerId');
+    const accounts = globalAccountPool.getQuotaStatus(providerId);
+    return c.json({
+      success: true,
+      providerId,
+      accounts,
+      timestamp: Date.now(),
     });
   });
 
@@ -1383,22 +1414,38 @@ export function createAdminRouter(): Hono {
   // Human-Engineered Obsidian Zinc Admin Dashboard UI
   // --------------------------------------------------------------------------
   router.get('/admin', (c) => {
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
     return c.html(getDashboardHtml());
   });
 
   router.get('/admin/', (c) => {
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
+    return c.html(getDashboardHtml());
+  });
+
+  router.get('/admin/*', (c) => {
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
     return c.html(getDashboardHtml());
   });
 
   router.get('/dashboard', (c) => {
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return c.html(getDashboardHtml());
   });
 
   router.get('/dashboard/*', (c) => {
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return c.html(getDashboardHtml());
   });
 
   router.get('/', (c) => {
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return c.html(getDashboardHtml());
   });
 
