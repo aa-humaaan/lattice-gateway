@@ -13,10 +13,16 @@ echo.
 REM Never kill processes holding port 4000. If the port is busy, Lattice
 REM reports it and exits; choose another port with: lattice.exe --port 4001
 
-if exist "lattice.exe" (
-  lattice.exe %*
-) else if exist "bin\lattice.exe" (
-  bin\lattice.exe %*
+REM Always run the TypeScript source by default. A compiled binary goes stale
+REM the moment source changes; never prefer one implicitly. Use --exe only when
+REM you deliberately want the last compiled build.
+if "%~1"=="--exe" (
+  shift
+  if exist "bin\lattice.exe" (
+    bin\lattice.exe %*
+  ) else (
+    echo No compiled binary found. Run "bun run build" first.
+  )
 ) else (
   bun run src/index.ts %*
 )

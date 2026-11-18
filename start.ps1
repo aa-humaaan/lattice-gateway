@@ -12,10 +12,16 @@ Write-Host ""
 # Never kill processes holding port 4000. If the port is busy, Lattice
 # reports it and exits; choose another port with: .\lattice.exe --port 4001
 
-if (Test-Path "lattice.exe") {
-  & ".\lattice.exe" @args
-} elseif (Test-Path "bin\lattice.exe") {
-  & ".\bin\lattice.exe" @args
+# Always run the TypeScript source by default. A compiled binary goes stale
+# the moment source changes; never prefer one implicitly. Use -Exe only when
+# you deliberately want the last compiled build.
+if ($args -contains '--exe') {
+  $exeArgs = @($args | Where-Object { $_ -ne '--exe' })
+  if (Test-Path "bin\lattice.exe") {
+    & ".\bin\lattice.exe" @exeArgs
+  } else {
+    Write-Host "No compiled binary found. Run 'bun run build' first." -ForegroundColor Red
+  }
 } else {
   bun run src/index.ts @args
 }
