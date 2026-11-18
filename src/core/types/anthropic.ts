@@ -189,6 +189,7 @@ export type AnthropicStopReason =
   | 'max_tokens'
   | 'stop_sequence'
   | 'tool_use'
+  | 'error'
   | null;
 
 export interface AnthropicUsage {

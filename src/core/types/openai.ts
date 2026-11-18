@@ -181,7 +181,7 @@ export interface OpenAIChatCompletionChoice {
     tool_calls?: OpenAIToolCall[];
     refusal?: string | null;
   };
-  finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
+  finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'error' | null;
   logprobs?: null;
 }
 
@@ -234,7 +234,7 @@ export interface OpenAIChatCompletionChunkDelta {
 export interface OpenAIChatCompletionChunkChoice {
   index: number;
   delta: OpenAIChatCompletionChunkDelta;
-  finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
+  finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'error' | null;
   logprobs?: null;
 }
 

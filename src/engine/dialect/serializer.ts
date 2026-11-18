@@ -18,7 +18,7 @@ import {
 
 export function mapStopReasonToOpenAI(
   stopReason: CanonicalStopReason
-): 'stop' | 'length' | 'tool_calls' | 'content_filter' {
+): 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'error' {
   switch (stopReason) {
     case 'tool_calls':
       return 'tool_calls';
@@ -26,8 +26,9 @@ export function mapStopReasonToOpenAI(
       return 'length';
     case 'content_filter':
       return 'content_filter';
-    case 'stop':
     case 'error':
+      return 'error';
+    case 'stop':
     default:
       return 'stop';
   }
@@ -43,8 +44,9 @@ export function mapStopReasonToAnthropic(
       return 'max_tokens';
     case 'content_filter':
       return 'stop_sequence';
-    case 'stop':
     case 'error':
+      return 'error';
+    case 'stop':
     default:
       return 'end_turn';
   }
@@ -247,6 +249,9 @@ export function serializeOpenAIResponse(
     object: 'response',
     created_at: res.created,
     status: res.stopReason === 'error' ? 'failed' : 'completed',
+    ...(res.stopReason === 'error'
+      ? { error: { code: 'generation_error', message: 'Generation failed' } }
+      : {}),
     model: res.model,
     output: outputItems,
     usage: {
