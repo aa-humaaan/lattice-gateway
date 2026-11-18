@@ -136,9 +136,21 @@ describe('SEC-01: dashboard escapes client-supplied model names', () => {
     expect(res.status).toBe(200);
     const csp = res.headers.get('content-security-policy') || '';
     expect(csp).toContain("default-src 'none'");
-    expect(csp).toContain("script-src 'self'");
+    expect(csp).toMatch(/script-src 'nonce-[^']+'/);
+    expect(csp).toMatch(/style-src 'nonce-[^']+'/);
+    expect(csp).not.toContain('unsafe-inline');
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
+
+    const body = await res.text();
+    const nonce = /script-src 'nonce-([^']+)'/.exec(csp)![1];
+    expect(body).toContain(`<script nonce="${nonce}">`);
+    expect(body).toContain(`<style nonce="${nonce}">`);
+    expect(body).toContain('data-call-click=');
+    expect(body).not.toMatch(/\son(click|input|change|error)\s*=/);
+
+    const second = await app.request('/admin');
+    expect(second.headers.get('content-security-policy')).not.toBe(csp);
   });
 });

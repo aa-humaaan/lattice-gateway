@@ -1,4 +1,5 @@
 ﻿import { Hono } from 'hono';
+import { randomBytes } from 'crypto';
 import { isSafeUpstreamBaseUrl } from '../core/config';
 import { createLedger } from '../core/request-ledger';
 import { globalAccountPool } from '../pool/account-pool';
@@ -33,21 +34,26 @@ import { ILLUSTRATIVE_USD_PER_TOKEN } from '../core/pricing';
 import { globalSecretStore } from '../core/secret-store';
 import { moveSecretsToStore, OVERLAY_KEYS } from '../core/credential-resolver';
 
-// The dashboard shell is one inline script with inline event handlers, so
-// 'unsafe-inline' is unavoidable there. Everything else is locked down: no
-// external origins, no plugins/objects, no base override, no framing.
-const DASHBOARD_CSP = [
-  "default-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  "object-src 'none'",
-  "base-uri 'none'",
-  "frame-ancestors 'none'",
-  "form-action 'self'",
-].join('; ');
+// Strict, per-response CSP: the dashboard's inline script and stylesheet carry
+// a fresh nonce, and the script bridges former inline handlers/style attributes
+// into delegated listeners and a nonce-bearing stylesheet. No 'unsafe-inline'.
+function dashboardHtmlResponse(c: any) {
+  const nonce = randomBytes(16).toString('base64');
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  c.header('Content-Security-Policy', [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'`,
+    `style-src 'nonce-${nonce}'`,
+    "img-src 'self' data:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+  ].join('; '));
+  return c.html(getDashboardHtml(nonce));
+}
 
 /** Drops all credential material before an account crosses the HTTP boundary. */
 export function redactAccount(account: StoredAccount): Omit<StoredAccount, 'credentials'> {
@@ -1441,45 +1447,27 @@ export function createAdminRouter(): Hono {
   // Human-Engineered Obsidian Zinc Admin Dashboard UI
   // --------------------------------------------------------------------------
   router.get('/admin', (c) => {
-    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    c.header('Content-Security-Policy', DASHBOARD_CSP);
-    c.header('Pragma', 'no-cache');
-    c.header('Expires', '0');
-    return c.html(getDashboardHtml());
+    return dashboardHtmlResponse(c);
   });
 
   router.get('/admin/', (c) => {
-    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    c.header('Content-Security-Policy', DASHBOARD_CSP);
-    c.header('Pragma', 'no-cache');
-    c.header('Expires', '0');
-    return c.html(getDashboardHtml());
+    return dashboardHtmlResponse(c);
   });
 
   router.get('/admin/*', (c) => {
-    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    c.header('Content-Security-Policy', DASHBOARD_CSP);
-    c.header('Pragma', 'no-cache');
-    c.header('Expires', '0');
-    return c.html(getDashboardHtml());
+    return dashboardHtmlResponse(c);
   });
 
   router.get('/dashboard', (c) => {
-    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    c.header('Content-Security-Policy', DASHBOARD_CSP);
-    return c.html(getDashboardHtml());
+    return dashboardHtmlResponse(c);
   });
 
   router.get('/dashboard/*', (c) => {
-    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    c.header('Content-Security-Policy', DASHBOARD_CSP);
-    return c.html(getDashboardHtml());
+    return dashboardHtmlResponse(c);
   });
 
   router.get('/', (c) => {
-    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    c.header('Content-Security-Policy', DASHBOARD_CSP);
-    return c.html(getDashboardHtml());
+    return dashboardHtmlResponse(c);
   });
 
   router.get('/favicon.ico', (c) => {

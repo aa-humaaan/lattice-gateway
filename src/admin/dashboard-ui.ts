@@ -1,13 +1,19 @@
 ﻿import { ICONS, PROVIDER_LOGOS } from './icons';
 
-export function getDashboardHtml(): string {
+export function getDashboardHtml(nonce?: string): string {
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lattice Gateway — Mission Control</title>
-  <style>
+  <style${nonceAttr}>
+    /* Nonce-only CSP helpers: visibility and toast exit use classes, not CSSOM. */
+    .lnl-hidden { display: none !important; }
+    .lnl-show-block { display: block !important; }
+    .lnl-show-inline-flex { display: inline-flex !important; }
+    .lnl-toast-exit { opacity: 0; transform: translateY(8px); }
     :root {
       /* Warm Graphite / Zinc Obsidian Dark Palette */
       --bg-canvas: #09090b;
@@ -1369,51 +1375,51 @@ export function getDashboardHtml(): string {
 
     <nav id="sidebar-nav">
       <div class="nav-section-title">Core Systems</div>
-      <a class="nav-item active" data-tab="overview" onclick="switchNavTab('overview')">
+      <a class="nav-item active" data-tab="overview" data-call-click="switchNavTab('overview')">
         ${ICONS.activity}
         <span>Overview &amp; KPIs</span>
       </a>
-      <a class="nav-item" data-tab="plugins" onclick="switchNavTab('plugins')">
+      <a class="nav-item" data-tab="plugins" data-call-click="switchNavTab('plugins')">
         ${ICONS.layers}
         <span>Provider Plugins</span>
         <span class="nav-badge emerald" id="badge-plugins-nav">--</span>
       </a>
-      <a class="nav-item" data-tab="models" onclick="switchNavTab('models')">
+      <a class="nav-item" data-tab="models" data-call-click="switchNavTab('models')">
         ${ICONS.cpu}
         <span>Free Models</span>
         <span class="nav-badge emerald" id="badge-models-count">--</span>
       </a>
-      <a class="nav-item" data-tab="harnesses" onclick="switchNavTab('harnesses')">
+      <a class="nav-item" data-tab="harnesses" data-call-click="switchNavTab('harnesses')">
         ${ICONS.terminal}
         <span>Harness Setup</span>
         <span class="nav-badge" id="badge-harness-count">--</span>
       </a>
-      <a class="nav-item" data-tab="usage" onclick="switchNavTab('usage')">
+      <a class="nav-item" data-tab="usage" data-call-click="switchNavTab('usage')">
         ${ICONS.barChart}
         <span>Usage</span>
       </a>
-      <a class="nav-item" data-tab="quotas" onclick="switchNavTab('quotas')">
+      <a class="nav-item" data-tab="quotas" data-call-click="switchNavTab('quotas')">
         ${ICONS.gauge}
         <span>Quota Tracker</span>
         <span class="nav-badge emerald" id="badge-quotas-health">Active</span>
       </a>
-      <a class="nav-item" data-tab="telemetry" onclick="switchNavTab('telemetry')" style="display:none;">
+      <a class="nav-item" data-tab="telemetry" data-call-click="switchNavTab('telemetry')" style="display:none;">
         ${ICONS.activity}
         <span>Token Telemetry</span>
       </a>
 
       <div class="nav-section-title" style="margin-top: 6px;">Control Plane</div>
-      <a class="nav-item" data-tab="accounts" onclick="switchNavTab('accounts')">
+      <a class="nav-item" data-tab="accounts" data-call-click="switchNavTab('accounts')">
         ${ICONS.key}
         <span>Credential Pools</span>
         <span class="nav-badge" id="badge-accounts-count">--</span>
       </a>
-      <a class="nav-item" data-tab="combos" onclick="switchNavTab('combos')">
+      <a class="nav-item" data-tab="combos" data-call-click="switchNavTab('combos')">
         ${ICONS.gitBranch}
         <span>Virtual Combos</span>
         <span class="nav-badge" id="badge-combos-count">--</span>
       </a>
-      <a class="nav-item" data-tab="logs" onclick="switchNavTab('logs')">
+      <a class="nav-item" data-tab="logs" data-call-click="switchNavTab('logs')">
         ${ICONS.radio}
         <span>Live Ingress Stream</span>
         <span class="status-dot emerald pulse" style="margin-left:auto;"></span>
@@ -1421,15 +1427,15 @@ export function getDashboardHtml(): string {
     </nav>
 
     <div class="sidebar-footer">
-      <button class="btn btn-primary" onclick="openCredentialsModal()">
+      <button class="btn btn-primary" data-call-click="openCredentialsModal()">
         ${ICONS.plus}
         <span>Add Credentials</span>
       </button>
-      <button class="btn btn-secondary" onclick="openComboWizard()">
+      <button class="btn btn-secondary" data-call-click="openComboWizard()">
         ${ICONS.sparkles}
         <span>Combo Wizard</span>
       </button>
-      <button class="btn btn-emerald btn-sm" onclick="triggerSimulatedPing()">
+      <button class="btn btn-emerald btn-sm" data-call-click="triggerSimulatedPing()">
         ${ICONS.play}
         <span>Simulate Telemetry</span>
       </button>
@@ -1452,11 +1458,11 @@ export function getDashboardHtml(): string {
             <span class="status-dot emerald pulse"></span>
             <span>Core Operational :4000</span>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="switchNavTab('models')">
+          <button class="btn btn-secondary btn-sm" data-call-click="switchNavTab('models')">
             ${ICONS.cpu}
             <span>Explore Free Models</span>
           </button>
-          <button class="btn btn-primary btn-sm" onclick="switchNavTab('harnesses')">
+          <button class="btn btn-primary btn-sm" data-call-click="switchNavTab('harnesses')">
             ${ICONS.terminal}
             <span>1-Click Harness Setup</span>
           </button>
@@ -1465,37 +1471,37 @@ export function getDashboardHtml(): string {
 
       <!-- KPI Grid -->
       <div class="kpi-grid">
-        <div class="kpi-card" onclick="switchNavTab('plugins')" style="cursor:pointer;" title="View Provider Plugins">
+        <div class="kpi-card" data-call-click="switchNavTab('plugins')" style="cursor:pointer;" title="View Provider Plugins">
           <div class="kpi-label">Active Plugins</div>
           <div class="kpi-value" id="kpi-plugins" style="color: var(--text-primary);">--</div>
           <div class="kpi-subtext">Kilo Â· Nous Â· Cline Â· OpenCode Â· DeepSeek Â· Lattice</div>
         </div>
-        <div class="kpi-card" onclick="switchNavTab('accounts')" style="cursor:pointer;" title="View Credential Pools">
+        <div class="kpi-card" data-call-click="switchNavTab('accounts')" style="cursor:pointer;" title="View Credential Pools">
           <div class="kpi-label">Active Accounts</div>
           <div class="kpi-value" id="kpi-accounts" style="color: var(--emerald-text);">--</div>
           <div class="kpi-subtext" id="kpi-accounts-sub">0 in rate cooldown</div>
         </div>
-        <div class="kpi-card" onclick="switchNavTab('models')" style="cursor:pointer;" title="View Free Models">
+        <div class="kpi-card" data-call-click="switchNavTab('models')" style="cursor:pointer;" title="View Free Models">
           <div class="kpi-label">Free Models</div>
           <div class="kpi-value" id="kpi-models" style="color: var(--cyan-text);">-- Free</div>
           <div class="kpi-subtext" id="kpi-models-sub">-- with 1M context</div>
         </div>
-        <div class="kpi-card" onclick="switchNavTab('combos')" style="cursor:pointer;" title="View Virtual Combos">
+        <div class="kpi-card" data-call-click="switchNavTab('combos')" style="cursor:pointer;" title="View Virtual Combos">
           <div class="kpi-label">Virtual Combos</div>
           <div class="kpi-value" id="kpi-combos" style="color: var(--text-primary);">--</div>
           <div class="kpi-subtext">Auto-failover active</div>
         </div>
-        <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
+        <div class="kpi-card" data-call-click="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
           <div class="kpi-label">Average Latency</div>
           <div class="kpi-value" id="kpi-latency" style="color: var(--amber-text);">~118ms</div>
           <div class="kpi-subtext">Rolling avg across upstreams</div>
         </div>
-        <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
+        <div class="kpi-card" data-call-click="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
           <div class="kpi-label">Streamed Tokens</div>
           <div class="kpi-value" id="kpi-tokens" style="color: var(--text-primary);">--</div>
           <div class="kpi-subtext" id="kpi-tokens-sub">524k in Â· 289k out</div>
         </div>
-        <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
+        <div class="kpi-card" data-call-click="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
           <div class="kpi-label">Cost Avoidance</div>
           <div class="kpi-value" id="kpi-saved" style="color: var(--emerald-text);">$21.45</div>
           <div class="kpi-subtext">$0 Free-tier value saved</div>
@@ -1516,7 +1522,7 @@ export function getDashboardHtml(): string {
             Configure provider accounts to see their models here.
           </div>
           <div style="display:flex; gap:8px;">
-            <button class="btn btn-primary btn-sm" onclick="switchNavTab('models')">
+            <button class="btn btn-primary btn-sm" data-call-click="switchNavTab('models')">
               <span>Open Models Explorer</span>
               ${ICONS.arrowRight}
             </button>
@@ -1535,7 +1541,7 @@ export function getDashboardHtml(): string {
             Automates configuration writing with timestamped backups for OpenCode, Kilo Code, Roo Code, Claude Code, Gemini CLI, Crush CLI, and Cursor.
           </div>
           <div style="display:flex; gap:8px;">
-            <button class="btn btn-secondary btn-sm" onclick="switchNavTab('harnesses')">
+            <button class="btn btn-secondary btn-sm" data-call-click="switchNavTab('harnesses')">
               <span>Configure Harnesses</span>
               ${ICONS.arrowRight}
             </button>
@@ -1554,8 +1560,8 @@ export function getDashboardHtml(): string {
             Autonomous health check probing, WorkOS OAuth device flow, and consentful account import from an explicit export path with a redacted preview.
           </div>
           <div style="display:flex; gap:8px;">
-            <button class="btn btn-secondary btn-sm" onclick="switchNavTab('accounts')">Manage Accounts</button>
-            <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">Add Key</button>
+            <button class="btn btn-secondary btn-sm" data-call-click="switchNavTab('accounts')">Manage Accounts</button>
+            <button class="btn btn-primary btn-sm" data-call-click="openCredentialsModal()">Add Key</button>
           </div>
         </div>
 
@@ -1571,8 +1577,8 @@ export function getDashboardHtml(): string {
             Compose multiple provider targets into a single virtual model endpoint with priority, round-robin, or lowest-latency routing.
           </div>
           <div style="display:flex; gap:8px;">
-            <button class="btn btn-secondary btn-sm" onclick="switchNavTab('combos')">Configure Combos</button>
-            <button class="btn btn-primary btn-sm" onclick="openComboWizard()">Combo Wizard</button>
+            <button class="btn btn-secondary btn-sm" data-call-click="switchNavTab('combos')">Configure Combos</button>
+            <button class="btn btn-primary btn-sm" data-call-click="openComboWizard()">Combo Wizard</button>
           </div>
         </div>
       </div>
@@ -1599,17 +1605,17 @@ export function getDashboardHtml(): string {
       <div class="filter-bar">
         <div class="search-box">
           ${ICONS.search}
-          <input type="text" class="search-input" id="models-search" placeholder="Search models by name, ID, provider, capability, or tags..." oninput="filterModels()">
+          <input type="text" class="search-input" id="models-search" placeholder="Search models by name, ID, provider, capability, or tags..." data-call-input="filterModels()">
         </div>
         <div class="filter-pills">
-          <button class="filter-btn active" data-filter="all" id="filter-models-all" onclick="setModelsFilter('all', this)">All</button>
-          <button class="filter-btn" data-filter="1m" id="filter-models-1m" onclick="setModelsFilter('1m', this)">1M Context</button>
-          <button class="filter-btn" data-filter="reasoning" onclick="setModelsFilter('reasoning', this)">Reasoning</button>
-          <button class="filter-btn" data-filter="coding" onclick="setModelsFilter('coding', this)">Coding</button>
-          <button class="filter-btn" data-filter="fast" onclick="setModelsFilter('fast', this)">Fast</button>
-          <button class="filter-btn" data-filter="keyless" onclick="setModelsFilter('keyless', this)">Keyless Zen</button>
+          <button class="filter-btn active" data-filter="all" id="filter-models-all" data-call-click="setModelsFilter('all', this)">All</button>
+          <button class="filter-btn" data-filter="1m" id="filter-models-1m" data-call-click="setModelsFilter('1m', this)">1M Context</button>
+          <button class="filter-btn" data-filter="reasoning" data-call-click="setModelsFilter('reasoning', this)">Reasoning</button>
+          <button class="filter-btn" data-filter="coding" data-call-click="setModelsFilter('coding', this)">Coding</button>
+          <button class="filter-btn" data-filter="fast" data-call-click="setModelsFilter('fast', this)">Fast</button>
+          <button class="filter-btn" data-filter="keyless" data-call-click="setModelsFilter('keyless', this)">Keyless Zen</button>
         </div>
-        <select class="form-select" id="models-provider-filter" style="width: auto; padding: 5px 10px;" onchange="filterModels()">
+        <select class="form-select" id="models-provider-filter" style="width: auto; padding: 5px 10px;" data-call-change="filterModels()">
           <option value="">All Providers</option>
           <option value="kilo">Kilo Code</option>
           <option value="cline">Cline Pool</option>
@@ -1636,11 +1642,11 @@ export function getDashboardHtml(): string {
           <p>Automated 1-click configuration writing with timestamped backups for local CLI tools, extensions, and agents pointing to http://127.0.0.1:4000</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary btn-sm" onclick="refreshHarnessStatus()">
+          <button class="btn btn-secondary btn-sm" data-call-click="refreshHarnessStatus()">
             ${ICONS.refresh}
             <span>Re-scan Status</span>
           </button>
-          <button class="btn btn-primary btn-sm" onclick="setupAllHarnesses()">
+          <button class="btn btn-primary btn-sm" data-call-click="setupAllHarnesses()">
             ${ICONS.check}
             <span>Configure All Detected</span>
           </button>
@@ -1663,7 +1669,7 @@ export function getDashboardHtml(): string {
           <p>Live token ingress metrics, prompt/completion ratios, and upstream provider distribution</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-emerald btn-sm" onclick="triggerSimulatedPing()">
+          <button class="btn btn-emerald btn-sm" data-call-click="triggerSimulatedPing()">
             ${ICONS.play}
             <span>Simulate Telemetry Ping</span>
           </button>
@@ -1725,17 +1731,17 @@ export function getDashboardHtml(): string {
         </div>
         <div class="header-actions" style="display: flex; align-items: center; gap: 10px;">
           <div class="filter-pills" id="usage-period-pills">
-            <button class="filter-pill active" onclick="setUsagePeriod('today')">Today</button>
-            <button class="filter-pill" onclick="setUsagePeriod('24h')">24h</button>
-            <button class="filter-pill" onclick="setUsagePeriod('7d')">7D</button>
-            <button class="filter-pill" onclick="setUsagePeriod('30d')">30D</button>
-            <button class="filter-pill" onclick="setUsagePeriod('all')">All</button>
+            <button class="filter-pill active" data-call-click="setUsagePeriod('today')">Today</button>
+            <button class="filter-pill" data-call-click="setUsagePeriod('24h')">24h</button>
+            <button class="filter-pill" data-call-click="setUsagePeriod('7d')">7D</button>
+            <button class="filter-pill" data-call-click="setUsagePeriod('30d')">30D</button>
+            <button class="filter-pill" data-call-click="setUsagePeriod('all')">All</button>
           </div>
           <div class="filter-pills" id="usage-mode-pills">
-            <button class="filter-pill active" id="btn-mode-tokens" onclick="toggleUsageMode('tokens')">Tokens</button>
-            <button class="filter-pill" id="btn-mode-cost" onclick="toggleUsageMode('cost')">Cost ($)</button>
+            <button class="filter-pill active" id="btn-mode-tokens" data-call-click="toggleUsageMode('tokens')">Tokens</button>
+            <button class="filter-pill" id="btn-mode-cost" data-call-click="toggleUsageMode('cost')">Cost ($)</button>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="fetchUsageStats()">
+          <button class="btn btn-secondary btn-sm" data-call-click="fetchUsageStats()">
             ${ICONS.refresh}
             <span>Refresh</span>
           </button>
@@ -1822,7 +1828,7 @@ export function getDashboardHtml(): string {
             <p style="font-size:0.75rem; color:var(--text-tertiary);">Click any provider row to toggle individual model metrics</p>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
-            <select class="input-field" id="usage-provider-filter" onchange="renderUsageView()" style="width:160px; padding:4px 8px; font-size:0.75rem;">
+            <select class="input-field" id="usage-provider-filter" data-call-change="renderUsageView()" style="width:160px; padding:4px 8px; font-size:0.75rem;">
               <option value="all">All Providers</option>
               <option value="kilo">Kilo Code</option>
               <option value="nous">Nous Research</option>
@@ -1859,7 +1865,7 @@ export function getDashboardHtml(): string {
             <h3 style="font-size:0.95rem; font-weight:600;">Recent Ingress Request Log</h3>
             <p style="font-size:0.75rem; color:var(--text-tertiary);">Live telemetry of real-world requests processed through the gateway</p>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="fetchUsageStats()">
+          <button class="btn btn-secondary btn-sm" data-call-click="fetchUsageStats()">
             ${ICONS.refresh}
             <span>Refresh Log</span>
           </button>
@@ -1888,14 +1894,14 @@ export function getDashboardHtml(): string {
     </div>
 
     <!-- Request Inspection Modal -->
-    <div class="modal-backdrop" id="modal-request-detail" onclick="closeRequestDetailModal(event)">
-      <div class="modal" style="max-width: 680px;" onclick="event.stopPropagation()">
+    <div class="modal-backdrop" id="modal-request-detail" data-call-click="closeRequestDetailModal(event)">
+      <div class="modal" style="max-width: 680px;" data-call-click="event.stopPropagation()">
         <div class="modal-header">
           <div>
             <div class="modal-title">Request Inspection Details</div>
             <div class="modal-subtitle" id="req-modal-subtitle">Telemetry drilldown and payload tracing</div>
           </div>
-          <button class="modal-close" onclick="closeRequestDetailModal()">${ICONS.x}</button>
+          <button class="modal-close" data-call-click="closeRequestDetailModal()">${ICONS.x}</button>
         </div>
         <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
           <div>
@@ -1914,7 +1920,7 @@ export function getDashboardHtml(): string {
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeRequestDetailModal()">Close</button>
+          <button class="btn btn-secondary" data-call-click="closeRequestDetailModal()">Close</button>
         </div>
       </div>
     </div>
@@ -1930,11 +1936,11 @@ export function getDashboardHtml(): string {
         </div>
         <div class="header-actions" style="display:flex; align-items:center; gap:8px;">
           <div class="filter-pills" id="quota-filter-pills">
-            <button class="filter-pill active" onclick="filterQuotas('all')">All Accounts</button>
-            <button class="filter-pill" onclick="filterQuotas('active')">Active</button>
-            <button class="filter-pill" onclick="filterQuotas('cooldown')">In Cooldown</button>
+            <button class="filter-pill active" data-call-click="filterQuotas('all')">All Accounts</button>
+            <button class="filter-pill" data-call-click="filterQuotas('active')">Active</button>
+            <button class="filter-pill" data-call-click="filterQuotas('cooldown')">In Cooldown</button>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="fetchQuotas()">
+          <button class="btn btn-secondary btn-sm" data-call-click="fetchQuotas()">
             ${ICONS.refresh}
             <span>Refresh Quotas</span>
           </button>
@@ -2000,11 +2006,11 @@ export function getDashboardHtml(): string {
           <p>Multi-account token pools with auto-rotation, rate-limit cooldown, and live health probing</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary btn-sm" onclick="syncLocalAccounts()">
+          <button class="btn btn-secondary btn-sm" data-call-click="syncLocalAccounts()">
             ${ICONS.refresh}
             <span>Import Accounts (Explicit Export)</span>
           </button>
-          <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">
+          <button class="btn btn-primary btn-sm" data-call-click="openCredentialsModal()">
             ${ICONS.plus}
             <span>Add Account</span>
           </button>
@@ -2041,7 +2047,7 @@ export function getDashboardHtml(): string {
           <p>Composite models providing automatic multi-provider failover without dropping client requests</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-primary btn-sm" onclick="openComboWizard()">
+          <button class="btn btn-primary btn-sm" data-call-click="openComboWizard()">
             ${ICONS.plus}
             <span>Create Virtual Combo</span>
           </button>
@@ -2076,11 +2082,11 @@ export function getDashboardHtml(): string {
           <p>Upstream protocol adapters managing live endpoint dispatch, token authentication, and credential routing</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary btn-sm" onclick="syncLocalAccounts()">
+          <button class="btn btn-secondary btn-sm" data-call-click="syncLocalAccounts()">
             ${ICONS.refresh}
             <span>Import Accounts (Explicit Export)</span>
           </button>
-          <button class="btn btn-primary btn-sm" onclick="openCredentialsModal()">
+          <button class="btn btn-primary btn-sm" data-call-click="openCredentialsModal()">
             ${ICONS.plus}
             <span>Add Credentials</span>
           </button>
@@ -2152,7 +2158,7 @@ export function getDashboardHtml(): string {
           <p>Real-time wire events captured on port 4000 across OpenAI and Anthropic endpoints</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary btn-sm" onclick="clearLogs()">
+          <button class="btn btn-secondary btn-sm" data-call-click="clearLogs()">
             ${ICONS.trash}
             <span>Clear Buffer</span>
           </button>
@@ -2168,29 +2174,29 @@ export function getDashboardHtml(): string {
   <!-- ===================================================================== -->
   <!-- MODAL 1: Add Credentials Modal (Preserving test invariants)           -->
   <!-- ===================================================================== -->
-  <div class="modal-backdrop" id="modal-credentials" onclick="onBackdropClick(event, 'modal-credentials')">
+  <div class="modal-backdrop" id="modal-credentials" data-call-click="onBackdropClick(event, 'modal-credentials')">
     <div class="modal-window">
       <div class="modal-header">
         <div class="modal-title">Register Upstream Provider Credentials</div>
-        <button class="modal-close" onclick="closeCredentialsModal()">${ICONS.x}</button>
+        <button class="modal-close" data-call-click="closeCredentialsModal()">${ICONS.x}</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">Select Upstream Provider</label>
           <div class="provider-tabs">
-            <div class="provider-tab-btn active" id="tab-btn-cline" onclick="switchProviderTab('cline')">
+            <div class="provider-tab-btn active" id="tab-btn-cline" data-call-click="switchProviderTab('cline')">
               <span class="provider-tab-name">Cline Pool</span>
             </div>
-            <div class="provider-tab-btn" id="tab-btn-kilo" onclick="switchProviderTab('kilo')">
+            <div class="provider-tab-btn" id="tab-btn-kilo" data-call-click="switchProviderTab('kilo')">
               <span class="provider-tab-name">Kilo Code</span>
             </div>
-            <div class="provider-tab-btn" id="tab-btn-nous" onclick="switchProviderTab('nous')">
+            <div class="provider-tab-btn" id="tab-btn-nous" data-call-click="switchProviderTab('nous')">
               <span class="provider-tab-name">Nous Research</span>
             </div>
-            <div class="provider-tab-btn" id="tab-btn-deepseek" onclick="switchProviderTab('deepseek')">
+            <div class="provider-tab-btn" id="tab-btn-deepseek" data-call-click="switchProviderTab('deepseek')">
               <span class="provider-tab-name">DeepSeek</span>
             </div>
-            <div class="provider-tab-btn" id="tab-btn-opencode" onclick="switchProviderTab('opencode')">
+            <div class="provider-tab-btn" id="tab-btn-opencode" data-call-click="switchProviderTab('opencode')">
               <span class="provider-tab-name">OpenCode Zen</span>
             </div>
           </div>
@@ -2199,8 +2205,8 @@ export function getDashboardHtml(): string {
         <div id="provider-fields-container"></div>
       </div>
       <div class="modal-footer" id="modal-credentials-footer">
-        <button class="btn btn-secondary" onclick="closeCredentialsModal()">Cancel</button>
-        <button class="btn btn-primary" id="btn-save-account" onclick="submitAccountForm()">Save &amp; Connect Account</button>
+        <button class="btn btn-secondary" data-call-click="closeCredentialsModal()">Cancel</button>
+        <button class="btn btn-primary" id="btn-save-account" data-call-click="submitAccountForm()">Save &amp; Connect Account</button>
       </div>
     </div>
   </div>
@@ -2208,7 +2214,7 @@ export function getDashboardHtml(): string {
   <!-- ===================================================================== -->
   <!-- MODAL 2: Virtual Combo Creator Wizard (Preserving test invariants)    -->
   <!-- ===================================================================== -->
-  <div class="modal-backdrop" id="modal-combo-wizard" onclick="onBackdropClick(event, 'modal-combo-wizard')">
+  <div class="modal-backdrop" id="modal-combo-wizard" data-call-click="onBackdropClick(event, 'modal-combo-wizard')">
     <div class="modal-window" style="max-width:760px;">
       <div class="modal-header">
         <div>
@@ -2217,7 +2223,7 @@ export function getDashboardHtml(): string {
             Configure zero-drop cascade failover across multiple providers
           </p>
         </div>
-        <button class="modal-close" onclick="closeComboWizard()">${ICONS.x}</button>
+        <button class="modal-close" data-call-click="closeComboWizard()">${ICONS.x}</button>
       </div>
 
       <div class="modal-body">
@@ -2293,22 +2299,22 @@ export function getDashboardHtml(): string {
             <!-- Search Bar -->
             <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
               <div style="position:relative; flex:1;">
-                <input type="text" class="form-input" id="wizard-model-search" placeholder="Search models by name, id, provider, tags (e.g. nemotron, sonnet, 1m)..." oninput="filterWizardModels()" style="padding-left:28px;">
+                <input type="text" class="form-input" id="wizard-model-search" placeholder="Search models by name, id, provider, tags (e.g. nemotron, sonnet, 1m)..." data-call-input="filterWizardModels()" style="padding-left:28px;">
                 <span style="position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--text-tertiary); font-size:0.8rem; pointer-events:none;">&#128269;</span>
               </div>
-              <button class="btn btn-secondary btn-sm" onclick="clearWizardModelSearch()" title="Clear search">Clear</button>
+              <button class="btn btn-secondary btn-sm" data-call-click="clearWizardModelSearch()" title="Clear search">Clear</button>
             </div>
 
             <!-- Category / Provider Filter Chips -->
             <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px;" id="wizard-model-chips">
-              <button class="filter-pill active" onclick="setWizardModelFilter('all', this)">All</button>
-              <button class="filter-pill" onclick="setWizardModelFilter('free', this)">&#127379; Free Tier (:free)</button>
-              <button class="filter-pill" onclick="setWizardModelFilter('1m', this)">&#9889; 1M Context</button>
-              <button class="filter-pill" onclick="setWizardModelFilter('coding', this)">&#128187; Coding</button>
-              <button class="filter-pill" onclick="setWizardModelFilter('kilo', this)">Kilo</button>
-              <button class="filter-pill" onclick="setWizardModelFilter('cline', this)">Cline</button>
-              <button class="filter-pill" onclick="setWizardModelFilter('nous', this)">Nous</button>
-              <button class="filter-pill" onclick="setWizardModelFilter('deepseek', this)">DeepSeek</button>
+              <button class="filter-pill active" data-call-click="setWizardModelFilter('all', this)">All</button>
+              <button class="filter-pill" data-call-click="setWizardModelFilter('free', this)">&#127379; Free Tier (:free)</button>
+              <button class="filter-pill" data-call-click="setWizardModelFilter('1m', this)">&#9889; 1M Context</button>
+              <button class="filter-pill" data-call-click="setWizardModelFilter('coding', this)">&#128187; Coding</button>
+              <button class="filter-pill" data-call-click="setWizardModelFilter('kilo', this)">Kilo</button>
+              <button class="filter-pill" data-call-click="setWizardModelFilter('cline', this)">Cline</button>
+              <button class="filter-pill" data-call-click="setWizardModelFilter('nous', this)">Nous</button>
+              <button class="filter-pill" data-call-click="setWizardModelFilter('deepseek', this)">DeepSeek</button>
             </div>
 
             <!-- Scrollable Model Catalog -->
@@ -2319,7 +2325,7 @@ export function getDashboardHtml(): string {
             <!-- Custom Manual Target Input -->
             <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
               <input type="text" class="form-input" id="wizard-custom-target" placeholder="Or enter custom target: provider/model-id" style="flex:1; font-size:0.8rem;">
-              <button class="btn btn-secondary btn-sm" onclick="addCustomTarget()">+ Add Custom</button>
+              <button class="btn btn-secondary btn-sm" data-call-click="addCustomTarget()">+ Add Custom</button>
             </div>
           </div>
         </div>
@@ -2373,14 +2379,14 @@ export function getDashboardHtml(): string {
       </div>
 
       <div class="modal-footer">
-        <button class="btn btn-secondary" id="wizard-btn-prev" onclick="prevWizardStep()" style="display:none;">Back</button>
-        <button class="btn btn-primary" id="wizard-btn-next" onclick="nextWizardStep()">Next: Fallback Chain</button>
+        <button class="btn btn-secondary" id="wizard-btn-prev" data-call-click="prevWizardStep()" style="display:none;">Back</button>
+        <button class="btn btn-primary" id="wizard-btn-next" data-call-click="nextWizardStep()">Next: Fallback Chain</button>
       </div>
     </div>
   </div>
 
   <!-- Client-Side Vanilla SPA Script Engine -->
-  <script>
+  <script${nonceAttr}>
     // ADMIN_TOKEN_BOOTSTRAP_START
     (function () {
       var key = 'lattice-admin-token';
@@ -2405,6 +2411,109 @@ export function getDashboardHtml(): string {
       };
     })();
     // ADMIN_TOKEN_BOOTSTRAP_END
+    // CSP bridges. The document is served with a nonce-only policy, so:
+    //  - inline style attributes are promoted into a nonce-bearing stylesheet;
+    //  - former inline handlers are dispatched through an allow-list below.
+    (function () {
+      const styleTag = document.createElement('style');
+      const scriptNonce = document.currentScript && document.currentScript.getAttribute('nonce');
+      if (scriptNonce) styleTag.setAttribute('nonce', scriptNonce);
+      styleTag.setAttribute('data-inline-style-bridge', '');
+      document.head.appendChild(styleTag);
+      const rules = [];
+      let seq = 0;
+      function absorbStyles(root) {
+        if (!root || root.nodeType !== 1) return;
+        if (root.hasAttribute('style')) {
+          const css = root.getAttribute('style');
+          const cls = 'lnl-inline-' + (seq++);
+          root.classList.add(cls);
+          rules.push('.' + cls + '{' + css + '}');
+          root.removeAttribute('style');
+          styleTag.textContent = rules.join('\\n');
+        }
+        if (root.querySelectorAll) root.querySelectorAll('[style]').forEach(absorbStyles);
+      }
+      absorbStyles(document.documentElement);
+      new MutationObserver(function (records) {
+        for (const rec of records) {
+          if (rec.type === 'childList') {
+            for (const node of rec.addedNodes) absorbStyles(node);
+          } else if (rec.attributeName === 'style') {
+            absorbStyles(rec.target);
+          }
+        }
+      }).observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['style']
+      });
+    })();
+
+    const CALLABLES = {
+      addCustomTarget: addCustomTarget,
+      clearLogs: clearLogs,
+      clearWizardModelSearch: clearWizardModelSearch,
+      closeComboWizard: closeComboWizard,
+      closeCredentialsModal: closeCredentialsModal,
+      closeRequestDetailModal: closeRequestDetailModal,
+      connectOpenCodeKeyless: connectOpenCodeKeyless,
+      fetchQuotas: fetchQuotas,
+      fetchUsageStats: fetchUsageStats,
+      filterModels: filterModels,
+      filterQuotas: filterQuotas,
+      filterWizardModels: filterWizardModels,
+      moveWizardTarget: moveWizardTarget,
+      nextWizardStep: nextWizardStep,
+      onBackdropClick: onBackdropClick,
+      openComboWizard: openComboWizard,
+      openCredentialsModal: openCredentialsModal,
+      prevWizardStep: prevWizardStep,
+      refreshHarnessStatus: refreshHarnessStatus,
+      removeWizardTarget: removeWizardTarget,
+      renderUsageView: renderUsageView,
+      setModelsFilter: setModelsFilter,
+      setUsagePeriod: setUsagePeriod,
+      setWizardModelFilter: setWizardModelFilter,
+      setupAllHarnesses: setupAllHarnesses,
+      showRequestDetailModal: showRequestDetailModal,
+      submitAccountForm: submitAccountForm,
+      switchNavTab: switchNavTab,
+      switchProviderTab: switchProviderTab,
+      syncLocalAccounts: syncLocalAccounts,
+      toggleTargetInChain: toggleTargetInChain,
+      toggleUsageMode: toggleUsageMode,
+      triggerSimulatedPing: triggerSimulatedPing
+    };
+
+    function invokeCall(expr, el, event) {
+      if (!expr) return;
+      if (expr === 'event.stopPropagation()') { event.stopPropagation(); return; }
+      const match = /^([A-Za-z_$][\\w$]*)\\((.*)\\)$/.exec(expr.trim());
+      if (!match || !CALLABLES[match[1]]) return;
+      const body = match[2].trim();
+      const args = body ? body.split(',').map(function (part) {
+        const a = part.trim();
+        if (a === 'event') return event;
+        if (a === 'this') return el;
+        if (a === 'this.dataset.target') return el.dataset.target;
+        if (a === 'this.dataset.id') return el.dataset.id;
+        if (/^-?\\d+$/.test(a)) return Number(a);
+        if (a.length > 1 && ((a[0] === "'" && a[a.length - 1] === "'") || (a[0] === '"' && a[a.length - 1] === '"'))) {
+          return a.slice(1, -1);
+        }
+        return a;
+      }) : [];
+      CALLABLES[match[1]].apply(null, args);
+    }
+
+    for (const callEvent of ['click', 'input', 'change', 'keydown', 'keyup', 'focus', 'blur', 'submit']) {
+      document.addEventListener(callEvent, function (event) {
+        const target = event.target && event.target.closest
+          ? event.target.closest('[data-call-' + callEvent + ']')
+          : null;
+        if (target) invokeCall(target.getAttribute('data-call-' + callEvent), target, event);
+      }, true);
+    }
+
     let currentTab = 'overview';
     let currentProviderTab = 'cline';
     let wizardCurrentStep = 1;
@@ -2433,8 +2542,7 @@ export function getDashboardHtml(): string {
       toast.textContent = message;
       container.appendChild(toast);
       setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(8px)';
+        toast.classList.add('lnl-toast-exit');
         setTimeout(() => toast.remove(), 200);
       }, 3500);
     }
@@ -2709,7 +2817,7 @@ export function getDashboardHtml(): string {
     function toggleSnippetBox(safeId) {
       const box = document.getElementById('snippet-box-' + safeId);
       if (box) {
-        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+        box.classList.toggle('lnl-show-block', !box.classList.contains('lnl-show-block'));
       }
     }
 
@@ -2993,7 +3101,7 @@ export function getDashboardHtml(): string {
               const icon = PROVIDER_LOGOS_MAP[p.id] || '${ICONS.layers}';
 
               const connectBtn = (p.id !== 'lattice-combo' && p.id !== 'lattice')
-                ? '<button class="btn btn-emerald btn-sm" onclick="openCredentialsModal(\\'' + p.id + '\\')">${ICONS.plus} Connect</button>'
+                ? '<button class="btn btn-emerald btn-sm" data-call-click="openCredentialsModal(\\'' + p.id + '\\')">${ICONS.plus} Connect</button>'
                 : '';
 
               return '<tr>' +
@@ -3330,7 +3438,7 @@ export function getDashboardHtml(): string {
             '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem; color: var(--emerald-text);">' + escapeHtml((l.completionTokens || 0).toLocaleString()) + '</td>' +
             '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem; color: var(--amber-text);">' + escapeHtml(l.latencyMs || 45) + 'ms</td>' +
             '<td>' + statusBadge + '</td>' +
-            '<td style="text-align: center;"><button class="btn btn-secondary btn-sm" onclick="showRequestDetailModal(' + idx + ')">Detail</button></td>' +
+            '<td style="text-align: center;"><button class="btn btn-secondary btn-sm" data-call-click="showRequestDetailModal(' + idx + ')">Detail</button></td>' +
           '</tr>';
         });
         logsTbody.innerHTML = logsHtml;
@@ -3806,7 +3914,7 @@ export function getDashboardHtml(): string {
             '<label class="form-label">API Key (optional)</label>' +
             '<input type="password" class="form-input" id="acc-key" placeholder="Leave blank for keyless">' +
           '</div>' +
-          '<button type="button" class="btn btn-emerald btn-sm" style="margin-top:12px;" onclick="connectOpenCodeKeyless()">${ICONS.plus} Connect keyless</button>';
+          '<button type="button" class="btn btn-emerald btn-sm" style="margin-top:12px;" data-call-click="connectOpenCodeKeyless()">${ICONS.plus} Connect keyless</button>';
       }
     }
 
@@ -3973,7 +4081,10 @@ export function getDashboardHtml(): string {
       for (let i = 1; i <= 4; i++) {
         const page = document.getElementById('wizard-page-' + i);
         const node = document.getElementById('wizard-node-' + i);
-        if (page) page.style.display = i === wizardCurrentStep ? 'block' : 'none';
+        if (page) {
+          page.classList.toggle('lnl-hidden', i !== wizardCurrentStep);
+          page.classList.toggle('lnl-show-block', i === wizardCurrentStep);
+        }
         if (node) {
           if (i === wizardCurrentStep) node.classList.add('active');
           else node.classList.remove('active');
@@ -3983,7 +4094,10 @@ export function getDashboardHtml(): string {
       const btnPrev = document.getElementById('wizard-btn-prev');
       const btnNext = document.getElementById('wizard-btn-next');
 
-      if (btnPrev) btnPrev.style.display = wizardCurrentStep > 1 ? 'inline-flex' : 'none';
+      if (btnPrev) {
+        btnPrev.classList.toggle('lnl-hidden', wizardCurrentStep <= 1);
+        btnPrev.classList.toggle('lnl-show-inline-flex', wizardCurrentStep > 1);
+      }
       if (btnNext) {
         if (wizardCurrentStep === 1) btnNext.textContent = 'Next: Fallback Chain';
         else if (wizardCurrentStep === 2) btnNext.textContent = 'Next: Policies';
@@ -4047,9 +4161,9 @@ export function getDashboardHtml(): string {
                 '<span class="badge-tag emerald" style="font-size:0.68rem; padding:1px 6px;">ðŸŸ¢ ' + activeCount + ' acct' + (activeCount === 1 ? '' : 's') + '</span>' +
               '</div>' +
               '<div style="display:flex; align-items:center; gap:4px;">' +
-                '<button class="btn btn-secondary btn-sm" onclick="moveWizardTarget(' + idx + ', -1)" ' + (idx === 0 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Up">â–²</button>' +
-                '<button class="btn btn-secondary btn-sm" onclick="moveWizardTarget(' + idx + ', 1)" ' + (idx === wizardTargets.length - 1 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Down">â–¼</button>' +
-                '<button class="btn btn-danger btn-sm" onclick="removeWizardTarget(' + idx + ')" title="Remove target" style="padding:4px 8px;">âœ•</button>' +
+                '<button class="btn btn-secondary btn-sm" data-call-click="moveWizardTarget(' + idx + ', -1)" ' + (idx === 0 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Up">â–²</button>' +
+                '<button class="btn btn-secondary btn-sm" data-call-click="moveWizardTarget(' + idx + ', 1)" ' + (idx === wizardTargets.length - 1 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Down">â–¼</button>' +
+                '<button class="btn btn-danger btn-sm" data-call-click="removeWizardTarget(' + idx + ')" title="Remove target" style="padding:4px 8px;">âœ•</button>' +
               '</div>' +
             '</div>';
           }).join('');
@@ -4182,7 +4296,7 @@ export function getDashboardHtml(): string {
               depthText +
             '</div>' +
           '</div>' +
-          '<button class="btn ' + (inChain ? 'btn-secondary' : 'btn-primary') + ' btn-sm" data-target="' + m.id + '" onclick="toggleTargetInChain(this.dataset.target)" style="white-space:nowrap; font-size:0.75rem; padding:4px 10px;">' +
+          '<button class="btn ' + (inChain ? 'btn-secondary' : 'btn-primary') + ' btn-sm" data-target="' + m.id + '" data-call-click="toggleTargetInChain(this.dataset.target)" style="white-space:nowrap; font-size:0.75rem; padding:4px 10px;">' +
             (inChain ? 'âœ“ Added' : '+ Add') +
           '</button>' +
         '</div>';
