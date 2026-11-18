@@ -95,7 +95,7 @@ export function loadConfig(overrides?: Partial<GatewayConfig>): GatewayConfig {
     gatewayToken: process.env.LATTICE_GATEWAY_TOKEN || overrides?.gatewayToken,
     adminToken: process.env.LATTICE_ADMIN_TOKEN || overrides?.adminToken,
     maxBodyBytes: Number(process.env.MAX_BODY_BYTES || overrides?.maxBodyBytes || 10_000_000),
-    dataDir: process.env.DATA_DIR || overrides?.dataDir,
+    dataDir: overrides?.dataDir || process.env.DATA_DIR,
     dbPath: process.env.DB_PATH || overrides?.dbPath,
     upstreamUrl: process.env.UPSTREAM_URL || overrides?.upstreamUrl,
   };

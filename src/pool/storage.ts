@@ -16,7 +16,7 @@ export class LatticeStorage {
   private dataDir: string;
   private filePath: string;
 
-  constructor(dataDir = 'data') {
+  constructor(dataDir = process.env.DATA_DIR || 'data') {
     this.dataDir = dataDir;
     this.filePath = join(dataDir, 'lattice-store.json');
     this.ensureDir();

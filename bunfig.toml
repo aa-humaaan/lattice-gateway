@@ -1,6 +1,7 @@
 [test]
 root = "tests"
 timeout = 10000
+preload = ["./tests/helpers/isolate-datadir.ts"]
 
 [install]
 cache = true
