@@ -219,6 +219,8 @@ export interface CanonicalRequest {
   affinity?: {
     sessionKey: string;
   };
+  /** Account selected for execution; usage is charged to this id. */
+  accountId?: string;
 }
 
 export const CanonicalRequestSchema = z.object({

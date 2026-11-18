@@ -1,10 +1,15 @@
 import type { StoredAccount, AccountStatus } from '../core/types/plugin';
 import { logger } from '../utils/logger';
+import { randomBytes } from 'crypto';
+import { globalHealthStore, type HealthStore } from './health-store';
 
 const QUOTA_EXHAUSTION_THRESHOLD_SECONDS = 3600;
 
 export class AccountPoolManager {
+  constructor(private readonly healthStore: HealthStore = globalHealthStore) {}
+
   private accounts = new Map<string, StoredAccount>();
+  private leases = new Map<string, { accountId: string; providerId: string; expiresAt: number }>();
   private providerIndices = new Map<string, number>();
   private providerUsage = new Map<
     string,
@@ -16,14 +21,52 @@ export class AccountPoolManager {
     }
   >();
 
+  acquireLease(providerId: string, candidateIds: string[], ttlMs = 60_000): { leaseId: string; accountId: string } | undefined {
+    const now = Date.now();
+    for (const [id, lease] of this.leases) if (lease.expiresAt <= now) this.leases.delete(id);
+    const leased = new Set(
+      Array.from(this.leases.values())
+        .filter((lease) => lease.providerId === providerId)
+        .map((lease) => lease.accountId)
+    );
+    const accountId = candidateIds.find((id) => !leased.has(id));
+    if (!accountId) return undefined;
+    const leaseId = randomBytes(8).toString('hex');
+    this.leases.set(leaseId, { accountId, providerId, expiresAt: now + ttlMs });
+    return { leaseId, accountId };
+  }
+
+  releaseLease(leaseId: string): void {
+    this.leases.delete(leaseId);
+  }
+
+  recordUsageForAccount(accountId: string, promptTokens: number, completionTokens: number): void {
+    const acc = this.accounts.get(accountId);
+    if (!acc) return;
+    acc.tokensUsed = (acc.tokensUsed || 0) + promptTokens + completionTokens;
+    acc.requestsUsed = (acc.requestsUsed || 0) + 1;
+    acc.lastUsedAt = Date.now();
+    this.healthStore.set(accountId, { status: 'healthy', failures: 0 });
+  }
+
   addAccount(account: StoredAccount): void {
-    this.accounts.set(account.id, {
+    const merged: StoredAccount = {
       ...account,
       status: account.status || 'active',
       errorCount: account.errorCount || 0,
       createdAt: account.createdAt || Date.now(),
       updatedAt: Date.now(),
-    });
+    };
+    const health = this.healthStore.get(account.id);
+    if (health && account.status === 'active') {
+      if (health.status === 'cooling' && health.cooldownUntil && health.cooldownUntil > Date.now()) {
+        merged.status = 'cooldown';
+        merged.cooldownUntil = health.cooldownUntil;
+      } else if (health.status === 'halfOpen' || (health.status === 'cooling' && health.cooldownUntil && health.cooldownUntil <= Date.now())) {
+        this.healthStore.set(account.id, { status: 'halfOpen', failures: health.failures });
+      }
+    }
+    this.accounts.set(account.id, merged);
     logger.info(`[AccountPool] Added/updated account: ${account.id} for provider: ${account.providerId}`);
   }
 
@@ -52,7 +95,11 @@ export class AccountPoolManager {
         a.cooldownUntil = undefined;
         a.cooldownReason = undefined;
         a.updatedAt = now;
-        logger.info(`[AccountPool] Account ${a.id} cooldown expired — auto-restored to active`);
+        this.healthStore.set(a.id, {
+          status: 'halfOpen',
+          failures: this.healthStore.get(a.id)?.failures ?? 0,
+        });
+        logger.info(`[AccountPool] Account ${a.id} cooldown expired — promoted to HalfOpen`);
       }
       return a.status === 'active';
     });
@@ -121,6 +168,7 @@ export class AccountPoolManager {
     if (acc) {
       acc.errorCount = 0;
       acc.lastUsedAt = Date.now();
+      this.healthStore.set(accountId, { status: 'healthy', failures: 0 });
     }
   }
 
@@ -132,6 +180,7 @@ export class AccountPoolManager {
       acc.cooldownReason = undefined;
       acc.errorCount = 0;
       acc.updatedAt = Date.now();
+      this.healthStore.set(accountId, { status: 'healthy', failures: 0 });
       logger.info(`[AccountPool] Account ${accountId} cooldown manually cleared -> restored to active`);
       return true;
     }
@@ -143,6 +192,11 @@ export class AccountPoolManager {
     if (acc) {
       acc.status = 'cooldown';
       acc.cooldownUntil = Date.now() + retryAfterSeconds * 1000;
+      this.healthStore.set(accountId, {
+        status: 'cooling',
+        cooldownUntil: acc.cooldownUntil,
+        failures: acc.errorCount,
+      });
       acc.cooldownReason = reason || 'Rate limit 429';
       acc.errorCount++;
       acc.updatedAt = Date.now();

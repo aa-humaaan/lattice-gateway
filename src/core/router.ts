@@ -289,7 +289,9 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
         canonicalRes.usage?.completionTokens ||
         countCompletionTokens(canonicalRes.content);
       globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
+      if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, promptTokens, completionTokens);
       broadcastLog({
+        requestId: reqId,
         timestamp: Date.now(),
         method: 'POST',
         path: '/v1/chat/completions',
@@ -354,8 +356,10 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
 
         if (streamStatus === 200) {
           globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
+          if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
         }
         broadcastLog({
+          requestId: reqId,
           timestamp: Date.now(),
           method: 'POST',
           path: '/v1/chat/completions',
@@ -437,7 +441,9 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
         canonicalRes.usage?.completionTokens ||
         countCompletionTokens(canonicalRes.content);
       globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
+      if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, promptTokens, completionTokens);
       broadcastLog({
+        requestId: reqId,
         timestamp: Date.now(),
         method: 'POST',
         path: '/v1/messages',
@@ -502,8 +508,10 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
 
         if (streamStatus === 200) {
           globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
+          if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
         }
         broadcastLog({
+          requestId: reqId,
           timestamp: Date.now(),
           method: 'POST',
           path: '/v1/messages',
@@ -584,7 +592,9 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
         canonicalRes.usage?.completionTokens ||
         countCompletionTokens(canonicalRes.content);
       globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
+      if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, promptTokens, completionTokens);
       broadcastLog({
+        requestId: reqId,
         timestamp: Date.now(),
         method: 'POST',
         path: '/v1/responses',
@@ -649,8 +659,10 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
 
         if (streamStatus === 200) {
           globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
+          if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
         }
         broadcastLog({
+          requestId: reqId,
           timestamp: Date.now(),
           method: 'POST',
           path: '/v1/responses',
@@ -683,5 +695,10 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     });
   });
 }
+
+
+
+
+
 
 

@@ -27,3 +27,5 @@ data/lattice-secrets.json
 data/lattice-secrets.json.tmp
 data/lattice-keychain.json
 data/lattice-keychain.json.tmp
+data/account-health.json
+data/account-health.json.tmp

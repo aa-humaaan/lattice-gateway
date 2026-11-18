@@ -44,6 +44,7 @@ export function createOAuthSessionId(provider: string): string {
 }
 
 export interface LogEvent {
+  requestId?: string;
   timestamp: number;
   method: string;
   path: string;
@@ -103,6 +104,7 @@ export function broadcastLog(log: LogEvent): void {
   if (recentLogs.length > 500) recentLogs.pop();
 
   requestLedger.append({
+    requestId: enrichedLog.requestId,
     timestamp: enrichedLog.timestamp || Date.now(),
     method: enrichedLog.method || 'POST',
     path: enrichedLog.path || '',

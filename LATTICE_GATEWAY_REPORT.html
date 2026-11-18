@@ -1007,7 +1007,7 @@ footer .fine{font:12px/1.7 var(--mono);color:#b8ad99;border-top:1px solid #4a423
 
     <div class="note good">
       <span class="tag">Status: Phase A + B + Phase C1 shipped</span>
-      <p>The rescue, all nine moat increments, and the minor-sweep were implemented test-first. Latest full run: <b>676 tests pass, 0 fail, 82 files</b>.</p>
+      <p>The rescue, all ten moat increments, and the minor-sweep were implemented test-first. Latest full run: <b>692 tests pass, 0 fail, 85 files</b>.</p>
     </div>
 
     <h3>Phase A — stop the bleeding</h3>
@@ -1092,7 +1092,13 @@ footer .fine{font:12px/1.7 var(--mono);color:#b8ad99;border-top:1px solid #4a423
       <li class="done"><b>Honest numbers</b><span><code>tokensPerSec</code> now divides tokens from the same window as its time span, and one labelled illustrative USD rate feeds both the API and the dashboard.</span></li>
       <li class="done"><b>Safer boundaries</b><span>The upstream URL allow-list rejects decimal/octal/hex IPv4, non-canonical loopback, and IPv4-mapped IPv6; port conflicts name the owner PID when the runtime reports it.</span></li>
     </ul>
-    <p class="small">An external sync also landed OpenAI Responses SSE streaming during this sweep; it was preserved and verified rather than discarded. Ordinary accounts keep reading their own credentials unchanged; only imported accounts use the secret-store overlay.</p>
+    <h3>Phase C10 — receipts and durable health</h3>
+    <ul class="check">
+      <li class="done"><b>One-request receipts</b><span>Ledger events carry request IDs, and <code>bun run why &lt;id&gt;</code> explains the real outcome, provider, model, latency and token accounting for that request.</span></li>
+      <li class="done"><b>Health survives restart</b><span>Cooldowns persist as Healthy → Cooling → HalfOpen in an atomic 0600 file with no secrets; an expired cooldown becomes a HalfOpen probe instead of silently waking every account.</span></li>
+      <li class="done"><b>Usage attribution</b><span>Canonical requests carry the chosen account id and the router charges both the provider aggregate and that account.</span></li>
+    </ul>
+    <p class="small">Honest limit: in-flight lease reservation exists in the pool manager but is not yet enforced inside plugin account-selection loops, because gating there would break same-model failover. The reporting and persistence parts are complete; lease enforcement is the deliberate follow-up. An external sync also landed OpenAI Responses SSE streaming during this work; it was preserved and verified rather than discarded.</p>
   </div>
 </section>
 

@@ -742,6 +742,11 @@ export class KiloProviderPlugin implements ProviderPlugin {
       if (account) {
         triedIds.add(account.id);
         account.lastUsedAt = Date.now();
+        // The chosen account is surfaced for usage attribution. A lease is
+        // reserved only through the pool manager API; plugins with their own
+        // account lists record attribution but do not gate selection on a
+        // lease, because failover must stay inside the same model.
+        req.accountId = account.id;
       }
 
       const headers = this.buildHeaders(account);
@@ -851,6 +856,11 @@ export class KiloProviderPlugin implements ProviderPlugin {
       if (account) {
         triedIds.add(account.id);
         account.lastUsedAt = Date.now();
+        // The chosen account is surfaced for usage attribution. A lease is
+        // reserved only through the pool manager API; plugins with their own
+        // account lists record attribution but do not gate selection on a
+        // lease, because failover must stay inside the same model.
+        req.accountId = account.id;
       }
 
       const headers = this.buildHeaders(account);

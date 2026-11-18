@@ -2,6 +2,7 @@ import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 
 export interface LedgerEvent {
+  requestId?: string;
   timestamp: number;
   method: string;
   path: string;
