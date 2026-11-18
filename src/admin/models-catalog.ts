@@ -1,5 +1,6 @@
 import { globalPluginRegistry } from '../plugins/registry';
 import { globalComboManager } from '../pool/combos';
+import { globalAccountPool } from '../pool/account-pool';
 import { resolveTargetProviderId } from '../utils/model-resolver';
 import {
   getGlobalModelPassportStore,
@@ -34,6 +35,22 @@ export interface EnrichedModelCatalogItem {
   verificationStatus?: 'unverified' | PassportEvidenceSource;
   passportDigest?: string;
   claimSources?: Record<string, PassportEvidenceSource>;
+  available?: boolean;
+  unavailableReason?: string;
+}
+
+/** Providers that work without an operator-supplied credential. */
+const KEYLESS_PROVIDERS = new Set(['opencode', 'freellmapi']);
+
+export function isProviderConfigured(providerId: string): { available: boolean; reason?: string } {
+  if (globalPluginRegistry.has(providerId) && !globalPluginRegistry.isEnabled(providerId)) {
+    return { available: false, reason: 'Provider plugin is disabled' };
+  }
+  if (KEYLESS_PROVIDERS.has(providerId)) return { available: true };
+  const active = globalAccountPool.listAccounts(providerId).some((a) => a.status === 'active');
+  return active
+    ? { available: true }
+    : { available: false, reason: 'No active account configured for this provider' };
 }
 
 export function formatContextWindow(tokens: number): string {
@@ -1257,6 +1274,18 @@ export function getEnrichedModelsCatalog(
   }
 
   for (const item of modelMap.values()) {
+    if (item.providerId === 'lattice') {
+      // A combo is usable only when at least one of its targets is configured.
+      const combo = globalComboManager.getCombo(item.id);
+      const targets = combo?.targets ?? [];
+      const usable = targets.some((target) => isProviderConfigured(resolveTargetProviderId(target)).available);
+      item.available = usable;
+      item.unavailableReason = usable ? undefined : 'No configured provider in this combo';
+    } else {
+      const status = isProviderConfigured(item.providerId);
+      item.available = status.available;
+      item.unavailableReason = status.reason;
+    }
     const passport = store.get(item.id);
     if (!passport || !verifyPassport(passport)) {
       item.verificationStatus = 'unverified';

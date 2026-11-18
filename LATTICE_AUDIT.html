@@ -204,6 +204,7 @@ table.compare th:nth-child(2){color:var(--verm-dark)}
 /* moat */
 .moat{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:3px;overflow:hidden;margin:10px 0}
 .moat .m{background:var(--paper);padding:22px 24px}
+.moat .m:last-child{grid-column:1/-1}
 .moat .m .n{font-family:var(--mono);font-size:10px;color:var(--verm);letter-spacing:.12em}
 .moat .m h4{font-family:var(--display);font-size:21px;font-weight:600;margin:8px 0 8px;line-height:1.2}
 .moat .m p{font-size:15.5px;margin:0;line-height:1.55;color:var(--ink-soft)}
@@ -313,7 +314,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
   </nav>
   <div class="foot">
     Measured on this checkout<br><em>18 November 2026</em><br>
-    Branch master · 4 commits ahead<br>
+    Branch master · under active development<br>
     Read-only. No provider calls made.
   </div>
 </aside>
@@ -333,13 +334,13 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
         <svg viewBox="0 0 600 16" preserveAspectRatio="none" aria-hidden="true"><path d="M2 11 C 120 4, 250 14, 380 7 S 560 11, 598 6" stroke="#C0442B" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
       </div>
       <p class="sub">What this gateway actually is, what it says it is, where it quietly breaks, how it stands against the tools people reach for instead — and the exact order of work that turns a strong prototype into something you can ship.</p>
-      <p class="hard"><b>676 tests pass on this checkout.</b> That is a measurement of tests. Readiness is a different measurement, and this dossier takes that one seriously.</p>
+      <p class="hard"><b>692 tests pass on this checkout.</b> That is a measurement of tests. Readiness is a different measurement, and this dossier takes that one seriously.</p>
       <div class="stamp"><s>VERDICT</s><b>STRONG PROTOTYPE</b>NOT RELEASABLE — YET</div>
       <div class="meta">
         <div>VERSION<b>0.1.0</b></div>
-        <div>SOURCE<b>53 modules · 19,421 lines</b></div>
-        <div>REGISTERED PLUGINS<b>8</b></div>
-        <div>GIT STATE<b>master · +4 unpushed</b></div>
+        <div>SOURCE<b>54 modules · 19,560 lines</b></div>
+        <div>REGISTERED PLUGINS<b>7</b></div>
+        <div>GIT STATE<b>master · active development</b></div>
         <div>AUDIT TYPE<b>Read-only</b></div>
       </div>
     </div>
@@ -359,14 +360,14 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
       <p>The verdict is not "rebuild." It is "close the gaps in a specific order." That order is the spine of this document.</p>
 
       <div class="facts" aria-label="Measured facts">
-        <div class="fact"><b>676</b><span>tests passing</span></div>
-        <div class="fact"><b>82</b><span>test files</span></div>
+        <div class="fact"><b>692</b><span>tests passing</span></div>
+        <div class="fact"><b>85</b><span>test files</span></div>
         <div class="fact"><b>3 / 3</b><span>conformance fixtures</span></div>
-        <div class="fact"><b>19,421</b><span>source lines</span></div>
-        <div class="fact"><b>53</b><span>TS modules</span></div>
-        <div class="fact"><b>8</b><span>plugins</span></div>
+        <div class="fact"><b>19,560</b><span>source lines</span></div>
+        <div class="fact"><b>54</b><span>TS modules</span></div>
+        <div class="fact"><b>7</b><span>plugins</span></div>
         <div class="fact alert"><b>0</b><span>CI workflows</span></div>
-        <div class="fact alert"><b>+4</b><span>unpushed commits</span></div>
+        <div class="fact alert"><b>0</b><span>license files</span></div>
       </div>
       <p style="font-family:var(--mono);font-size:10.5px;color:var(--clay);margin-top:10px">Measured today with <code>bun test</code>, <code>bunx tsc --noEmit</code>, the dashboard parse guard and the conformance runner. Not quoted from documentation.</p>
 
@@ -419,10 +420,10 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
           </div>
         </div>
       </div>
-      <p style="font-family:var(--mono);font-size:10.5px;color:var(--clay);margin-top:12px">Eight plugins are registered: six upstreams, the Lattice combo engine, and the harness scaffolding. Core routing never imports a provider.</p>
+      <p style="font-family:var(--mono);font-size:10.5px;color:var(--clay);margin-top:12px">Seven plugins are registered: six upstreams and the Lattice combo engine. Core routing never imports a provider.</p>
 
       <p class="eyebrowline" style="margin-top:30px">What actually ships</p>
-      <p>Account pooling with cooldowns and round-robin; a 429 round-trip parser borrowed from Cline-style retries; transparent pre-stream failover across virtual combos like <code>lattice/code-flagship</code>; an append-only request ledger; signed model passports; session affinity that prefers the same model and account before switching; a two-step consent flow for importing accounts; a secret store that admits when it is only a 0600 file; capability learning from real traffic; and rotation that refuses to retry an ambiguous failure. That last one is quietly excellent: a 429 or a 401 proves the request never landed, so switching accounts is safe. A timeout or a 5xx does not, so the gateway fails fast instead of risking a duplicated tool call or charge.</p>
+      <p>Account pooling with cooldowns and round-robin; natural-language 429 Retry-After parsing; transparent pre-stream failover across virtual combos like <code>lattice/code-flagship</code>; an append-only request ledger; signed model passports; session affinity that prefers the same model and account before switching; a two-step consent flow for importing accounts; a secret store that admits when it is only a 0600 file; capability learning from real traffic; and rotation that refuses to retry an ambiguous failure. That last one is quietly excellent: a 429 or a 401 proves the request never landed, so switching accounts is safe. A timeout or a 5xx does not, so the gateway fails fast instead of risking a duplicated tool call or charge.</p>
       <p>The admin surface at <code>:4000/admin</code> is a single-page mission control with live log streaming, plugin toggles, combo management, a free-model explorer and a model probe. A parse guard exists specifically because that UI is one large inline script — a misplaced quote used to take the whole dashboard down while the page still looked fine.</p>
     </div>
   </section>
@@ -441,7 +442,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
         <table>
           <thead><tr><th>Claim</th><th>Origin</th><th>Class</th><th>Finding</th></tr></thead>
           <tbody>
-            <tr><td>"676 automated tests"</td><td class="cellmono">bun test, today</td><td><span class="tag m">MEASURED</span></td><td><span class="verdict-ok">Holds.</span> 82 files, 15,681 assertions.</td></tr>
+            <tr><td>"692 automated tests"</td><td class="cellmono">bun test, today</td><td><span class="tag m">MEASURED</span></td><td><span class="verdict-ok">Holds.</span> 85 files, 15,715 assertions.</td></tr>
             <tr><td>Clean typecheck + dashboard parse</td><td class="cellmono">bunx tsc · check-dashboard</td><td><span class="tag m">MEASURED</span></td><td><span class="verdict-ok">Holds.</span> One inline script, 110,270 chars, parses.</td></tr>
             <tr><td>Dialect conformance</td><td class="cellmono">run-conformance.ts</td><td><span class="tag m">MEASURED</span></td><td><span class="verdict-ok">Holds.</span> 3 of 3 fixtures pass.</td></tr>
             <tr><td>"MIT licensed"</td><td class="cellmono">README footer</td><td><span class="tag d">DECLARED</span></td><td><span class="verdict-no">Fails.</span> No LICENSE file in the tree.</td></tr>
@@ -474,7 +475,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
         <article class="case">
           <div class="top"><span class="sev crit">CRITICAL</span><span class="id">CASE 01 / SECURITY</span></div>
           <h3>The credentials are still in the history.</h3>
-          <p><code>SECURITY.md</code> says it plainly: live OAuth tokens were committed inside <code>data/lattice-store.json</code>. Removing the file from the index does not unwrite the commits — anyone holding a clone can still read every token. The four local commits sit on top of that history, so publishing them before a decision is made spreads the problem rather than the fix.</p>
+          <p><code>SECURITY.md</code> says it plainly: live OAuth tokens were committed inside <code>data/lattice-store.json</code>. Removing the file from the index does not unwrite the commits — anyone holding a clone can still read every token. The exposed tokens predate the current branch state: whether the branch is ahead of origin or in sync with it, the history itself still carries the secret. Rotation and scrubbing are the only remaining moves.</p>
           <div class="fix"><span class="lab">Order of operations</span>
             <p><span>1</span> Revoke every Kilo, Nous, Cline, DeepSeek and FreeLLMAPI token at the provider. <span>2</span> Scrub with <code>git filter-repo --path data/lattice-store.json --invert-paths</code>. <span>3</span> Force-push and have collaborators re-clone. <span>4</span> Only then add accounts through the consent flow. Rotation is not optional and it cannot be automated from here.</p>
           </div>
@@ -483,7 +484,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
         <article class="case">
           <div class="top"><span class="sev high">HIGH</span><span class="id">CASE 02 / HONESTY</span></div>
           <h3>Production has a mock switch nobody admitted to.</h3>
-          <p><code>createServer()</code> imports <code>tests/mocks/mock-provider</code> whenever it is called without plugins (<code>src/core/server.ts:44</code>). DeepSeek's challenge solver returns the literal string <code>ds_session_cookie_mock</code> when verification fails (<code>src/plugins/deepseek.ts:304</code> and <code>:310</code>). In a harness whose entire position is honesty, a silent fallback to fake providers and fake credentials is the worst possible shape of bug: every light stays green while nothing is real.</p>
+          <p><code>createServer()</code> imports <code>tests/mocks/mock-provider</code> whenever it is called without plugins (<code>src/core/server.ts:47</code>). DeepSeek's challenge solver returns the literal string <code>ds_session_cookie_mock</code> when verification fails (<code>src/plugins/deepseek.ts:304</code> and <code>:310</code>). In a harness whose entire position is honesty, a silent fallback to fake providers and fake credentials is the worst possible shape of bug: every light stays green while nothing is real.</p>
           <div class="fix"><span class="lab">Fix</span>
             <p>Make both paths fail loudly with an actionable error. Keep the mock behind an explicit test-only flag — the suite depends on that literal, so move it to configuration rather than deleting it. A gateway must never confuse "working" with "pretending."</p>
           </div>
@@ -501,9 +502,9 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
         <article class="case">
           <div class="top"><span class="sev high">HIGH</span><span class="id">CASE 04 / VERIFICATION</span></div>
           <h3>Green means green on this laptop.</h3>
-          <p>There is no <code>.github/workflows</code> directory. <code>bun run verify</code> runs typecheck, the dashboard parse guard and 376 unit tests — it skips the 300 E2E cases and the conformance runner entirely. A fresh clone has no gate, and the command most likely to be trusted is the one that checks the least.</p>
+          <p>There is no <code>.github/workflows</code> directory. <code>bun run verify</code> runs typecheck, the dashboard parse guard and 392 unit tests — it skips the other 300 integration and E2E cases and the conformance runner entirely. A fresh clone has no gate, and the command most likely to be trusted is the one that checks the least.</p>
           <div class="fix"><span class="lab">Fix</span>
-            <p>One command, one truth: typecheck → dashboard parse → conformance → full 676-test suite → compile → smoke-test the binary. Make that the release gate, then make CI run it on every push. A suite that is only green locally is a diary, not a guarantee.</p>
+            <p>One command, one truth: typecheck → dashboard parse → conformance → full 692-test suite → compile → smoke-test the binary. Make that the release gate, then make CI run it on every push. A suite that is only green locally is a diary, not a guarantee.</p>
           </div>
         </article>
 
@@ -527,10 +528,10 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
 
         <article class="case">
           <div class="top"><span class="sev low">LOW</span><span class="id">CASE 07 / EDGES</span></div>
-          <h3>No edges, no exits.</h3>
-          <p>No health or readiness endpoint. No data migration or versioning story. No documented graceful-shutdown behavior. Windows-first packaging. No <code>CONTRIBUTING</code> guide. The README's feature list jumps from 8 to 10 — someone deleted a section and forgot to renumber. These are small things; release quality is mostly a pile of small things.</p>
+          <h3>Health arrived; the exits did not.</h3>
+          <p>Liveness probes now exist at <code>/healthz</code>, <code>/health</code>, <code>/api/health</code> and <code>/v1/health</code>. Cooldowns persist to <code>data/account-health.json</code> with Healthy → Cooling → HalfOpen states, and <code>bun run why &lt;request-id&gt;</code> explains a single request from the ledger. That closes a real part of the operational gap. What remains: no documented graceful-shutdown behavior, no general data migration or schema-versioning story, Windows-first packaging, no <code>CONTRIBUTING</code> guide, and a README feature list that jumps from 8 to 10. These are small things; release quality is mostly a pile of small things.</p>
           <div class="fix"><span class="lab">Fix</span>
-            <p>Fold these into the operational milestone rather than chasing them now. None blocks correctness. All of them block "I would run this for someone else."</p>
+            <p>Fold the remainder into the operational milestone rather than chasing them now. None blocks correctness. All of them block "I would run this for someone else."</p>
           </div>
         </article>
 
@@ -605,6 +606,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
         <div class="m"><div class="n">06 / HONESTY</div><h4>Secret storage that admits its limits</h4><p>A narrow interface with a real file fallback. OS-backed keychains are opt-in and probe-gated: Windows DPAPI, macOS Keychain, Linux libsecret. If the probe fails, the gateway reports <code>file-fallback</code> instead of wearing a badge it did not earn.</p></div>
         <div class="m"><div class="n">07 / PROOF</div><h4>Executable conformance</h4><p>Fixtures run through the real normalizers, serializers and stream adapters with no network access, writing deterministic results. A conformance badge backed by a runner, not by hand-written expectations.</p></div>
         <div class="m"><div class="n">08 / SHAPE</div><h4>A seam, not a pile</h4><p>Adding a provider is a plugin, not a patch to core. Dialect translation, XML recovery and combo failover stay untouched. That is why the project can keep improving its trust layer without renegotiating every upstream.</p></div>
+        <div class="m"><div class="n">09 / RECEIPTS</div><h4>An answer for every request</h4><p><code>bun run why &lt;request-id&gt;</code> reconstructs one request from the ledger — outcome, provider, model, latency and token accounting, with estimates labelled. Account cooldowns survive a restart in a file that carries no secrets, moving through Healthy, Cooling and HalfOpen.</p></div>
       </div>
     </div>
   </section>
@@ -627,12 +629,12 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
         <div class="mile"><div class="big">1</div><div class="body">
           <h4>Release hardening</h4>
           <p class="goal">Turn a local success into a repeatable, verifiable artifact.</p>
-          <div class="done"><b>Done when</b>Mock fallbacks fail loudly; the catalogue only lists served models; one gate runs typecheck → dashboard parse → conformance → all 676 tests → compile → binary smoke test; CI runs it on every push; LICENSE, changelog and version bump exist; a signed checksummed binary starts on a clean machine.</div>
+          <div class="done"><b>Done when</b>Mock fallbacks fail loudly; the catalogue only lists served models; one gate runs typecheck → dashboard parse → conformance → all 692 tests → compile → binary smoke test; CI runs it on every push; LICENSE, changelog and version bump exist; a signed checksummed binary starts on a clean machine.</div>
         </div></div>
         <div class="mile"><div class="big">2</div><div class="body">
           <h4>Operational backbone</h4>
           <p class="goal">Make it something you can leave running for someone else.</p>
-          <div class="done"><b>Done when</b>Health and readiness endpoints answer honestly; structured metrics expose rotation and failover decisions; data has a versioning and migration story; shutdown drains in-flight requests; packaging is not Windows-only.</div>
+          <div class="done"><b>Done when</b>Health probes, receipts and persisted cooldowns already ship — keep them honest; add structured metrics for rotation and failover decisions, a general data versioning and migration story, graceful shutdown that drains in-flight requests, and packaging beyond Windows.</div>
         </div></div>
         <div class="mile"><div class="big">3</div><div class="body">
           <h4>Catalogue convergence</h4>
@@ -669,7 +671,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
         <div class="row"><div class="name">Code-level security</div><div class="track"><div class="fill b" data-w="78"></div></div><div class="grade" style="color:var(--ochre)">B+</div></div>
         <div class="row"><div class="name">Documentation</div><div class="track"><div class="fill b" data-w="76"></div></div><div class="grade" style="color:var(--ochre)">B</div></div>
         <div class="row"><div class="name">Catalogue integrity</div><div class="track"><div class="fill c" data-w="55"></div></div><div class="grade" style="color:var(--clay)">C</div></div>
-        <div class="row"><div class="name">Operational maturity</div><div class="track"><div class="fill c" data-w="48"></div></div><div class="grade" style="color:var(--clay)">C−</div></div>
+        <div class="row"><div class="name">Operational maturity</div><div class="track"><div class="fill c" data-w="55"></div></div><div class="grade" style="color:var(--clay)">C</div></div>
         <div class="row"><div class="name">Simplicity</div><div class="track"><div class="fill c" data-w="58"></div></div><div class="grade" style="color:var(--clay)">C+</div></div>
         <div class="row"><div class="name">Release readiness</div><div class="track"><div class="fill d" data-w="32"></div></div><div class="grade" style="color:var(--verm)">D</div></div>
         <div class="row"><div class="name">Security process</div><div class="track"><div class="fill d" data-w="18"></div></div><div class="grade" style="color:var(--verm)">F</div></div>
@@ -688,7 +690,8 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--verm);outline-offse
       <p class="num" style="color:var(--ochre);margin:0 0 16px">08 — COLOPHON</p>
       <h2>How this was made.</h2>
       <p>Read-only audit of the checkout at <code style="background:#2a241c;color:#e6d9bf">C:\Users\adity\lattice-gateway</code> on 18 November 2026. Every number was measured with <code style="background:#2a241c;color:#e6d9bf">bun test</code>, <code style="background:#2a241c;color:#e6d9bf">bunx tsc --noEmit</code>, the dashboard parse guard and the conformance runner. Every issue names a file and line that was read directly. No provider was called, no credential was touched, no configuration was changed.</p>
-      <p>Competitor descriptions are architectural characterizations drawn from the repository's own notes and the public shape of those tools — not version-specific benchmarks. Where a claim could not be measured here, it is labelled as declared rather than presented as fact. That rule applies to this document too.</p>
+      <p><strong style="color:#e6d9bf">Snapshot, not a living feed.</strong> This tree was under active concurrent development while the audit was written. The suite moved from 676 to 692 tests, liveness probes, a receipts CLI and persisted health state landed, and the branch's relationship to origin changed more than once. Every volatile figure above was re-measured at finalization; the structural findings — credentials in history, mock fallbacks, phantom catalogue rows, absent CI and absent license — were re-checked against the current tree and still hold. Re-run the gate before treating the numbers as current.</p>
+      <p>Competitor descriptions are architectural characterizations drawn from the repository's own notes and the public shape of those tools — not version-specific benchmarks. They were not live-tested here, so read the matrix as a map of design intent rather than a benchmark result. Where a claim could not be measured here, it is labelled as declared rather than presented as fact. That rule applies to this document too.</p>
       <p>This report is itself treated as a product: set warm ink on paper rather than the usual cold gradients, with a vermilion that was chosen to stay far away from blue and violet. Set in Fraunces, Newsreader and IBM Plex Mono. Marginalia, rules and the lattice mark were drawn for this document alone. No text, structure or interface was carried over from the older reports in the repository.</p>
       <div class="hand handline"><svg viewBox="0 0 600 22" preserveAspectRatio="none" aria-hidden="true"><path d="M2 14 C 120 6, 260 18, 400 9 S 560 15, 598 8" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
       <div class="sig">

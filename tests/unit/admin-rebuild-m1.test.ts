@@ -57,32 +57,22 @@ describe('Admin Dashboard Rebuild (Milestone 1)', () => {
     expect(html).toContain('Developer Harness Setup');
   });
 
-  it('GET /api/models returns enriched catalog with at least 31 free models', async () => {
+  it('GET /api/models returns only configured providers by default', async () => {
     const res = await router.request('/api/models');
     expect(res.status).toBe(200);
     const json = (await res.json()) as any;
     expect(json.success).toBeTrue();
-    expect(json.count).toBeGreaterThanOrEqual(31);
     expect(Array.isArray(json.models)).toBeTrue();
+    expect(json.models.every((m: any) => m.available !== false)).toBeTrue();
+    expect(json.hiddenCount).toBeGreaterThan(0);
 
-    // Verify Kilo 1M models
-    const particle = json.models.find((m: any) => m.id === 'kilo/particle-ai/particle-1:free');
+    const all = await (await router.request('/api/models?all=true')).json() as any;
+    const particle = all.models.find((m: any) => m.id === 'kilo/particle-ai/particle-1:free');
     expect(particle).toBeDefined();
+    expect(typeof particle.available).toBe('boolean');
     expect(particle.contextWindow).toBe(1048576);
-    expect(particle.isFree).toBeTrue();
-    expect(particle.badges.some((b: any) => b.text === '1M Context')).toBeTrue();
 
-    // Verify Cline pooled models
-    const clineStep5 = json.models.find((m: any) => m.id === 'cline-free/step-5-preview');
-    expect(clineStep5).toBeDefined();
-    expect(clineStep5.contextWindow).toBe(1000000);
-
-    // Verify DeepSeek web pool models
-    const dsReasoner = json.models.find((m: any) => m.id === 'deepseek/deepseek-reasoner');
-    expect(dsReasoner).toBeDefined();
-    expect(dsReasoner.supportsThinking).toBeTrue();
-
-    // Verify OpenCode Zen keyless models
+    // Verify OpenCode Zen keyless models remain available without credentials
     const bigPickle = json.models.find((m: any) => m.id === 'big-pickle');
     expect(bigPickle).toBeDefined();
     expect(bigPickle.providerId).toBe('opencode');

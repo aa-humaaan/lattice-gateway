@@ -1,4 +1,4 @@
-import { ICONS, PROVIDER_LOGOS } from './icons';
+﻿import { ICONS, PROVIDER_LOGOS } from './icons';
 
 export function getDashboardHtml(): string {
   return `<!DOCTYPE html>
@@ -1376,17 +1376,17 @@ export function getDashboardHtml(): string {
       <a class="nav-item" data-tab="plugins" onclick="switchNavTab('plugins')">
         ${ICONS.layers}
         <span>Provider Plugins</span>
-        <span class="nav-badge emerald" id="badge-plugins-nav">6 Active</span>
+        <span class="nav-badge emerald" id="badge-plugins-nav">--</span>
       </a>
       <a class="nav-item" data-tab="models" onclick="switchNavTab('models')">
         ${ICONS.cpu}
         <span>Free Models</span>
-        <span class="nav-badge emerald" id="badge-models-count">31 Free</span>
+        <span class="nav-badge emerald" id="badge-models-count">--</span>
       </a>
       <a class="nav-item" data-tab="harnesses" onclick="switchNavTab('harnesses')">
         ${ICONS.terminal}
         <span>Harness Setup</span>
-        <span class="nav-badge" id="badge-harness-count">7 Tools</span>
+        <span class="nav-badge" id="badge-harness-count">--</span>
       </a>
       <a class="nav-item" data-tab="usage" onclick="switchNavTab('usage')">
         ${ICONS.barChart}
@@ -1406,12 +1406,12 @@ export function getDashboardHtml(): string {
       <a class="nav-item" data-tab="accounts" onclick="switchNavTab('accounts')">
         ${ICONS.key}
         <span>Credential Pools</span>
-        <span class="nav-badge" id="badge-accounts-count">8</span>
+        <span class="nav-badge" id="badge-accounts-count">--</span>
       </a>
       <a class="nav-item" data-tab="combos" onclick="switchNavTab('combos')">
         ${ICONS.gitBranch}
         <span>Virtual Combos</span>
-        <span class="nav-badge" id="badge-combos-count">2</span>
+        <span class="nav-badge" id="badge-combos-count">--</span>
       </a>
       <a class="nav-item" data-tab="logs" onclick="switchNavTab('logs')">
         ${ICONS.radio}
@@ -1467,12 +1467,12 @@ export function getDashboardHtml(): string {
       <div class="kpi-grid">
         <div class="kpi-card" onclick="switchNavTab('plugins')" style="cursor:pointer;" title="View Provider Plugins">
           <div class="kpi-label">Active Plugins</div>
-          <div class="kpi-value" id="kpi-plugins" style="color: var(--text-primary);">6 Active</div>
-          <div class="kpi-subtext">Kilo · Nous · Cline · OpenCode · DeepSeek · Lattice</div>
+          <div class="kpi-value" id="kpi-plugins" style="color: var(--text-primary);">--</div>
+          <div class="kpi-subtext">Kilo Â· Nous Â· Cline Â· OpenCode Â· DeepSeek Â· Lattice</div>
         </div>
         <div class="kpi-card" onclick="switchNavTab('accounts')" style="cursor:pointer;" title="View Credential Pools">
           <div class="kpi-label">Active Accounts</div>
-          <div class="kpi-value" id="kpi-accounts" style="color: var(--emerald-text);">8 Active</div>
+          <div class="kpi-value" id="kpi-accounts" style="color: var(--emerald-text);">--</div>
           <div class="kpi-subtext" id="kpi-accounts-sub">0 in rate cooldown</div>
         </div>
         <div class="kpi-card" onclick="switchNavTab('models')" style="cursor:pointer;" title="View Free Models">
@@ -1482,7 +1482,7 @@ export function getDashboardHtml(): string {
         </div>
         <div class="kpi-card" onclick="switchNavTab('combos')" style="cursor:pointer;" title="View Virtual Combos">
           <div class="kpi-label">Virtual Combos</div>
-          <div class="kpi-value" id="kpi-combos" style="color: var(--text-primary);">3 Active</div>
+          <div class="kpi-value" id="kpi-combos" style="color: var(--text-primary);">--</div>
           <div class="kpi-subtext">Auto-failover active</div>
         </div>
         <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
@@ -1492,8 +1492,8 @@ export function getDashboardHtml(): string {
         </div>
         <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
           <div class="kpi-label">Streamed Tokens</div>
-          <div class="kpi-value" id="kpi-tokens" style="color: var(--text-primary);">813,700</div>
-          <div class="kpi-subtext" id="kpi-tokens-sub">524k in · 289k out</div>
+          <div class="kpi-value" id="kpi-tokens" style="color: var(--text-primary);">--</div>
+          <div class="kpi-subtext" id="kpi-tokens-sub">524k in Â· 289k out</div>
         </div>
         <div class="kpi-card" onclick="switchNavTab('telemetry')" style="cursor:pointer;" title="View Telemetry">
           <div class="kpi-label">Cost Avoidance</div>
@@ -1674,22 +1674,22 @@ export function getDashboardHtml(): string {
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-label">Total Cumulative Tokens</div>
-          <div class="kpi-value" id="telem-total" style="color: var(--text-primary);">813,700</div>
+          <div class="kpi-value" id="telem-total" style="color: var(--text-primary);">--</div>
           <div class="kpi-subtext">Processed across all upstreams</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Prompt Tokens</div>
-          <div class="kpi-value" id="telem-prompt" style="color: var(--cyan-text);">524,300</div>
+          <div class="kpi-value" id="telem-prompt" style="color: var(--cyan-text);">--</div>
           <div class="kpi-subtext">64.4% of total volume</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Completion Tokens</div>
-          <div class="kpi-value" id="telem-completion" style="color: var(--emerald-text);">289,400</div>
+          <div class="kpi-value" id="telem-completion" style="color: var(--emerald-text);">--</div>
           <div class="kpi-subtext">35.6% generated output</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Total Ingress Requests</div>
-          <div class="kpi-value" id="telem-requests" style="color: var(--text-primary);">462</div>
+          <div class="kpi-value" id="telem-requests" style="color: var(--text-primary);">--</div>
           <div class="kpi-subtext">Zero drops / 100% success</div>
         </div>
       </div>
@@ -1747,27 +1747,27 @@ export function getDashboardHtml(): string {
       <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
         <div class="kpi-card">
           <div class="kpi-label">Total Requests</div>
-          <div class="kpi-value" id="usage-kpi-requests" style="color: var(--text-primary);">1,420</div>
+          <div class="kpi-value" id="usage-kpi-requests" style="color: var(--text-primary);">--</div>
           <div class="kpi-subtext">100% Ingress Success Rate</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Total Input Tokens</div>
-          <div class="kpi-value" id="usage-kpi-prompt" style="color: var(--cyan-text);">524,300</div>
+          <div class="kpi-value" id="usage-kpi-prompt" style="color: var(--cyan-text);">--</div>
           <div class="kpi-subtext">64.4% Ingress Volume</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Cached Tokens</div>
-          <div class="kpi-value" id="usage-kpi-cached" style="color: #60a5fa;">128,400</div>
+          <div class="kpi-value" id="usage-kpi-cached" style="color: #60a5fa;">--</div>
           <div class="kpi-subtext">24.5% Cached Reads</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Output Tokens</div>
-          <div class="kpi-value" id="usage-kpi-completion" style="color: var(--emerald-text);">289,400</div>
+          <div class="kpi-value" id="usage-kpi-completion" style="color: var(--emerald-text);">--</div>
           <div class="kpi-subtext">35.6% Generated Output</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Est. Cost Saved</div>
-          <div class="kpi-value" id="usage-kpi-cost" style="color: var(--amber-text);">~$24.85</div>
+          <div class="kpi-value" id="usage-kpi-cost" style="color: var(--amber-text);">--</div>
           <div class="kpi-subtext">vs Commercial API billing</div>
         </div>
       </div>
@@ -1776,7 +1776,7 @@ export function getDashboardHtml(): string {
       <div class="panel" style="margin-top: 16px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <h3 style="font-size:0.95rem; font-weight:600;">Provider Ingress Distribution</h3>
-          <span style="font-size:0.75rem; color:var(--text-tertiary); font-family:var(--font-mono);" id="usage-dist-summary">Total: 813,700 tokens</span>
+          <span style="font-size:0.75rem; color:var(--text-tertiary); font-family:var(--font-mono);" id="usage-dist-summary">Total: -- tokens</span>
         </div>
         <div class="distribution-track" id="usage-distribution-track">
           <div class="distribution-segment" style="width: 36%; background: #10b981;" title="Kilo Code: 36%"></div>
@@ -1946,22 +1946,22 @@ export function getDashboardHtml(): string {
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-label">Total Accounts</div>
-          <div class="kpi-value" id="quota-sum-total" style="color: var(--text-primary);">11</div>
+          <div class="kpi-value" id="quota-sum-total" style="color: var(--text-primary);">--</div>
           <div class="kpi-subtext">Across 5 active providers</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Active Pools</div>
-          <div class="kpi-value" id="quota-sum-active" style="color: var(--emerald-text);">9</div>
+          <div class="kpi-value" id="quota-sum-active" style="color: var(--emerald-text);">--</div>
           <div class="kpi-subtext">Available for immediate routing</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Healthy Quotas</div>
-          <div class="kpi-value" id="quota-sum-healthy" style="color: var(--cyan-text);">9</div>
+          <div class="kpi-value" id="quota-sum-healthy" style="color: var(--cyan-text);">--</div>
           <div class="kpi-subtext">&gt; 70% remaining quota capacity</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">In Cooldown / Depleted</div>
-          <div class="kpi-value" id="quota-sum-cooldown" style="color: var(--amber-text);">2</div>
+          <div class="kpi-value" id="quota-sum-cooldown" style="color: var(--amber-text);">--</div>
           <div class="kpi-subtext">Auto-failover active</div>
         </div>
       </div>
@@ -2091,12 +2091,12 @@ export function getDashboardHtml(): string {
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-label">Total Plugins</div>
-          <div class="kpi-value" id="plugins-kpi-total">6</div>
+          <div class="kpi-value" id="plugins-kpi-total">--</div>
           <div class="kpi-subtext">Registered upstream adapters</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Active Adapters</div>
-          <div class="kpi-value" id="plugins-kpi-active" style="color:var(--emerald-text);">6</div>
+          <div class="kpi-value" id="plugins-kpi-active" style="color:var(--emerald-text);">--</div>
           <div class="kpi-subtext">Routing requests live</div>
         </div>
         <div class="kpi-card">
@@ -2106,7 +2106,7 @@ export function getDashboardHtml(): string {
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Available Models</div>
-          <div class="kpi-value" id="plugins-kpi-models">31 Free</div>
+          <div class="kpi-value" id="plugins-kpi-models">--</div>
           <div class="kpi-subtext">Zero-cost inference endpoints</div>
         </div>
       </div>
@@ -2228,7 +2228,7 @@ export function getDashboardHtml(): string {
             <span>Identity</span>
           </div>
           <div class="wizard-step-node" id="wizard-node-2">
-            <div class="wizard-step-circle">2</div>
+            <div class="wizard-step-circle">--</div>
             <span>Fallback Chain</span>
           </div>
           <div class="wizard-step-node" id="wizard-node-3">
@@ -2493,7 +2493,7 @@ export function getDashboardHtml(): string {
         const res = await fetch('/api/models');
         const json = await res.json();
         if (json.success && Array.isArray(json.models)) {
-          allModels = json.models;
+          allModels = json.models.filter((m) => m.available !== false);
           renderModelsGrid(allModels);
           const freeCount = allModels.filter(m => m.isFree).length;
           const oneMCount = allModels.filter(m => m.contextWindow >= 1000000).length;
@@ -2504,6 +2504,8 @@ export function getDashboardHtml(): string {
           if (kpi) kpi.textContent = freeCount + ' Free';
           const kpiSub = document.getElementById('kpi-models-sub');
           if (kpiSub) kpiSub.textContent = oneMCount + ' with >=1M context';
+          const navBadge = document.getElementById('badge-models-count');
+          if (navBadge) navBadge.textContent = allModels.length + ' Models';
 
           const filterAll = document.getElementById('filter-models-all');
           if (filterAll) filterAll.textContent = 'All (' + allModels.length + ')';
@@ -2574,7 +2576,7 @@ export function getDashboardHtml(): string {
             '<div class="model-card-header">' +
               '<div>' +
                 '<div class="model-card-title">' + (m.name || m.id) + '</div>' +
-                '<div class="model-card-provider">' + m.providerId + ' · ' + m.ownedBy + '</div>' +
+                '<div class="model-card-provider">' + m.providerId + ' Â· ' + m.ownedBy + '</div>' +
               '</div>' +
               '<div class="model-badges">' + badgesHtml + '</div>' +
             '</div>' +
@@ -2614,7 +2616,7 @@ export function getDashboardHtml(): string {
         const data = await res.json();
         if (data.success) {
           if (statusEl) {
-            statusEl.innerHTML = '<span class="status-pill emerald"><span class="status-dot emerald"></span> ' + data.latencyMs + 'ms · 200 OK</span>';
+            statusEl.innerHTML = '<span class="status-pill emerald"><span class="status-dot emerald"></span> ' + data.latencyMs + 'ms Â· 200 OK</span>';
           }
           showToast('Probe OK (' + data.latencyMs + 'ms) for ' + modelId, 'success');
         } else {
@@ -2673,7 +2675,7 @@ export function getDashboardHtml(): string {
                 '<div class="harness-icon">${ICONS.terminal}</div>' +
                 '<div>' +
                   '<div class="harness-name">' + h.name + '</div>' +
-                  '<div class="harness-category">' + h.category + ' · ' + h.protocol.toUpperCase() + '</div>' +
+                  '<div class="harness-category">' + h.category + ' Â· ' + h.protocol.toUpperCase() + '</div>' +
                 '</div>' +
               '</div>' +
               statusBadge +
@@ -4013,12 +4015,12 @@ export function getDashboardHtml(): string {
               '<div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; margin-right:8px;">' +
                 '<span class="badge-tag zinc" style="font-family:var(--font-mono); font-size:0.68rem; font-weight:700;">#' + (idx + 1) + ' ' + rankLabel + '</span>' +
                 '<span style="font-family:var(--font-mono); font-size:0.78rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + t + '</span>' +
-                '<span class="badge-tag emerald" style="font-size:0.68rem; padding:1px 6px;">🟢 ' + activeCount + ' acct' + (activeCount === 1 ? '' : 's') + '</span>' +
+                '<span class="badge-tag emerald" style="font-size:0.68rem; padding:1px 6px;">ðŸŸ¢ ' + activeCount + ' acct' + (activeCount === 1 ? '' : 's') + '</span>' +
               '</div>' +
               '<div style="display:flex; align-items:center; gap:4px;">' +
-                '<button class="btn btn-secondary btn-sm" onclick="moveWizardTarget(' + idx + ', -1)" ' + (idx === 0 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Up">▲</button>' +
-                '<button class="btn btn-secondary btn-sm" onclick="moveWizardTarget(' + idx + ', 1)" ' + (idx === wizardTargets.length - 1 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Down">▼</button>' +
-                '<button class="btn btn-danger btn-sm" onclick="removeWizardTarget(' + idx + ')" title="Remove target" style="padding:4px 8px;">✕</button>' +
+                '<button class="btn btn-secondary btn-sm" onclick="moveWizardTarget(' + idx + ', -1)" ' + (idx === 0 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Up">â–²</button>' +
+                '<button class="btn btn-secondary btn-sm" onclick="moveWizardTarget(' + idx + ', 1)" ' + (idx === wizardTargets.length - 1 ? 'disabled style="opacity:0.25; cursor:not-allowed;"' : '') + ' title="Move Down">â–¼</button>' +
+                '<button class="btn btn-danger btn-sm" onclick="removeWizardTarget(' + idx + ')" title="Remove target" style="padding:4px 8px;">âœ•</button>' +
               '</div>' +
             '</div>';
           }).join('');
@@ -4127,8 +4129,8 @@ export function getDashboardHtml(): string {
         const pAccounts = allAccountsData.filter(a => a.providerId === m.providerId);
         const activeAccounts = pAccounts.filter(a => a.status === 'active');
         const depthText = activeAccounts.length > 0 
-          ? '<span style="font-size:0.7rem; color:var(--emerald-text); font-weight:600;">🟢 ' + activeAccounts.length + ' active acct' + (activeAccounts.length > 1 ? 's' : '') + '</span>'
-          : '<span style="font-size:0.7rem; color:var(--coral-text);">⚠️ No active accounts</span>';
+          ? '<span style="font-size:0.7rem; color:var(--emerald-text); font-weight:600;">ðŸŸ¢ ' + activeAccounts.length + ' active acct' + (activeAccounts.length > 1 ? 's' : '') + '</span>'
+          : '<span style="font-size:0.7rem; color:var(--coral-text);">âš ï¸ No active accounts</span>';
 
         const ctxText = m.contextWindow 
           ? (m.contextWindow >= 1000000 ? Math.round(m.contextWindow / 1000000) + 'M ctx' : Math.round(m.contextWindow / 1000) + 'k ctx')
@@ -4152,7 +4154,7 @@ export function getDashboardHtml(): string {
             '</div>' +
           '</div>' +
           '<button class="btn ' + (inChain ? 'btn-secondary' : 'btn-primary') + ' btn-sm" data-target="' + m.id + '" onclick="toggleTargetInChain(this.dataset.target)" style="white-space:nowrap; font-size:0.75rem; padding:4px 10px;">' +
-            (inChain ? '✓ Added' : '+ Add') +
+            (inChain ? 'âœ“ Added' : '+ Add') +
           '</button>' +
         '</div>';
       }).join('');
@@ -4243,6 +4245,40 @@ export function getDashboardHtml(): string {
     }
 
     // Initialization
+    async function refreshBadges() {
+      try {
+        const [statsRes, harnessRes] = await Promise.all([
+          fetch('/api/stats'),
+          fetch('/api/harness/status'),
+        ]);
+        const stats = await statsRes.json().catch(() => ({}));
+        const harness = await harnessRes.json().catch(() => ({}));
+        const set = (id, value) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = value;
+        };
+        const plugins = stats.metrics?.registeredPlugins ?? 0;
+        const activePlugins = stats.metrics?.activePlugins ?? plugins;
+        const accounts = stats.metrics?.registeredAccounts ?? 0;
+        const activeAccounts = stats.metrics?.activeAccounts ?? accounts;
+        const combos = stats.metrics?.activeCombos ?? 0;
+        set('badge-plugins-nav', activePlugins + ' Active');
+        set('badge-accounts-count', String(accounts));
+        set('badge-combos-count', String(combos));
+        set('badge-harness-count', (harness.harnesses?.length ?? 0) + ' Tools');
+        const modelBadge = document.getElementById('badge-models-count');
+        if (modelBadge) modelBadge.textContent = allModels.length ? allModels.length + ' Models' : '--';
+        set('kpi-plugins', activePlugins + ' Active');
+        set('kpi-accounts', activeAccounts + ' Active');
+        set('kpi-combos', combos + ' Active');
+        set('plugins-kpi-total', String(plugins));
+        set('plugins-kpi-active', String(activePlugins));
+        set('plugins-kpi-accounts', String(accounts));
+      } catch (err) {
+        console.error('refreshBadges error:', err);
+      }
+    }
+
     function initDashboard() {
       try {
         window.addEventListener('hashchange', () => {
@@ -4258,6 +4294,7 @@ export function getDashboardHtml(): string {
         fetchPlugins().catch(() => {});
         fetchModels().catch(() => {});
         fetchHarnesses().catch(() => {});
+        refreshBadges().catch(() => {});
         fetchTelemetry().catch(() => {});
         fetchUsageStats().catch(() => {});
         fetchQuotas().catch(() => {});
@@ -4387,6 +4424,7 @@ export function getDashboardHtml(): string {
       window.filterModels = filterModels;
       window.setModelsFilter = setModelsFilter;
       window.probeModelLive = probeModelLive;
+      window.refreshBadges = refreshBadges;
       window.fetchHarnesses = fetchHarnesses;
       window.refreshHarnessStatus = refreshHarnessStatus;
       window.setupSingleHarness = setupSingleHarness;
@@ -4420,3 +4458,4 @@ export function getDashboardHtml(): string {
 </body>
 </html>`;
 }
+

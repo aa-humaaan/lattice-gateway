@@ -799,11 +799,14 @@ export function createAdminRouter(): Hono {
   // --------------------------------------------------------------------------
   router.get('/api/models', async (c) => {
     await observeEnabledPluginCatalogs();
-    const models = getEnrichedModelsCatalog();
+    const allModels = getEnrichedModelsCatalog();
+    const includeUnavailable = c.req.query('all') === 'true';
+    const models = includeUnavailable ? allModels : allModels.filter((m) => m.available !== false);
     return c.json({
       success: true,
       count: models.length,
       models,
+      hiddenCount: allModels.length - models.length,
     });
   });
 
