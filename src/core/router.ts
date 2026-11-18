@@ -30,6 +30,7 @@ import {
 import { withIdleTimeout } from '../utils/idle-timeout';
 import { withRequestDeadline } from '../utils/request-deadline';
 import { globalPluginRegistry } from '../plugins/registry';
+import { assertRemovedAggregatorAvailable } from '../plugins/removed-aggregator';
 import { getGlobalModelPassportStore } from './model-passports';
 import { deriveSessionKey } from './session-affinity';
 import {
@@ -185,6 +186,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
 
     // Check alias mapping first
     const aliased = MODEL_ALIASES[modelId] || modelId;
+    assertRemovedAggregatorAvailable(aliased);
 
     // In single-provider environments (e.g. M1 mock provider dev/test),
     // route directly to the active provider.

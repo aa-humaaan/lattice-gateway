@@ -1,6 +1,7 @@
 import { globalPluginRegistry } from '../plugins/registry';
 import type { ProviderPlugin } from '../core/types/plugin';
 import { GatewayError } from '../core/types/errors';
+import { assertRemovedAggregatorAvailable } from '../plugins/removed-aggregator';
 
 export function resolveTargetProviderId(modelId: string): string {
   if (modelId.startsWith('kilo/')) return 'kilo';
@@ -50,6 +51,7 @@ export function resolveProviderForModel(modelId: string): {
   plugin: ProviderPlugin;
   resolvedModel: string;
 } {
+  assertRemovedAggregatorAvailable(modelId);
   const providerId = resolveTargetProviderId(modelId);
   if (providerId !== 'unknown' && globalPluginRegistry.isEnabled(providerId)) {
     return { plugin: globalPluginRegistry.get(providerId)!, resolvedModel: modelId };
