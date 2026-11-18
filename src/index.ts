@@ -5,7 +5,7 @@ import { globalPluginRegistry } from './plugins/registry';
 import { globalAccountPool } from './pool/account-pool';
 import { globalComboManager } from './pool/combos';
 import { globalStorage } from './pool/storage';
-import { loadOrCreateAuthTokens } from './core/auth-tokens';
+import { loadOrCreateAuthTokens, tokenBannerLines } from './core/auth-tokens';
 import { formatPortConflict } from './utils/port-error';
 
 import { KiloProviderPlugin } from './plugins/kilo';
@@ -102,8 +102,7 @@ console.log(`
   Models Catalog:   http://${displayHost}:${server.port}/v1/models
   Admin Dashboard:  http://${displayHost}:${server.port}/admin
 ========================================================================
-  Gateway Token:    ${authTokens.gatewayToken}
-  Admin Token:      ${authTokens.adminToken}
+${tokenBannerLines(config)}
  ========================================================================
   Active Plugins:   kilo, nous, cline, opencode, deepseek
   Virtual Combos:   lattice/code-flagship, lattice/fast-free

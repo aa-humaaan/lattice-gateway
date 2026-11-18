@@ -1,10 +1,24 @@
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'fs';
 import { join } from 'path';
 
 export interface LocalAuthTokens {
   gatewayToken: string;
   adminToken: string;
+}
+
+/** Short, non-reversible identifier safe to print in terminal scrollback. */
+export function tokenFingerprint(token?: string): string {
+  if (!token) return '(not set)';
+  return `sha256:${createHash('sha256').update(token).digest('hex').slice(0, 12)}`;
+}
+
+/** Fingerprints of the effective tokens passed to loadConfig (env overrides included). */
+export function tokenBannerLines(tokens: { gatewayToken?: string; adminToken?: string }): string {
+  return [
+    `  Gateway Token:    ${tokenFingerprint(tokens.gatewayToken)}`,
+    `  Admin Token:      ${tokenFingerprint(tokens.adminToken)}`,
+  ].join('\n');
 }
 
 /**

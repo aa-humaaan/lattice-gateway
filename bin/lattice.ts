@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { createServer } from '../src/core/server';
 import { loadConfig, GatewayConfig } from '../src/core/config';
-import { loadOrCreateAuthTokens } from '../src/core/auth-tokens';
+import { loadOrCreateAuthTokens, tokenBannerLines } from '../src/core/auth-tokens';
 import { logger } from '../src/utils/logger';
 import { formatPortConflict } from '../src/utils/port-error';
 import { globalPluginRegistry } from '../src/plugins/registry';
@@ -85,7 +85,7 @@ const config = loadConfig({
   gatewayToken: authTokens.gatewayToken,
   adminToken: authTokens.adminToken,
 });
-console.log(`Gateway token: ${authTokens.gatewayToken}\nAdmin token:   ${authTokens.adminToken}`);
+console.log(tokenBannerLines(config));
 const app = createServer(config, globalPluginRegistry.getAll());
 
 let server: any;
