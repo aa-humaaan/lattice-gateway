@@ -18,6 +18,7 @@ import { parseXMLToolCall, applyXMLToolInterceptor } from '../engine/dialect/xml
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
 import { logger } from '../utils/logger';
 import { parseRetryAfterSeconds } from '../utils/retry-after';
+import { failFastNetworkError } from '../utils/network-error';
 import { globalSessionAffinityStore, type SessionAffinityStore } from '../core/session-affinity';
 import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
 
@@ -765,8 +766,7 @@ export class KiloProviderPlugin implements ProviderPlugin {
         });
       } catch (networkErr) {
         if (account) account.errorCount++;
-        lastErr = networkErr;
-        continue;
+        throw failFastNetworkError(networkErr);
       }
 
       if (res.status === 401) {
@@ -875,8 +875,7 @@ export class KiloProviderPlugin implements ProviderPlugin {
         });
       } catch (networkErr) {
         if (account) account.errorCount++;
-        lastErr = networkErr;
-        continue;
+        throw failFastNetworkError(networkErr);
       }
 
       if (!res.ok) {

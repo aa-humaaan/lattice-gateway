@@ -16,6 +16,7 @@ import { parseSSEStream } from '../utils/sse-parser';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
 import { globalSessionAffinityStore, type SessionAffinityStore } from '../core/session-affinity';
 import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
+import { failFastNetworkError } from '../utils/network-error';
 
 // ============================================================================
 // Genuine Production Constants & URLs (Audited from cline-proxy-main)
@@ -651,8 +652,7 @@ export class ClinePoolPlugin implements ProviderPlugin {
         });
       } catch (networkErr) {
         account.errorCount++;
-        lastErr = networkErr;
-        continue;
+        throw failFastNetworkError(networkErr);
       }
 
       // Handle 401 Unauthorized / Suspended
@@ -767,8 +767,7 @@ export class ClinePoolPlugin implements ProviderPlugin {
         });
       } catch (networkErr) {
         account.errorCount++;
-        lastErr = networkErr;
-        continue;
+        throw failFastNetworkError(networkErr);
       }
 
       if (res.status === 401) {
