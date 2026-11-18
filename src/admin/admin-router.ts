@@ -32,6 +32,22 @@ import { globalImportManager } from '../core/account-import';
 import { ILLUSTRATIVE_USD_PER_TOKEN } from '../core/pricing';
 import { globalSecretStore } from '../core/secret-store';
 
+// The dashboard shell is one inline script with inline event handlers, so
+// 'unsafe-inline' is unavoidable there. Everything else is locked down: no
+// external origins, no plugins/objects, no base override, no framing.
+const DASHBOARD_CSP = [
+  "default-src 'none'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+].join('; ');
+
 /** Drops all credential material before an account crosses the HTTP boundary. */
 export function redactAccount(account: StoredAccount): Omit<StoredAccount, 'credentials'> {
   const { credentials: _credentials, ...safe } = account;
@@ -1420,6 +1436,7 @@ export function createAdminRouter(): Hono {
   // --------------------------------------------------------------------------
   router.get('/admin', (c) => {
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Content-Security-Policy', DASHBOARD_CSP);
     c.header('Pragma', 'no-cache');
     c.header('Expires', '0');
     return c.html(getDashboardHtml());
@@ -1427,6 +1444,7 @@ export function createAdminRouter(): Hono {
 
   router.get('/admin/', (c) => {
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Content-Security-Policy', DASHBOARD_CSP);
     c.header('Pragma', 'no-cache');
     c.header('Expires', '0');
     return c.html(getDashboardHtml());
@@ -1434,6 +1452,7 @@ export function createAdminRouter(): Hono {
 
   router.get('/admin/*', (c) => {
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Content-Security-Policy', DASHBOARD_CSP);
     c.header('Pragma', 'no-cache');
     c.header('Expires', '0');
     return c.html(getDashboardHtml());
@@ -1441,16 +1460,19 @@ export function createAdminRouter(): Hono {
 
   router.get('/dashboard', (c) => {
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Content-Security-Policy', DASHBOARD_CSP);
     return c.html(getDashboardHtml());
   });
 
   router.get('/dashboard/*', (c) => {
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Content-Security-Policy', DASHBOARD_CSP);
     return c.html(getDashboardHtml());
   });
 
   router.get('/', (c) => {
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Content-Security-Policy', DASHBOARD_CSP);
     return c.html(getDashboardHtml());
   });
 

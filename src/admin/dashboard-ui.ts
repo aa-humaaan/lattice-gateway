@@ -2566,30 +2566,32 @@ export function getDashboardHtml(): string {
       }
 
       grid.innerHTML = models.map(m => {
-        const badgesHtml = (m.badges || []).map(b => 
-          '<span class="badge-tag ' + b.color + '">' + b.text + '</span>'
+        const badgesHtml = (m.badges || []).map(b =>
+          '<span class="badge-tag ' + escapeHtml(b.color) + '">' + escapeHtml(b.text) + '</span>'
         ).join('');
+        const safeId = escapeHtml(m.id);
+        const domId = m.id.replace(/[^a-zA-Z0-9_-]/g, '_');
 
         return '' +
-          '<div class="model-card" id="card-model-' + m.id.replace(/[^a-zA-Z0-9_-]/g, '_') + '">' +
+          '<div class="model-card" id="card-model-' + domId + '">' +
             '<div class="model-card-header">' +
               '<div>' +
-                '<div class="model-card-title">' + (m.name || m.id) + '</div>' +
-                '<div class="model-card-provider">' + m.providerId + ' Â· ' + m.ownedBy + '</div>' +
+                '<div class="model-card-title">' + escapeHtml(m.name || m.id) + '</div>' +
+                '<div class="model-card-provider">' + escapeHtml(m.providerId) + ' Â· ' + escapeHtml(m.ownedBy) + '</div>' +
               '</div>' +
               '<div class="model-badges">' + badgesHtml + '</div>' +
             '</div>' +
-            (m.description ? '<p style="font-size:0.78rem; color:var(--text-secondary);">' + m.description + '</p>' : '') +
+            (m.description ? '<p style="font-size:0.78rem; color:var(--text-secondary);">' + escapeHtml(m.description) + '</p>' : '') +
             '<div class="model-id-box">' +
-              '<span>' + m.id + '</span>' +
-              '<button class="copy-btn" data-action="copy-model-id" data-id="' + m.id + '" title="Copy Model ID">' +
+              '<span>' + safeId + '</span>' +
+              '<button class="copy-btn" data-action="copy-model-id" data-id="' + safeId + '" title="Copy Model ID">' +
                 '${ICONS.copy}' +
               '</button>' +
             '</div>' +
             '<div class="model-specs">' +
-              '<span>Context: <strong>' + m.contextWindowFormatted + '</strong></span>' +
-              '<div class="model-probe-status" id="probe-status-' + m.id.replace(/[^a-zA-Z0-9_-]/g, '_') + '">' +
-                '<button class="btn btn-secondary btn-sm" data-action="probe-model" data-id="' + m.id + '">' +
+              '<span>Context: <strong>' + escapeHtml(m.contextWindowFormatted) + '</strong></span>' +
+              '<div class="model-probe-status" id="probe-status-' + domId + '">' +
+                '<button class="btn btn-secondary btn-sm" data-action="probe-model" data-id="' + safeId + '">' +
                   '${ICONS.play}' +
                   '<span>1-Click Test</span>' +
                 '</button>' +
@@ -2896,7 +2898,7 @@ export function getDashboardHtml(): string {
                 ? c.targetDetails.map((td, idx) => {
                     let badgeClass = 'zinc';
                     let statusIcon = '&#x25CB;';
-                    let tooltip = td.target;
+                    let tooltip = escapeHtml(td.target);
                     let depthBadge = '';
                     if (td.accountDepth && td.accountDepth.total > 0) {
                       depthBadge = ' <span style="opacity:0.8; font-size:0.68rem; margin-left:3px;">[' + td.accountDepth.active + '/' + td.accountDepth.total + ' accts]</span>';
@@ -2907,32 +2909,32 @@ export function getDashboardHtml(): string {
                     if (td.status === 'reachable') {
                       badgeClass = 'emerald';
                       statusIcon = '&#x2714;';
-                      tooltip = td.target + ' (Reachable - ' + (td.availableAccounts || td.accountDepth?.active || 0) + ' active accounts)';
+                      tooltip = escapeHtml(td.target + ' (Reachable - ' + (td.availableAccounts || td.accountDepth?.active || 0) + ' active accounts)');
                     } else if (td.status === 'cooldown') {
                       badgeClass = 'amber';
                       statusIcon = '&#x23F3;';
-                      tooltip = td.target + ' (In Cooldown' + (td.accountDepth?.lowestCooldownSec ? ' - ' + td.accountDepth.lowestCooldownSec + 's left' : '') + ')';
+                      tooltip = escapeHtml(td.target + ' (In Cooldown' + (td.accountDepth?.lowestCooldownSec ? ' - ' + td.accountDepth.lowestCooldownSec + 's left' : '') + ')');
                     } else if (td.status === 'quota_exhausted') {
                       badgeClass = 'coral';
                       statusIcon = '&#x2716;';
-                      tooltip = td.target + ' (Quota Exhausted)';
+                      tooltip = escapeHtml(td.target + ' (Quota Exhausted)');
                     } else if (td.status === 'disabled') {
                       badgeClass = 'zinc';
                       statusIcon = '&#x25CB;';
-                      tooltip = td.target + ' (Plugin Disabled)';
+                      tooltip = escapeHtml(td.target + ' (Plugin Disabled)');
                     } else if (td.status === 'no_accounts') {
                       badgeClass = 'zinc';
                       statusIcon = '&#x25CB;';
-                      tooltip = td.target + ' (No Accounts Configured)';
+                      tooltip = escapeHtml(td.target + ' (No Accounts Configured)');
                     }
                     const prefix = idx > 0 ? '<span style="color:var(--text-tertiary); font-size:0.75rem;">&rarr;</span>' : '';
-                    return prefix + '<span class="badge-tag ' + badgeClass + '" title="' + tooltip + '" style="font-family:var(--font-mono);">' + statusIcon + ' ' + td.target + depthBadge + '</span>';
+                    return prefix + '<span class="badge-tag ' + badgeClass + '" title="' + tooltip + '" style="font-family:var(--font-mono);">' + statusIcon + ' ' + escapeHtml(td.target) + depthBadge + '</span>';
                   }).join(' ')
-                : (c.targets || []).map(t => '<span class="badge-tag zinc">' + t + '</span>').join(' ');
+                : (c.targets || []).map(t => '<span class="badge-tag zinc">' + escapeHtml(t) + '</span>').join(' ');
 
               return '<tr>' +
-                '<td style="font-family:var(--font-mono); font-weight:600; color:var(--cyan-text);">' + c.id + '</td>' +
-                '<td>' + (c.name || c.id) + '</td>' +
+                '<td style="font-family:var(--font-mono); font-weight:600; color:var(--cyan-text);">' + escapeHtml(c.id) + '</td>' +
+                '<td>' + escapeHtml(c.name || c.id) + '</td>' +
                 '<td>' + healthBadge + '</td>' +
                 '<td><div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px;">' + targetsHtml + '</div></td>' +
                 '<td>' +
@@ -3317,16 +3319,16 @@ export function getDashboardHtml(): string {
           const timeStr = new Date(l.timestamp).toLocaleTimeString();
           const statusBadge = l.status === 200
             ? '<span class="status-pill emerald"><span class="status-dot emerald"></span> 200 OK</span>'
-            : '<span class="status-pill coral"><span class="status-dot coral"></span> ' + l.status + '</span>';
+            : '<span class="status-pill coral"><span class="status-dot coral"></span> ' + escapeHtml(l.status) + '</span>';
 
           logsHtml += '<tr>' +
-            '<td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">' + timeStr + '</td>' +
-            '<td style="font-family: var(--font-mono); font-size: 0.78rem;"><span style="color:var(--text-tertiary);">' + (l.method || 'POST') + '</span> ' + (l.path || '/v1/chat/completions') + '</td>' +
-            '<td><span class="badge-tag zinc">' + (l.provider || 'kilo') + '</span></td>' +
-            '<td style="font-family: var(--font-mono); font-size: 0.78rem; font-weight: 500;">' + (l.model || 'unknown') + '</td>' +
-            '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem; color: var(--cyan-text);">' + (l.promptTokens || 0).toLocaleString() + '</td>' +
-            '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem; color: var(--emerald-text);">' + (l.completionTokens || 0).toLocaleString() + '</td>' +
-            '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem; color: var(--amber-text);">' + (l.latencyMs || 45) + 'ms</td>' +
+            '<td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">' + escapeHtml(timeStr) + '</td>' +
+            '<td style="font-family: var(--font-mono); font-size: 0.78rem;"><span style="color:var(--text-tertiary);">' + escapeHtml(l.method || 'POST') + '</span> ' + escapeHtml(l.path || '/v1/chat/completions') + '</td>' +
+            '<td><span class="badge-tag zinc">' + escapeHtml(l.provider || 'kilo') + '</span></td>' +
+            '<td style="font-family: var(--font-mono); font-size: 0.78rem; font-weight: 500;">' + escapeHtml(l.model || 'unknown') + '</td>' +
+            '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem; color: var(--cyan-text);">' + escapeHtml((l.promptTokens || 0).toLocaleString()) + '</td>' +
+            '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem; color: var(--emerald-text);">' + escapeHtml((l.completionTokens || 0).toLocaleString()) + '</td>' +
+            '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem; color: var(--amber-text);">' + escapeHtml(l.latencyMs || 45) + 'ms</td>' +
             '<td>' + statusBadge + '</td>' +
             '<td style="text-align: center;"><button class="btn btn-secondary btn-sm" onclick="showRequestDetailModal(' + idx + ')">Detail</button></td>' +
           '</tr>';
@@ -3654,14 +3656,14 @@ export function getDashboardHtml(): string {
             const line = document.createElement('div');
             line.className = 'log-line';
             line.innerHTML = '' +
-              '<span class="log-time">' + new Date(log.timestamp).toLocaleTimeString() + '</span>' +
-              '<span class="log-method">' + log.method + '</span>' +
-              '<span class="log-path">' + log.path + '</span>' +
-              '<span class="badge-tag zinc">' + log.model + '</span>' +
+              '<span class="log-time">' + escapeHtml(new Date(log.timestamp).toLocaleTimeString()) + '</span>' +
+              '<span class="log-method">' + escapeHtml(log.method) + '</span>' +
+              '<span class="log-path">' + escapeHtml(log.path) + '</span>' +
+              '<span class="badge-tag zinc">' + escapeHtml(log.model) + '</span>' +
               '<span class="log-meta">' +
-                '<span class="status-pill ' + (log.status === 200 ? 'emerald' : 'coral') + '">' + log.status + '</span>' +
-                '<span>' + log.latencyMs + 'ms</span>' +
-                '<span style="color:var(--cyan-text);">' + (log.totalTokens || 0) + ' tok</span>' +
+                '<span class="status-pill ' + (log.status === 200 ? 'emerald' : 'coral') + '">' + escapeHtml(log.status) + '</span>' +
+                '<span>' + escapeHtml(log.latencyMs) + 'ms</span>' +
+                '<span style="color:var(--cyan-text);">' + escapeHtml(log.totalTokens || 0) + ' tok</span>' +
               '</span>';
             terminal.prepend(line);
             if (terminal.children.length > 200) terminal.removeChild(terminal.lastChild);
