@@ -31,7 +31,7 @@ import { resolveTargetProviderId } from '../utils/model-resolver';
 import { globalImportManager } from '../core/account-import';
 import { ILLUSTRATIVE_USD_PER_TOKEN } from '../core/pricing';
 import { globalSecretStore } from '../core/secret-store';
-import { OVERLAY_KEYS } from '../core/credential-resolver';
+import { moveSecretsToStore, OVERLAY_KEYS } from '../core/credential-resolver';
 
 // The dashboard shell is one inline script with inline event handlers, so
 // 'unsafe-inline' is unavoidable there. Everything else is locked down: no
@@ -192,22 +192,15 @@ export function createAdminRouter(): Hono {
     }
 
     // Manually added credentials go through the same SecretStore as imported
-    // ones; only non-secret metadata remains in the on-disk account record.
-    const credentials: Record<string, unknown> = { ...body.credentials };
-    for (const key of OVERLAY_KEYS) {
-      const value = credentials[key];
-      if (value === undefined || value === null || value === '') continue;
-      globalSecretStore.set(body.id, key, typeof value === 'string' ? value : JSON.stringify(value));
-      delete credentials[key];
-    }
-    credentials.customData = { ...(credentials.customData ?? {}), secretBacked: true };
+    // and OAuth-added ones; only non-secret metadata stays on disk.
+    const credentials = moveSecretsToStore(globalSecretStore, body.id, body.credentials);
 
     const account: StoredAccount = {
       id: body.id,
       providerId: body.providerId,
       authType: body.authType || 'api_key',
       status: body.status || 'active',
-      credentials: credentials as StoredAccount['credentials'],
+      credentials,
       errorCount: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -326,11 +319,11 @@ export function createAdminRouter(): Hono {
               providerId: 'cline',
               authType: 'oauth',
               status: 'active',
-              credentials: {
+              credentials: moveSecretsToStore(globalSecretStore, accId, {
                 refreshToken: reg.data.refreshToken,
                 accountId: accountId,
                 email: email,
-              },
+              }),
               errorCount: 0,
               createdAt: Date.now(),
               updatedAt: Date.now(),
@@ -426,11 +419,11 @@ export function createAdminRouter(): Hono {
               providerId: 'kilo',
               authType: 'oauth',
               status: 'active',
-              credentials: {
+              credentials: moveSecretsToStore(globalSecretStore, accId, {
                 accessToken: tokenRes.access_token,
                 email: email,
                 baseUrl: 'https://ai-gateway.kilo.ai/api/v1',
-              },
+              }),
               errorCount: 0,
               createdAt: Date.now(),
               updatedAt: Date.now(),
@@ -535,12 +528,12 @@ export function createAdminRouter(): Hono {
               providerId: 'nous',
               authType: 'oauth',
               status: 'active',
-              credentials: {
+              credentials: moveSecretsToStore(globalSecretStore, accId, {
                 accessToken: tokenRes.access_token,
                 refreshToken: tokenRes.refresh_token,
                 email: email,
                 baseUrl: 'https://inference-api.nousresearch.com/v1',
-              },
+              }),
               errorCount: 0,
               createdAt: Date.now(),
               updatedAt: Date.now(),

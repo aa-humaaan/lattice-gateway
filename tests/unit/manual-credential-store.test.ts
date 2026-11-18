@@ -4,10 +4,31 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { createServer } from '../../src/core/server';
 import { globalAccountPool } from '../../src/pool/account-pool';
-import { globalCredentialResolver } from '../../src/core/credential-resolver';
+import { globalCredentialResolver, moveSecretsToStore } from '../../src/core/credential-resolver';
+import { createFileSecretStore } from '../../src/core/secret-store';
 import { LatticeStorage } from '../../src/pool/storage';
 
 describe('SEC-04: store permissions and manual credential handling', () => {
+  it('moves OAuth credentials into SecretStore before an account is persisted', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lattice-oauth-secret-'));
+    try {
+      const store = createFileSecretStore(join(dir, 'secrets.json'));
+      const stored = moveSecretsToStore(store, 'acc_oauth_x', {
+        accessToken: 'OAUTH_ACCESS_SECRET',
+        refreshToken: 'OAUTH_REFRESH_SECRET',
+        email: 'operator@example.com',
+      } as any);
+      expect(JSON.stringify(stored)).not.toContain('OAUTH_ACCESS_SECRET');
+      expect(JSON.stringify(stored)).not.toContain('OAUTH_REFRESH_SECRET');
+      expect(store.get('acc_oauth_x', 'accessToken')).toBe('OAUTH_ACCESS_SECRET');
+      expect(store.get('acc_oauth_x', 'refreshToken')).toBe('OAUTH_REFRESH_SECRET');
+      expect((stored as any).customData.secretBacked).toBe(true);
+      expect(stored.email).toBe('operator@example.com');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('writes lattice-store.json with owner-only permissions', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lattice-mode-'));
     try {

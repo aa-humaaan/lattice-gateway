@@ -42,3 +42,20 @@ export function createCredentialResolver(store: SecretStore): CredentialResolver
 }
 
 export const globalCredentialResolver = createCredentialResolver(globalSecretStore);
+
+/** Strips credential material from an account record before it is persisted. */
+export function moveSecretsToStore(
+  store: SecretStore,
+  accountId: string,
+  credentials: StoredAccount['credentials']
+): StoredAccount['credentials'] {
+  const result: Record<string, unknown> = { ...credentials };
+  for (const key of OVERLAY_KEYS) {
+    const value = result[key];
+    if (value === undefined || value === null || value === '') continue;
+    store.set(accountId, key, typeof value === 'string' ? value : JSON.stringify(value));
+    delete result[key];
+  }
+  result.customData = { ...(result.customData ?? {}), secretBacked: true };
+  return result as StoredAccount['credentials'];
+}
