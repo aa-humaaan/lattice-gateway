@@ -143,14 +143,16 @@ describe('OpenCode Zen Authentic Production Plugin', () => {
       const headers = plugin.buildHeaders();
 
       // Check lowercase key existence
-      expect(headers['user-agent']).toBe('opencode-client/2.2.7');
+      expect(headers['user-agent']).toBe('opencode/latest/2.2.7/cli');
+      expect(headers['accept-encoding']).toBe('gzip, deflate, br, zstd');
+      expect(headers['authorization']).toBe('Bearer public');
       expect(headers['connection']).toBe('keep-alive');
       expect(headers['content-type']).toBe('application/json');
       expect(headers['accept']).toBe('*/*');
       expect(headers['x-opencode-client']).toBe('cli');
       expect(headers['x-opencode-project']).toBe('global');
       expect(headers['x-opencode-session-id']).toBeDefined();
-      expect(headers['x-opencode-parent-session-id']).toBeDefined();
+      expect(headers['x-opencode-parent-session-id']).toBeUndefined();
       expect(headers['b3']).toBeDefined();
       expect(headers['traceparent']).toBeDefined();
 
@@ -336,10 +338,10 @@ describe('OpenCode Zen Authentic Production Plugin', () => {
       expect(res.usage.totalTokens).toBe(40);
 
       // Verify received headers on upstream
-      expect(receivedHeaders['user-agent']).toBe('opencode-client/2.2.7');
+      expect(receivedHeaders['user-agent']).toBe('opencode/latest/2.2.7/cli');
       expect(receivedHeaders['connection']).toBe('keep-alive');
       expect(receivedHeaders['x-opencode-session-id']).toBe(testPlugin.currentSessionId!);
-      expect(receivedHeaders['x-opencode-parent-session-id']).toBe(testPlugin.currentParentSessionId!);
+      expect(receivedHeaders['x-opencode-parent-session-id']).toBeUndefined();
       expect(receivedHeaders['b3']).toBeDefined();
       expect(receivedHeaders['traceparent']).toBeDefined();
 

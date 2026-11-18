@@ -164,7 +164,7 @@ In `~/.claude/settings.json`:
 
 ## 🧪 Testing & Verification
 
-Project Lattice is tested by **722 automated tests** spanning 93 test files:
+Project Lattice is tested by **727 automated tests** spanning 94 test files:
 ```bash
 bun test
 ```

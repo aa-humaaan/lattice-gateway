@@ -58,6 +58,59 @@ export interface ZenGateTool {
 const BASE62_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 const HEX_DIGITS = '0123456789abcdef';
 
+/** Sentinel bearer for anonymous free-tier traffic (opencode CLI anonymous account). */
+const ZEN_ANONYMOUS_KEY = 'public';
+/** CLI v2 user-agent; older gateway UA strings are a non-CLI fingerprint. */
+const ZEN_USER_AGENT = 'opencode/latest/2.2.7/cli';
+
+/** The CLI appends this to its system prompt; the free tier requires the
+ *  "Working directory:" line inside an <env> block. Value is not validated. */
+export function zenEnvBlock(): string {
+  return `<env>\n  Working directory: ${process.cwd()}\n</env>`;
+}
+
+function hasEnvMarker(text: string): boolean {
+  return text.includes('<env>') && text.includes('Working directory:');
+}
+
+function textOf(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((p) => (p && typeof p === 'object' && 'text' in p ? String((p as any).text) : ''))
+      .join('\n');
+  }
+  return '';
+}
+
+/** Append the env marker to the first system/developer message, or prepend a
+ *  system message when the client sent none. Never duplicates an existing
+ *  marker and never mutates the caller's messages. */
+export function ensureZenEnvMarker(messages: any[]): any[] {
+  if (
+    messages.some(
+      (m) =>
+        (m?.role === 'system' || m?.role === 'developer') && hasEnvMarker(textOf(m.content))
+    )
+  ) {
+    return messages;
+  }
+  const out = messages.map((m) => ({ ...m }));
+  const system = out.find((m) => m.role === 'system' || m.role === 'developer');
+  if (system) {
+    if (typeof system.content === 'string') {
+      system.content = `${system.content}\n\n${zenEnvBlock()}`;
+    } else if (Array.isArray(system.content)) {
+      system.content = [...system.content, { type: 'text', text: zenEnvBlock() }];
+    } else {
+      system.content = zenEnvBlock();
+    }
+  } else {
+    out.unshift({ role: 'system', content: zenEnvBlock() });
+  }
+  return out;
+}
+
 let lastTimestamp = 0n;
 let counter = 0n;
 
@@ -416,25 +469,28 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
   }
 
   /**
-   * Builds the authentic identity headers with lowercase names:
-   * b3, traceparent, connection: keep-alive, user-agent: opencode-client/2.2.7,
-   * x-opencode-session-id, x-opencode-parent-session-id, etc.
+   * Builds the CLI v2 gate headers. A fresh session is minted per call (the
+   * official CLI does the same); the four session headers carry the same ID.
+   * Anonymous traffic uses the "public" sentinel bearer — upstream rejects
+   * requests with no Authorization header on the free tier.
    */
   public buildHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
-    if (!this.currentSessionId || !this.currentParentSessionId) {
-      this.mintSession();
-    }
+    this.mintSession();
     const { b3, traceparent } = generateTracingHeaders();
+
+    const creds = this.credentialResolver.credentialsFor(this.account);
+    const key = creds.apiKey || ZEN_ANONYMOUS_KEY;
 
     const headers: Record<string, string> = {
       'content-type': 'application/json',
       'accept': '*/*',
+      'accept-encoding': 'gzip, deflate, br, zstd',
       'connection': 'keep-alive',
-      'user-agent': 'opencode-client/2.2.7',
+      'user-agent': ZEN_USER_AGENT,
+      'authorization': `Bearer ${key}`,
       'b3': b3,
       'traceparent': traceparent,
       'x-opencode-session-id': this.currentSessionId!,
-      'x-opencode-parent-session-id': this.currentParentSessionId!,
       'x-opencode-session': this.currentSessionId!,
       'x-session-affinity': this.currentSessionId!,
       'x-session-id': this.currentSessionId!,
@@ -442,10 +498,6 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       'x-opencode-project': 'global',
     };
 
-    const creds = this.credentialResolver.credentialsFor(this.account);
-    if (creds.apiKey) {
-      headers['authorization'] = `Bearer ${creds.apiKey}`;
-    }
     const org = creds.organizationId || (creds as any).orgId;
     if (org) {
       headers['x-opencode-org-id'] = String(org);
@@ -542,7 +594,7 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       headers,
       body: JSON.stringify({
         model,
-        messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
+        messages: ensureZenEnvMarker(serializeOpenAIMessages(req.messages, req.systemPrompt)),
         temperature: req.temperature,
         max_tokens: req.maxTokens,
         tools: tools.length > 0 ? tools : undefined,
@@ -684,7 +736,7 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       headers,
       body: JSON.stringify({
         model,
-        messages: serializeOpenAIMessages(req.messages, req.systemPrompt),
+        messages: ensureZenEnvMarker(serializeOpenAIMessages(req.messages, req.systemPrompt)),
         temperature: req.temperature,
         max_tokens: req.maxTokens,
         tools: tools.length > 0 ? tools : undefined,
