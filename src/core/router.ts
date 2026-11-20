@@ -273,10 +273,13 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     if (!canonicalReq.stream) {
       let canonicalRes: Awaited<ReturnType<typeof provider.execute>>;
       try {
+        const deadlineController = new AbortController();
         canonicalRes = await withRequestDeadline(
-          provider.execute(canonicalReq, c.req.raw.signal),
+          provider.execute(canonicalReq, deadlineController.signal),
           config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1_800_000,
-          provider.id
+          provider.id,
+          deadlineController,
+          c.req.raw.signal
         );
       } catch (err) {
         if (isContextOverflow(err)) {
@@ -328,6 +331,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
       let upstreamCompletionTokens: number | undefined;
       let streamStatus = 200;
       let accumulatedOutput = '';
+      let sawStreamEnd = false;
 
       try {
         for await (const event of timedEvents) {
@@ -341,22 +345,28 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           } else if (event.type === 'usage') {
             if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
             if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
-          } else if (event.type === 'stream_end' && event.usage) {
-            if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
-            if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
+          } else if (event.type === 'stream_end') {
+            sawStreamEnd = true;
+            if (event.usage) {
+              if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
+              if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
+            }
           } else if (event.type === 'stream_error') {
             streamStatus = event.error?.status ?? 502;
           }
           yield event;
         }
       } finally {
+        // A client abort ends iteration without a stream_end; nothing was
+        // delivered, so record no usage and no success log entry.
+        if (c.req.raw.signal.aborted) return;
         const latencyMs = Math.max(1, Date.now() - reqStartTime);
         const finalCompletion =
           upstreamCompletionTokens !== undefined
             ? upstreamCompletionTokens
             : (accumulatedOutput.length > 0 ? countTextTokens(accumulatedOutput) : 0);
 
-        if (streamStatus === 200) {
+        if (sawStreamEnd && streamStatus === 200) {
           globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
           if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
         }
@@ -425,10 +435,13 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     if (!canonicalReq.stream) {
       let canonicalRes: Awaited<ReturnType<typeof provider.execute>>;
       try {
+        const deadlineController = new AbortController();
         canonicalRes = await withRequestDeadline(
-          provider.execute(canonicalReq, c.req.raw.signal),
+          provider.execute(canonicalReq, deadlineController.signal),
           config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1_800_000,
-          provider.id
+          provider.id,
+          deadlineController,
+          c.req.raw.signal
         );
       } catch (err) {
         if (isContextOverflow(err)) {
@@ -480,6 +493,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
       let upstreamCompletionTokens: number | undefined;
       let streamStatus = 200;
       let accumulatedOutput = '';
+      let sawStreamEnd = false;
 
       try {
         for await (const event of timedEvents) {
@@ -493,22 +507,28 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           } else if (event.type === 'usage') {
             if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
             if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
-          } else if (event.type === 'stream_end' && event.usage) {
-            if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
-            if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
+          } else if (event.type === 'stream_end') {
+            sawStreamEnd = true;
+            if (event.usage) {
+              if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
+              if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
+            }
           } else if (event.type === 'stream_error') {
             streamStatus = event.error?.status ?? 502;
           }
           yield event;
         }
       } finally {
+        // A client abort ends iteration without a stream_end; nothing was
+        // delivered, so record no usage and no success log entry.
+        if (c.req.raw.signal.aborted) return;
         const latencyMs = Math.max(1, Date.now() - reqStartTime);
         const finalCompletion =
           upstreamCompletionTokens !== undefined
             ? upstreamCompletionTokens
             : (accumulatedOutput.length > 0 ? countTextTokens(accumulatedOutput) : 0);
 
-        if (streamStatus === 200) {
+        if (sawStreamEnd && streamStatus === 200) {
           globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
           if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
         }
@@ -576,10 +596,13 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     if (!canonicalReq.stream) {
       let canonicalRes: Awaited<ReturnType<typeof provider.execute>>;
       try {
+        const deadlineController = new AbortController();
         canonicalRes = await withRequestDeadline(
-          provider.execute(canonicalReq, c.req.raw.signal),
+          provider.execute(canonicalReq, deadlineController.signal),
           config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1_800_000,
-          provider.id
+          provider.id,
+          deadlineController,
+          c.req.raw.signal
         );
       } catch (err) {
         if (isContextOverflow(err)) {
@@ -631,6 +654,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
       let upstreamCompletionTokens: number | undefined;
       let streamStatus = 200;
       let accumulatedOutput = '';
+      let sawStreamEnd = false;
 
       try {
         for await (const event of timedEvents) {
@@ -644,22 +668,28 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           } else if (event.type === 'usage') {
             if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
             if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
-          } else if (event.type === 'stream_end' && event.usage) {
-            if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
-            if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
+          } else if (event.type === 'stream_end') {
+            sawStreamEnd = true;
+            if (event.usage) {
+              if (event.usage.promptTokens) finalPrompt = event.usage.promptTokens;
+              if (event.usage.completionTokens) upstreamCompletionTokens = event.usage.completionTokens;
+            }
           } else if (event.type === 'stream_error') {
             streamStatus = event.error?.status ?? 502;
           }
           yield event;
         }
       } finally {
+        // A client abort ends iteration without a stream_end; nothing was
+        // delivered, so record no usage and no success log entry.
+        if (c.req.raw.signal.aborted) return;
         const latencyMs = Math.max(1, Date.now() - reqStartTime);
         const finalCompletion =
           upstreamCompletionTokens !== undefined
             ? upstreamCompletionTokens
             : (accumulatedOutput.length > 0 ? countTextTokens(accumulatedOutput) : 0);
 
-        if (streamStatus === 200) {
+        if (sawStreamEnd && streamStatus === 200) {
           globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
           if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
         }
