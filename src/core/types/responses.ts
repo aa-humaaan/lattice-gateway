@@ -37,9 +37,22 @@ export const ResponsesFunctionCallOutputSchema = z
   })
   .passthrough();
 
+// A previous turn's function_call item, echoed back by clients such as the
+// official SDK when continuing a tool loop.
+export const ResponsesFunctionCallInputSchema = z
+  .object({
+    type: z.literal('function_call'),
+    call_id: z.string(),
+    name: z.string(),
+    arguments: z.string(),
+    id: z.string().optional(),
+  })
+  .passthrough();
+
 export const ResponsesInputItemSchema = z.union([
   ResponsesInputMessageSchema,
   ResponsesFunctionCallOutputSchema,
+  ResponsesFunctionCallInputSchema,
 ]);
 
 export type ResponsesInputItem = z.infer<typeof ResponsesInputItemSchema>;

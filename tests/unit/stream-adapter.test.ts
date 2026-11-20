@@ -182,8 +182,8 @@ describe('SSE Stream Adapters', () => {
     const text = await streamToText(stream);
 
     expect(text).toContain('event: response.created');
-    expect(text).toContain('"type":"output_item.added"');
-    expect(text).toContain('"item_index":0');
+    expect(text).toContain('"type":"response.output_item.added"');
+    expect(text).toContain('"output_index":0');
     expect(text).toContain('"type":"message"');
     expect(text).toContain('event: response.completed');
     expect(text).toContain('"status":"completed"');
@@ -206,8 +206,10 @@ describe('SSE Stream Adapters', () => {
 
     expect(text).toContain('event: response.created');
     expect(text).toContain('"type":"function_call"');
+    expect(text).toContain('"call_id":"call_lat_abc123"');
     expect(text).toContain('"name":"run_command"');
-    expect(text).toContain('"partial_json_delta"');
+    expect(text).toContain('event: response.function_call_arguments.delta');
+    expect(text).toContain('"type":"response.function_call_arguments.delta"');
     expect(text).toContain('ls -la');
   });
 
@@ -222,9 +224,9 @@ describe('SSE Stream Adapters', () => {
     const stream = createResponsesSSEStream(generateEvents());
     const text = await streamToText(stream);
 
-    expect(text).toContain('"reasoning_text_delta"');
+    expect(text).toContain('"type":"response.reasoning_summary_text.delta"');
     expect(text).toContain('Let me think.');
-    expect(text).toContain('"input_text_delta"');
+    expect(text).toContain('"type":"response.output_text.delta"');
     expect(text).toContain('The answer is 42.');
   });
 

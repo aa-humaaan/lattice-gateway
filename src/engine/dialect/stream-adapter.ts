@@ -589,77 +589,135 @@ export function createResponsesSSEStream(
       let created = Math.floor(Date.now() / 1000);
       let hasOutputStarted = false;
       let stopReason: CanonicalStopReason = 'stop';
+      let sequence = 0;
       let totalPromptTokens = 0;
       let totalCompletionTokens = 0;
-      let textAccumulator = '';
+      const nextSequence = () => ++sequence;
       const outputItems: any[] = [];
-      let pendingToolCallId: string | undefined;
-      let pendingToolCallName: string | undefined;
-      let pendingToolCallArguments = '';
-      let pendingTextItemId: string | undefined;
-      let pendingTextItemIndex = -1;
       let itemIndexCounter = 0;
-      let toolCallIndexCounter = 0;
 
-      const flushPendingToolCall = () => {
-        if (pendingToolCallId && pendingToolCallName !== undefined) {
-          const args = pendingToolCallArguments;
-          const name = pendingToolCallName;
-          pendingToolCallArguments = '';
-          pendingToolCallName = undefined;
-          const item = {
-            id: pendingToolCallId,
-            type: 'function_call',
-            call_id: pendingToolCallId,
-            name,
-            arguments: args,
-            status: 'completed',
-          };
-          outputItems.push(item);
-          enqueueData('response.output_item.done', {
-            type: 'output_item.done',
-            item,
-          });
-        }
-        pendingToolCallId = undefined;
+      // OpenAI Responses protocol (fetched 2026-11-20):
+      // https://developers.openai.com/api/reference/resources/responses/streaming-events
+      // Event `type` fields and SSE `event:` names are the same full name.
+      let reasoningItemId: string | undefined;
+      let reasoningIndex = -1;
+      let reasoningText = '';
+      let textItemId: string | undefined;
+      let textIndex = -1;
+      let textAccumulator = '';
+      let toolCallId: string | undefined; // provider tool-call id, preserved as call_id
+      let toolItemId: string | undefined;
+      let toolIndex = -1;
+      let toolName: string | undefined;
+      let toolArguments = '';
+
+      const enqueue = (type: string, payload: Record<string, unknown>) => {
+        enqueueData(type, { ...payload, type, sequence_number: nextSequence() });
       };
 
-      const flushPendingTextItem = () => {
-        if (pendingTextItemId !== undefined && pendingTextItemIndex >= 0) {
-          const item = {
-            id: pendingTextItemId,
+      const responseShell = (status: string) => ({
+        id: responseId,
+        object: 'response',
+        created_at: created,
+        status,
+        model,
+        output: [] as any[],
+      });
+
+      const ensureResponseCreated = () => {
+        if (hasOutputStarted) return;
+        hasOutputStarted = true;
+        enqueue('response.created', { response: responseShell('in_progress') });
+      };
+
+      const ensureReasoningItem = () => {
+        if (reasoningItemId) return;
+        reasoningItemId = `rsn_${responseId}_${itemIndexCounter}`;
+        reasoningIndex = itemIndexCounter++;
+        enqueue('response.output_item.added', {
+          output_index: reasoningIndex,
+          item: { id: reasoningItemId, type: 'reasoning', summary: [], status: 'in_progress' },
+        });
+      };
+
+      const ensureTextItem = () => {
+        if (textItemId) return;
+        textItemId = `msg_${responseId}_${itemIndexCounter}`;
+        textIndex = itemIndexCounter++;
+        enqueue('response.output_item.added', {
+          output_index: textIndex,
+          item: {
+            id: textItemId,
             type: 'message',
             role: 'assistant',
-            content: [{ type: 'text', text: textAccumulator }],
-            status: 'completed',
-          };
-          outputItems.push(item);
-          enqueueData('response.output_item.done', {
-            type: 'output_item.done',
-            item,
-          });
-        }
-        pendingTextItemId = undefined;
-        pendingTextItemIndex = -1;
+            content: [],
+            status: 'in_progress',
+          },
+        });
+      };
+
+      const flushReasoning = () => {
+        if (!reasoningItemId) return;
+        const item = {
+          id: reasoningItemId,
+          type: 'reasoning',
+          summary: [{ type: 'summary_text', text: reasoningText }],
+          status: 'completed',
+        };
+        outputItems.push(item);
+        enqueue('response.output_item.done', { output_index: reasoningIndex, item });
+        reasoningItemId = undefined;
+        reasoningIndex = -1;
+        reasoningText = '';
+      };
+
+      const flushText = () => {
+        if (!textItemId) return;
+        const item = {
+          id: textItemId,
+          type: 'message',
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: textAccumulator, annotations: [], logprobs: [] }],
+        };
+        outputItems.push(item);
+        enqueue('response.output_item.done', { output_index: textIndex, item });
+        textItemId = undefined;
+        textIndex = -1;
         textAccumulator = '';
       };
 
-      const ensureResponseCreated = () => {
-        if (!hasOutputStarted) {
-          hasOutputStarted = true;
-          enqueueData('response.created', {
-            type: 'response.created',
-            response: {
-              id: responseId,
-              object: 'response',
-              created_at: created,
-              status: 'in_progress',
-              model,
-              output: [],
-            },
-          });
+      const flushToolCall = () => {
+        if (!toolCallId || toolName === undefined) {
+          toolCallId = undefined;
+          return;
         }
+        const item = {
+          id: toolItemId,
+          type: 'function_call',
+          call_id: toolCallId,
+          name: toolName,
+          arguments: toolArguments,
+          status: 'completed',
+        };
+        outputItems.push(item);
+        enqueue('response.output_item.done', { output_index: toolIndex, item });
+        toolCallId = undefined;
+        toolItemId = undefined;
+        toolIndex = -1;
+        toolName = undefined;
+        toolArguments = '';
       };
+
+      const completedResponse = (status: string) => ({
+        ...responseShell(status),
+        output: outputItems,
+        usage: {
+          total_tokens: totalPromptTokens + totalCompletionTokens,
+          input_tokens: totalPromptTokens,
+          output_tokens: totalCompletionTokens,
+        },
+      });
 
       try {
         for await (const event of events) {
@@ -675,70 +733,48 @@ export function createResponsesSSEStream(
 
             case 'thinking_delta': {
               ensureResponseCreated();
-              if (pendingTextItemId === undefined) {
-                pendingTextItemId = `item_lat_${responseId}_text`;
-                pendingTextItemIndex = itemIndexCounter++;
-                enqueueData('response.output_item.added', {
-                  type: 'output_item.added',
-                  output_index: pendingTextItemIndex,
-                  item: {
-                    id: pendingTextItemId,
-                    type: 'message',
-                    role: 'assistant',
-                    content: [],
-                    status: 'in_progress',
-                  },
-                });
-              }
-              textAccumulator += event.delta;
-              enqueueData('response.output_stream.delta', {
-                type: 'output_stream.delta',
-                item_index: pendingTextItemIndex,
-                delta: { type: 'reasoning_text_delta', text: event.delta },
+              ensureReasoningItem();
+              reasoningText += event.delta;
+              enqueue('response.reasoning_summary_text.delta', {
+                item_id: reasoningItemId,
+                output_index: reasoningIndex,
+                summary_index: 0,
+                delta: event.delta,
               });
               break;
             }
 
             case 'text_delta': {
               ensureResponseCreated();
-              if (pendingTextItemId === undefined) {
-                pendingTextItemId = `item_lat_${responseId}_text`;
-                pendingTextItemIndex = itemIndexCounter++;
-                enqueueData('response.output_item.added', {
-                  type: 'output_item.added',
-                  output_index: pendingTextItemIndex,
-                  item: {
-                    id: pendingTextItemId,
-                    type: 'message',
-                    role: 'assistant',
-                    content: [],
-                    status: 'in_progress',
-                  },
-                });
-              }
+              ensureTextItem();
               textAccumulator += event.delta;
-              enqueueData('response.output_stream.delta', {
-                type: 'output_stream.delta',
-                item_index: pendingTextItemIndex,
-                delta: { type: 'input_text_delta', text: event.delta },
+              enqueue('response.output_text.delta', {
+                item_id: textItemId,
+                output_index: textIndex,
+                content_index: 0,
+                delta: event.delta,
+                logprobs: [],
               });
               break;
             }
 
             case 'tool_call_start': {
               ensureResponseCreated();
-              flushPendingTextItem();
-              pendingToolCallId = `call_${responseId}_${toolCallIndexCounter++}`;
-              pendingToolCallName = event.name;
-              pendingToolCallArguments = '';
-              const tcIndex = itemIndexCounter++;
-              enqueueData('response.output_item.added', {
-                type: 'output_item.added',
-                output_index: tcIndex,
+              flushReasoning();
+              flushText();
+              // event.id is the provider's tool-call id; keep it as call_id so
+              // the client can echo it in function_call_output (F-02).
+              toolCallId = event.id;
+              toolItemId = `item_${event.id}`;
+              toolName = event.name;
+              toolArguments = '';
+              toolIndex = itemIndexCounter++;
+              enqueue('response.output_item.added', {
+                output_index: toolIndex,
                 item: {
-                  id: pendingToolCallId,
+                  id: toolItemId,
                   type: 'function_call',
-                  call_id: pendingToolCallId,
+                  call_id: toolCallId,
                   name: event.name,
                   arguments: '',
                   status: 'in_progress',
@@ -748,23 +784,19 @@ export function createResponsesSSEStream(
             }
 
             case 'tool_call_delta': {
-              if (pendingToolCallId && pendingToolCallName !== undefined) {
-                pendingToolCallArguments += event.argumentsDelta;
-                enqueueData('response.output_stream.delta', {
-                  type: 'output_stream.delta',
-                  item_index: outputItems.length,
-                  delta: {
-                    type: 'partial_json_delta',
-                    argument_index: 0,
-                    partial_json: event.argumentsDelta,
-                  },
+              if (toolCallId && toolName !== undefined) {
+                toolArguments += event.argumentsDelta;
+                enqueue('response.function_call_arguments.delta', {
+                  item_id: toolItemId,
+                  output_index: toolIndex,
+                  delta: event.argumentsDelta,
                 });
               }
               break;
             }
 
             case 'tool_call_stop':
-              flushPendingToolCall();
+              flushToolCall();
               break;
 
             case 'usage':
@@ -774,89 +806,35 @@ export function createResponsesSSEStream(
 
             case 'stream_end':
               stopReason = event.stopReason;
-              flushPendingTextItem();
-              flushPendingToolCall();
-              // Emit final response.completed
-              const status = stopReason === 'error' ? 'failed' : 'completed';
-              const completedResponse: any = {
-                id: responseId,
-                object: 'response',
-                created_at: created,
-                status,
-                model,
-                output: outputItems.length > 0 ? outputItems : [
-                  {
-                    id: pendingTextItemId || `msg_${responseId}`,
-                    type: 'message',
-                    role: 'assistant',
-                    content: textAccumulator
-                      ? [{ type: 'text', text: textAccumulator }]
-                      : [],
-                    status: status === 'completed' ? 'completed' : 'in_progress',
-                  },
-                ],
-                usage: {
-                  total_tokens: totalPromptTokens + totalCompletionTokens,
-                  input_tokens: totalPromptTokens,
-                  output_tokens: totalCompletionTokens,
-                },
-              };
-              enqueueData('response.completed', {
-                type: 'response.completed',
-                response: completedResponse,
+              flushReasoning();
+              flushText();
+              flushToolCall();
+              ensureResponseCreated();
+              enqueue('response.completed', {
+                response: completedResponse(stopReason === 'error' ? 'failed' : 'completed'),
               });
               break;
 
             case 'stream_error':
               ensureResponseCreated();
-              enqueueData('response.completed', {
-                type: 'response.completed',
+              enqueue('error', {
+                code: event.error.code,
+                message: event.error.message,
+                param: event.error.param ?? null,
+              });
+              enqueue('response.failed', {
                 response: {
-                  id: responseId,
-                  object: 'response',
-                  created_at: created,
-                  status: 'failed',
-                  model,
-                  output: [],
-                  error: {
-                    code: event.error.code,
-                    message: event.error.message,
-                  },
+                  ...completedResponse('failed'),
+                  error: { code: event.error.code, message: event.error.message },
                 },
               });
               return;
           }
         }
 
-        // If no response was ever started but we get here, emit an empty completed one
         if (!hasOutputStarted) {
-          enqueueData('response.created', {
-            type: 'response.created',
-            response: {
-              id: responseId,
-              object: 'response',
-              created_at: created,
-              status: 'in_progress',
-              model,
-              output: [],
-            },
-          });
-          enqueueData('response.completed', {
-            type: 'response.completed',
-            response: {
-              id: responseId,
-              object: 'response',
-              created_at: created,
-              status: 'completed',
-              model,
-              output: [],
-              usage: {
-                total_tokens: totalPromptTokens + totalCompletionTokens,
-                input_tokens: totalPromptTokens,
-                output_tokens: totalCompletionTokens,
-              },
-            },
-          });
+          ensureResponseCreated();
+          enqueue('response.completed', { response: completedResponse('completed') });
         }
       } catch (err) {
         controller.error(err);
@@ -867,8 +845,8 @@ export function createResponsesSSEStream(
           controller.close();
         } catch {}
       }
-    },
-    cancel() {
+
+    },    cancel() {
       isClosed = true;
       if (keepaliveTimer) clearInterval(keepaliveTimer);
     },

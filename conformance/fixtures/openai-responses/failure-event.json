@@ -1,0 +1,29 @@
+{
+  "name": "failure-event",
+  "dialect": "openai-responses",
+  "request": { "model": "test", "input": "fail" },
+  "canonicalExpect": { "model": "test", "messages.0.role": "user" },
+  "response": {
+    "id": "resp_doc_fail",
+    "model": "test",
+    "created": 1,
+    "content": [],
+    "stopReason": "error",
+    "usage": { "promptTokens": 1, "completionTokens": 0, "totalTokens": 1 }
+  },
+  "responseExpect": { "object": "response", "status": "failed", "error.code": "generation_error" },
+  "streamEvents": [
+    { "type": "stream_start", "id": "resp_doc_fail", "model": "test", "created": 1 },
+    {
+      "type": "stream_error",
+      "error": { "code": "server_error", "message": "upstream failed", "status": 500, "type": "api_error" }
+    }
+  ],
+  "streamExpectEvents": [
+    { "type": "response.created", "fields": { "type": "response.created", "response.status": "in_progress" } },
+    { "type": "error", "fields": { "type": "error", "code": "server_error", "message": "upstream failed" } },
+    { "type": "response.failed", "fields": { "type": "response.failed", "response.status": "failed", "response.error.code": "server_error" } }
+  ],
+  "streamStatus": "passed",
+  "_docs": "OpenAI Responses error events: https://developers.openai.com/api/reference/resources/responses/streaming-events — 'error' (ResponseErrorEvent: type/code/message/param/sequence_number) and 'response.failed' (ResponseFailedEvent: response.status 'failed' with response.error), fetched 2026-11-20."
+}

@@ -485,6 +485,16 @@ export function normalizeOpenAIResponses(
           });
           canonicalMessages.push({ role: item.role, content: parts });
         }
+      } else if (item.type === 'function_call') {
+        canonicalMessages.push({
+          role: 'assistant',
+          content: [{
+            type: 'tool_use',
+            id: item.call_id,
+            name: item.name,
+            input: item.arguments,
+          }],
+        });
       } else if (item.type === 'function_call_output') {
         canonicalMessages.push({
           role: 'tool',

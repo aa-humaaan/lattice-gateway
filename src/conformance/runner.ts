@@ -15,6 +15,8 @@ export interface ConformanceFixture {
   response: CanonicalResponse;
   responseExpect: Record<string, unknown>;
   streamEvents?: CanonicalStreamEvent[];
+  /** Ordered, field-level assertions against the emitted SSE events. */
+  streamExpectEvents?: Array<{ type: string; fields?: Record<string, unknown> }>;
   streamContains?: string[];
   streamStatus?: 'unsupported';
 }
@@ -64,6 +66,33 @@ export async function runConformanceFixture(fixture: ConformanceFixture): Promis
     const text = await new Response(stream).text();
     for (const expected of fixture.streamContains ?? []) {
       if (!text.includes(expected)) failures.push({ stage: 'stream', path: 'contains', expected, actual: text });
+    }
+    if (fixture.streamExpectEvents) {
+      const emitted: Array<{ type: string; payload: any }> = [];
+      const sse = /event:\s*([^\n]+)\ndata:\s*([^\n]+)\n\n/g;
+      let match: RegExpExecArray | null;
+      while ((match = sse.exec(text))) {
+        emitted.push({ type: match[1].trim(), payload: JSON.parse(match[2]) });
+      }
+      fixture.streamExpectEvents.forEach((expected, index) => {
+        const actual = emitted[index];
+        if (!actual) {
+          failures.push({ stage: 'stream', path: `events[${index}].type`, expected: expected.type, actual: undefined });
+          return;
+        }
+        if (actual.type !== expected.type) {
+          failures.push({ stage: 'stream', path: `events[${index}].type`, expected: expected.type, actual: actual.type });
+        }
+        if (actual.payload?.type !== expected.type) {
+          failures.push({ stage: 'stream', path: `events[${index}].payload.type`, expected: expected.type, actual: actual.payload?.type });
+        }
+        for (const [path, wanted] of Object.entries(expected.fields ?? {})) {
+          const got = valueAt(actual.payload, path);
+          if (JSON.stringify(got) !== JSON.stringify(wanted)) {
+            failures.push({ stage: 'stream', path: `events[${index}].${path}`, expected: wanted, actual: got });
+          }
+        }
+      });
     }
     streamStatus = 'passed';
   }

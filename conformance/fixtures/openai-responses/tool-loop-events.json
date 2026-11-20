@@ -1,0 +1,50 @@
+{
+  "name": "tool-loop-events",
+  "dialect": "openai-responses",
+  "request": {
+    "model": "test",
+    "input": "look up the weather"
+  },
+  "canonicalExpect": {
+    "model": "test",
+    "messages.0.role": "user"
+  },
+  "response": {
+    "id": "resp_doc_tool",
+    "model": "test",
+    "created": 1,
+    "content": [],
+    "stopReason": "tool_calls",
+    "usage": { "promptTokens": 2, "completionTokens": 1, "totalTokens": 3 }
+  },
+  "responseExpect": {
+    "object": "response",
+    "status": "completed"
+  },
+  "streamEvents": [
+    { "type": "stream_start", "id": "resp_doc_tool", "model": "test", "created": 1 },
+    { "type": "thinking_delta", "delta": "I should check the tool." },
+    { "type": "text_delta", "delta": "Checking " },
+    { "type": "tool_call_start", "index": 0, "id": "call_provider_abc123", "name": "get_weather" },
+    { "type": "tool_call_delta", "index": 0, "argumentsDelta": "{\"city\":" },
+    { "type": "tool_call_delta", "index": 0, "argumentsDelta": "\"Paris\"}" },
+    { "type": "tool_call_stop", "index": 0 },
+    { "type": "stream_end", "stopReason": "tool_calls" }
+  ],
+  "streamExpectEvents": [
+    { "type": "response.created", "fields": { "type": "response.created", "response.status": "in_progress" } },
+    { "type": "response.output_item.added", "fields": { "type": "response.output_item.added", "item.type": "reasoning" } },
+    { "type": "response.reasoning_summary_text.delta", "fields": { "type": "response.reasoning_summary_text.delta", "delta": "I should check the tool." } },
+    { "type": "response.output_item.added", "fields": { "type": "response.output_item.added", "item.type": "message", "item.role": "assistant" } },
+    { "type": "response.output_text.delta", "fields": { "type": "response.output_text.delta", "delta": "Checking ", "content_index": 0 } },
+    { "type": "response.output_item.done", "fields": { "type": "response.output_item.done", "item.type": "reasoning" } },
+    { "type": "response.output_item.done", "fields": { "type": "response.output_item.done", "item.type": "message" } },
+    { "type": "response.output_item.added", "fields": { "type": "response.output_item.added", "item.type": "function_call", "item.call_id": "call_provider_abc123" } },
+    { "type": "response.function_call_arguments.delta", "fields": { "type": "response.function_call_arguments.delta", "delta": "{\"city\":" } },
+    { "type": "response.function_call_arguments.delta", "fields": { "type": "response.function_call_arguments.delta", "delta": "\"Paris\"}" } },
+    { "type": "response.output_item.done", "fields": { "type": "response.output_item.done", "item.type": "function_call", "item.call_id": "call_provider_abc123", "item.arguments": "{\"city\":\"Paris\"}" } },
+    { "type": "response.completed", "fields": { "type": "response.completed", "response.status": "completed" } }
+  ],
+  "streamStatus": "passed",
+  "_docs": "OpenAI Responses streaming events: https://developers.openai.com/api/reference/resources/responses/streaming-events (response.created, response.reasoning_summary_text.delta, response.output_text.delta, response.output_item.added/done, response.function_call_arguments.delta, response.completed). FunctionCall.call_id: same page, FunctionCall object; docs fetched 2026-11-20."
+}
