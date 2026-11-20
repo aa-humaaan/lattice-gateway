@@ -1,3 +1,4 @@
+import { safeFetch } from '../core/safe-fetch';
 import type {
   ProviderPlugin,
   ModelDescriptor,
@@ -290,13 +291,13 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
   async solveChallenge(): Promise<string> {
     const base = this.defaultBaseUrl;
-    const chalRes = await fetch(`${base}/api/v1/session/challenge`, {
+    const chalRes = await safeFetch(`${base}/api/v1/session/challenge`, {
       method: 'POST',
       headers: { Connection: 'close' },
     });
     if (!chalRes.ok) throw new Error('DeepSeek session challenge failed');
     const chalData = (await chalRes.json()) as any;
-    const verifyRes = await fetch(`${base}/api/v1/session/verify`, {
+    const verifyRes = await safeFetch(`${base}/api/v1/session/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Connection: 'close' },
       body: JSON.stringify({
@@ -517,7 +518,7 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
       const body = this.buildRequestBody(req, account, false);
 
       try {
-        const res = await fetch(url, {
+        const res = await safeFetch(url, {
           method: 'POST',
           headers,
           body: JSON.stringify(body),
@@ -655,7 +656,7 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
       const body = this.buildRequestBody(req, account, true);
 
       try {
-        const res = await fetch(url, {
+        const res = await safeFetch(url, {
           method: 'POST',
           headers,
           body: JSON.stringify(body),

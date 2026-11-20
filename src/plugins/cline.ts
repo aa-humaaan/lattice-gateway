@@ -1,3 +1,4 @@
+import { safeFetch } from '../core/safe-fetch';
 import type {
   ProviderPlugin,
   ModelDescriptor,
@@ -184,7 +185,7 @@ export async function startWorkosDeviceAuth(
   const form = new URLSearchParams();
   form.set('client_id', clientId);
 
-  const res = await fetch(authUrl, {
+  const res = await safeFetch(authUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: form.toString(),
@@ -226,7 +227,7 @@ export async function pollWorkosToken(
     form.set('device_code', deviceCode);
     form.set('client_id', clientId);
 
-    const res = await fetch(authenticateUrl, {
+    const res = await safeFetch(authenticateUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form.toString(),
@@ -266,7 +267,7 @@ export async function registerWithCline(
   apiBase = CLINE_API_BASE
 ): Promise<ClineAuthResponse> {
   const url = apiBase.endsWith('/auth/register') ? apiBase : `${apiBase.replace(/\/+$/, '')}/auth/register`;
-  const res = await fetch(url, {
+  const res = await safeFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -297,7 +298,7 @@ export async function refreshClineToken(
       : `${cleanBase}/api/v1/auth/refresh`;
   }
 
-  const res = await fetch(url, {
+  const res = await safeFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -636,7 +637,7 @@ export class ClinePoolPlugin implements ProviderPlugin {
 
       let res: Response;
       try {
-        res = await fetch(this.getChatUrl(), {
+        res = await safeFetch(this.getChatUrl(), {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -751,7 +752,7 @@ export class ClinePoolPlugin implements ProviderPlugin {
 
       let res: Response;
       try {
-        res = await fetch(this.getChatUrl(), {
+        res = await safeFetch(this.getChatUrl(), {
           method: 'POST',
           headers,
           body: JSON.stringify({

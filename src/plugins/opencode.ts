@@ -1,3 +1,4 @@
+import { safeFetch } from '../core/safe-fetch';
 import fs from 'node:fs';
 import path from 'node:path';
 import type {
@@ -589,7 +590,7 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
     const model = req.model.replace(/^opencode\//, '');
     const { tools, toolChoice } = this.mergeWithGateTools(req.tools, req.toolChoice);
 
-    const res = await fetch(endpoint, {
+    const res = await safeFetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -731,7 +732,7 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
     const model = req.model.replace(/^opencode\//, '');
     const { tools, toolChoice } = this.mergeWithGateTools(req.tools, req.toolChoice);
 
-    const res = await fetch(endpoint, {
+    const res = await safeFetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify({

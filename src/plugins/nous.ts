@@ -1,3 +1,4 @@
+import { safeFetch } from '../core/safe-fetch';
 import type {
   ProviderPlugin,
   ModelDescriptor,
@@ -430,7 +431,7 @@ export class NousProviderPlugin implements ProviderPlugin {
     try {
       const url = this.resolveUrl('models');
       const headers = this.buildHeaders(account);
-      const res = await fetch(url, { headers, signal: AbortSignal.timeout(4000) });
+      const res = await safeFetch(url, { headers, signal: AbortSignal.timeout(4000) });
       if (res.ok) {
         const data = (await res.json()) as any;
         const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
@@ -490,7 +491,7 @@ export class NousProviderPlugin implements ProviderPlugin {
     const isMock = this.defaultBaseUrl.includes('127.0.0.1') || this.defaultBaseUrl.includes('localhost');
     if (isMock) {
       const url = this.resolveUrl('portal_auth');
-      const res = await fetch(url, {
+      const res = await safeFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_id: clientId }),
@@ -508,7 +509,7 @@ export class NousProviderPlugin implements ProviderPlugin {
     }
 
     const url = 'https://portal.nousresearch.com/api/oauth/device/code';
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_id: clientId }),
@@ -541,7 +542,7 @@ export class NousProviderPlugin implements ProviderPlugin {
     const isMock = this.defaultBaseUrl.includes('127.0.0.1') || this.defaultBaseUrl.includes('localhost');
     if (isMock) {
       const url = this.resolveUrl('portal_token');
-      const res = await fetch(url, {
+      const res = await safeFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: deviceCode }),
@@ -559,7 +560,7 @@ export class NousProviderPlugin implements ProviderPlugin {
     }
 
     const url = 'https://portal.nousresearch.com/api/oauth/token';
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -734,7 +735,7 @@ export class NousProviderPlugin implements ProviderPlugin {
 
       let res: Response;
       try {
-        res = await fetch(url, {
+        res = await safeFetch(url, {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -843,7 +844,7 @@ export class NousProviderPlugin implements ProviderPlugin {
 
       let res: Response;
       try {
-        res = await fetch(url, {
+        res = await safeFetch(url, {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -1010,7 +1011,7 @@ export class NousProviderPlugin implements ProviderPlugin {
   async healthCheck(account?: StoredAccount): Promise<HealthCheckResult> {
     const start = Date.now();
     try {
-      const res = await fetch(this.resolveUrl('models'), {
+      const res = await safeFetch(this.resolveUrl('models'), {
         headers: this.buildHeaders(account),
         signal: AbortSignal.timeout(5000),
       });
