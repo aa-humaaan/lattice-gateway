@@ -248,6 +248,8 @@ export function createOpenAISSEStream(
                   code: event.error.code,
                 },
               });
+              // Clients wait for [DONE]; without it an error stream hangs forever.
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
               return;
           }
         }

@@ -7,6 +7,7 @@ import {
 import {
   createOpenAISSEStream,
   createAnthropicSSEStream,
+  createResponsesSSEStream,
 } from '../../src/engine/dialect/stream-adapter';
 import { CanonicalResponse, CanonicalStreamEvent } from '../../src/core/types/canonical';
 
@@ -68,5 +69,68 @@ describe('F-03 / P0-3: canonical error stop reason must not look like success', 
     }
     const text = await streamToText(createAnthropicSSEStream(gen()));
     expect(text).toContain('"stop_reason":"error"');
+  });
+});
+
+describe('F-03 / P0-3: upstream stream failures surface as dialect errors and terminate', () => {
+  const upstreamFailure = {
+    message: 'Upstream connection reset',
+    type: 'upstream_error',
+    code: 'upstream_reset',
+    status: 502,
+  };
+
+  async function drain(stream: ReadableStream<Uint8Array>): Promise<{ text: string; terminated: boolean }> {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+    let terminated = false;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        terminated = true;
+        break;
+      }
+      if (value) text += decoder.decode(value, { stream: true });
+    }
+    return { text, terminated };
+  }
+
+  it('Chat stream with an upstream failure emits a dialect error payload and [DONE], then terminates', async () => {
+    async function* gen(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'chat_fail', model: 'some-model', created: 1731693600 };
+      yield { type: 'text_delta', delta: 'partial ' };
+      yield { type: 'stream_error', error: upstreamFailure };
+    }
+    const { text, terminated } = await drain(createOpenAISSEStream(gen()));
+    expect(text).toContain('"error"');
+    expect(text).toContain('Upstream connection reset');
+    expect(text).toContain('data: [DONE]\n\n');
+    expect(terminated).toBe(true);
+  });
+
+  it('Anthropic stream with an upstream failure emits a dialect error event, then terminates', async () => {
+    async function* gen(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'msg_fail', model: 'some-model', created: 1731693600 };
+      yield { type: 'text_delta', delta: 'partial ' };
+      yield { type: 'stream_error', error: upstreamFailure };
+    }
+    const { text, terminated } = await drain(createAnthropicSSEStream(gen()));
+    expect(text).toContain('event: error');
+    expect(text).toContain('Upstream connection reset');
+    expect(terminated).toBe(true);
+  });
+
+  it('Responses stream with an upstream failure emits a failed response payload, then terminates', async () => {
+    async function* gen(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'resp_fail', model: 'some-model', created: 1731693600 };
+      yield { type: 'text_delta', delta: 'partial ' };
+      yield { type: 'stream_error', error: upstreamFailure };
+    }
+    const { text, terminated } = await drain(createResponsesSSEStream(gen()));
+    expect(text).toContain('"status":"failed"');
+    expect(text).toContain('"error"');
+    expect(text).toContain('Upstream connection reset');
+    expect(terminated).toBe(true);
   });
 });
