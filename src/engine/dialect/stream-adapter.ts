@@ -315,6 +315,10 @@ export function createAnthropicSSEStream(
       let messageStarted = false;
       let currentBlockIndex = -1;
       let activeBlockType: 'thinking' | 'text' | 'tool_use' | null = null;
+      // Parallel tool calls interleave their deltas, so each canonical tool
+      // index owns its own open content block rather than sharing one cursor.
+      const toolBlocks = new Map<number, { blockIndex: number; open: boolean; hasDelta: boolean }>();
+      let fallbackToolKey = -1;
       let totalOutputTokens = 0;
       let hasNonThinkingStarted = false;
 
@@ -351,6 +355,22 @@ export function createAnthropicSSEStream(
         }
       };
 
+      const closeToolBlock = (key: number) => {
+        const block = toolBlocks.get(key);
+        if (!block?.open) return;
+        emitEvent('content_block_stop', { type: 'content_block_stop', index: block.blockIndex });
+        block.open = false;
+        toolBlocks.delete(key);
+      };
+
+      const closeAllToolBlocks = () => {
+        // Emit stops in block-index order even when upstream omits tool_call_stop.
+        const ordered = Array.from(toolBlocks.entries()).sort(
+          (a, b) => a[1].blockIndex - b[1].blockIndex
+        );
+        for (const [key] of ordered) closeToolBlock(key);
+      };
+
       try {
         for await (const event of events) {
           if (options?.signal?.aborted || isClosed) break;
@@ -365,8 +385,9 @@ export function createAnthropicSSEStream(
 
               // Invariant: Thinking blocks may ONLY appear at index 0 before non-thinking content.
               if (hasNonThinkingStarted) {
-                if (activeBlockType === 'tool_use') {
-                  // Inside active tool_use block: suppress delta to avoid corrupting tool arguments with text_delta (ADV-1.5)
+                if (toolBlocks.size > 0) {
+                  // An open tool block owns the stream; suppress thinking text
+                  // so tool arguments are never corrupted (ADV-1.5).
                   break;
                 }
 
@@ -451,8 +472,16 @@ export function createAnthropicSSEStream(
               ensureMessageStarted();
               hasNonThinkingStarted = true;
               closeActiveBlock();
+              // A tool that has already streamed arguments is sequential;
+              // auto-close it when the next tool starts. Tools still waiting
+              // for their first delta stay open so parallel calls can interleave.
+              for (const [openKey, openBlock] of Array.from(toolBlocks.entries())) {
+                if (openBlock.open && openBlock.hasDelta) closeToolBlock(openKey);
+              }
               currentBlockIndex++;
-              activeBlockType = 'tool_use';
+              const key = event.index;
+              toolBlocks.set(key, { blockIndex: currentBlockIndex, open: true, hasDelta: false });
+              fallbackToolKey = key;
               emitEvent('content_block_start', {
                 type: 'content_block_start',
                 index: currentBlockIndex,
@@ -467,10 +496,13 @@ export function createAnthropicSSEStream(
             }
 
             case 'tool_call_delta': {
-              if (activeBlockType === 'tool_use') {
+              const key = event.index ?? fallbackToolKey;
+              const block = toolBlocks.get(key);
+              if (block?.open) {
+                block.hasDelta = true;
                 emitEvent('content_block_delta', {
                   type: 'content_block_delta',
-                  index: currentBlockIndex,
+                  index: block.blockIndex,
                   delta: {
                     type: 'input_json_delta',
                     partial_json: event.argumentsDelta,
@@ -482,9 +514,7 @@ export function createAnthropicSSEStream(
             }
 
             case 'tool_call_stop': {
-              if (activeBlockType === 'tool_use') {
-                closeActiveBlock();
-              }
+              closeToolBlock(event.index ?? fallbackToolKey);
               break;
             }
 
@@ -497,6 +527,7 @@ export function createAnthropicSSEStream(
             case 'stream_end': {
               ensureMessageStarted();
               closeActiveBlock();
+              closeAllToolBlocks();
 
               const stopReason = mapStopReasonToAnthropic(event.stopReason);
               emitEvent('message_delta', {
