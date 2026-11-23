@@ -61,7 +61,7 @@ describe('request ledger', () => {
   test('metrics can be scoped to a time window', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lattice-ledger-'));
     try {
-      const ledger = createLedger(join(dir, 'ledger.ndjson'));
+      const ledger = createLedger(join(dir, 'ledger.ndjson'), { retentionMs: 30 * 24 * 3600 * 1000 });
       ledger.append(event({ timestamp: Date.now() - 10 * 24 * 3600 * 1000 }));
       ledger.append(event({ timestamp: Date.now() }));
       expect(ledger.metrics().totalRequests).toBe(2);
