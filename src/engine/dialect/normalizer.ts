@@ -90,7 +90,14 @@ export function normalizeOpenAIChat(
       } else {
         const parts: CanonicalContentPart[] = msg.content.map((p) => {
           if (p.type === 'text') {
-            return { type: 'text', text: p.text };
+            const cacheControl = (p as { cache_control?: { type: string } }).cache_control;
+            return {
+              type: 'text',
+              text: p.text,
+              ...(cacheControl?.type === 'ephemeral'
+                ? { cacheControl: { type: 'ephemeral' as const } }
+                : {}),
+            };
           }
           const url = p.image_url.url;
           if (url.startsWith('data:')) {
@@ -262,10 +269,16 @@ export function normalizeAnthropicMessages(
 
   // Extract top-level system prompt
   let systemPrompt: string | undefined;
+  let systemContent: CanonicalRequest['systemContent'];
   if (typeof req.system === 'string') {
     systemPrompt = req.system.trim();
   } else if (Array.isArray(req.system)) {
     systemPrompt = req.system.map((s) => s.text).join('\n\n').trim();
+    systemContent = req.system.map((s) => ({
+      type: 'text' as const,
+      text: s.text,
+      ...(s.cache_control ? { cacheControl: { type: 'ephemeral' as const } } : {}),
+    }));
   }
 
   const rawMessages: CanonicalMessage[] = [];
@@ -436,6 +449,7 @@ export function normalizeAnthropicMessages(
     model: req.model,
     messages: canonicalMessages,
     systemPrompt,
+    systemContent,
     tools,
     toolChoice,
     temperature: req.temperature,

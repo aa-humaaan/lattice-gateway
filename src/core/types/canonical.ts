@@ -201,6 +201,7 @@ export interface CanonicalRequest {
   model: string;                              // Requested model or combo ID
   messages: CanonicalMessage[];               // Normalized message array
   systemPrompt?: string;                      // Extracted top-level system prompt
+  systemContent?: Array<{ type: 'text'; text: string; cacheControl?: { type: 'ephemeral' } }>;
   tools?: CanonicalToolDefinition[];          // Normalized tool definitions
   toolChoice?: CanonicalToolChoice;           // Normalized tool choice
   temperature?: number;
@@ -239,6 +240,15 @@ export const CanonicalRequestSchema = z.object({
   model: z.string().min(1),
   messages: z.array(CanonicalMessageSchema),
   systemPrompt: z.string().optional(),
+  systemContent: z
+    .array(
+      z.object({
+        type: z.literal('text'),
+        text: z.string(),
+        cacheControl: z.object({ type: z.literal('ephemeral') }).optional(),
+      })
+    )
+    .optional(),
   tools: z.array(CanonicalToolDefinitionSchema).optional(),
   toolChoice: CanonicalToolChoiceSchema.optional(),
   temperature: z.number().min(0).max(2).optional(),

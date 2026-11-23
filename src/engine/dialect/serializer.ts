@@ -455,3 +455,76 @@ export function serializeOpenAIMessages(
 
   return result;
 }
+
+/**
+ * Serialize canonical messages back into Anthropic request shape, preserving
+ * cache_control on every content block that carried it inbound.
+ */
+export function serializeAnthropicRequestMessages(
+  messages: CanonicalMessage[],
+  systemPrompt?: string,
+  systemContent?: Array<{ type: 'text'; text: string; cacheControl?: { type: 'ephemeral' } }>
+): { system?: Array<Record<string, unknown>>; messages: Array<Record<string, unknown>> } {
+  const system = systemContent?.length
+    ? systemContent.map((block) => ({
+        type: 'text',
+        text: block.text,
+        ...(block.cacheControl ? { cache_control: block.cacheControl } : {}),
+      }))
+    : systemPrompt?.trim()
+      ? [{ type: 'text', text: systemPrompt.trim() }]
+      : undefined;
+
+  const out: Array<Record<string, unknown>> = [];
+  for (const msg of messages) {
+    if (msg.role === 'system') continue;
+    if (typeof msg.content === 'string') {
+      out.push({ role: msg.role, content: [{ type: 'text', text: msg.content }] });
+      continue;
+    }
+
+    const content: Array<Record<string, unknown>> = [];
+    for (const part of msg.content) {
+      if (part.type === 'text') {
+        content.push({
+          type: 'text',
+          text: part.text,
+          ...(part.cacheControl ? { cache_control: part.cacheControl } : {}),
+        });
+      } else if (part.type === 'image') {
+        content.push({
+          type: 'image',
+          source:
+            part.source.type === 'base64'
+              ? { type: 'base64', media_type: part.source.mediaType, data: part.source.data }
+              : { type: 'url', url: part.source.data },
+        });
+      } else if (part.type === 'thinking') {
+        content.push({
+          type: 'thinking',
+          thinking: part.thinking,
+          ...(part.signature ? { signature: part.signature } : {}),
+        });
+      } else if (part.type === 'redacted_thinking') {
+        content.push({ type: 'redacted_thinking', data: part.data });
+      } else if (part.type === 'tool_use') {
+        content.push({
+          type: 'tool_use',
+          id: part.id,
+          name: part.name,
+          input: typeof part.input === 'string' ? part.input : part.input,
+        });
+      } else if (part.type === 'tool_result') {
+        content.push({
+          type: 'tool_result',
+          tool_use_id: part.toolCallId,
+          content: part.content,
+          ...(part.isError !== undefined ? { is_error: part.isError } : {}),
+        });
+      }
+    }
+    out.push({ role: msg.role, content });
+  }
+
+  return { ...(system ? { system } : {}), messages: out };
+}
