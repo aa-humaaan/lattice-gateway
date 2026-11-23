@@ -209,6 +209,20 @@ export function normalizeOpenAIChat(
     toolChoice,
     temperature: req.temperature,
     topP: req.top_p,
+    frequencyPenalty: req.frequency_penalty,
+    presencePenalty: req.presence_penalty,
+    seed: req.seed,
+    n: req.n,
+    logitBias: req.logit_bias,
+    user: req.user,
+    responseFormat: req.response_format
+      ? {
+          type: req.response_format.type,
+          ...(req.response_format.json_schema
+            ? { jsonSchema: req.response_format.json_schema }
+            : {}),
+        }
+      : undefined,
     maxTokens,
     stop: typeof req.stop === 'string' ? [req.stop] : req.stop,
     stream: req.stream ?? false,

@@ -206,6 +206,16 @@ export interface CanonicalRequest {
   temperature?: number;
   topP?: number;
   topK?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  seed?: number;
+  n?: number;
+  logitBias?: Record<string, number>;
+  user?: string;
+  responseFormat?: {
+    type: 'text' | 'json_object' | 'json_schema';
+    jsonSchema?: Record<string, unknown>;
+  };
   maxTokens?: number;
   stop?: string[];
   stream: boolean;
@@ -234,6 +244,18 @@ export const CanonicalRequestSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
   topP: z.number().min(0).max(1).optional(),
   topK: z.number().int().positive().optional(),
+  frequencyPenalty: z.number().min(-2).max(2).optional(),
+  presencePenalty: z.number().min(-2).max(2).optional(),
+  seed: z.number().int().optional(),
+  n: z.number().int().positive().optional(),
+  logitBias: z.record(z.number()).optional(),
+  user: z.string().optional(),
+  responseFormat: z
+    .object({
+      type: z.enum(['text', 'json_object', 'json_schema']),
+      jsonSchema: z.record(z.unknown()).optional(),
+    })
+    .optional(),
   maxTokens: z.number().int().positive().optional(),
   stop: z.array(z.string()).optional(),
   stream: z.boolean().default(false),

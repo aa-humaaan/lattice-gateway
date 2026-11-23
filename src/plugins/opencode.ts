@@ -20,6 +20,7 @@ import type {
 import { GatewayError } from '../core/types/errors';
 import { parseSSEStream } from '../utils/sse-parser';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
+import { forwardSamplingFields } from '../engine/dialect/forwarding';
 import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
 import { globalAccountPool } from '../pool/account-pool';
 
@@ -246,6 +247,7 @@ function getFallbackGateTools(): ZenGateToolDefinition[] {
 
 export class OpenCodeProviderPlugin implements ProviderPlugin {
   readonly id = 'opencode';
+  readonly capabilities = { responseFormat: true, samplingFields: true };
   readonly displayName = 'OpenCode Zen Provider Plugin';
   readonly description = 'Keyless anonymous and API-key free model inference gateway';
   readonly defaultBaseUrl: string;
@@ -600,6 +602,7 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
         max_tokens: req.maxTokens,
         tools: tools.length > 0 ? tools : undefined,
         tool_choice: toolChoice,
+        ...forwardSamplingFields(req),
         stream: false,
       }),
       signal,
@@ -742,6 +745,7 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
         max_tokens: req.maxTokens,
         tools: tools.length > 0 ? tools : undefined,
         tool_choice: toolChoice,
+        ...forwardSamplingFields(req),
         stream: true,
         stream_options: { include_usage: true },
       }),
