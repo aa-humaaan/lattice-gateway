@@ -12,6 +12,7 @@ import type {
 import { GatewayError } from '../core/types/errors';
 import { globalComboManager } from '../pool/combos';
 import { globalAccountPool } from '../pool/account-pool';
+import { globalBreakerRegistry } from '../core/breaker';
 import { globalPluginRegistry } from './registry';
 import { logger } from '../utils/logger';
 import { countPromptTokens } from '../utils/token-counter';
@@ -130,6 +131,14 @@ export class LatticeComboPlugin implements ProviderPlugin {
     return accounts.some((a) => a.status === 'active' && a.quotaRemaining !== 0);
   }
 
+  private isUnhealthyTarget(modelId: string): boolean {
+    const passport = this.passportStore.get(modelId);
+    return !!passport &&
+      this.passportStore.verify(modelId) &&
+      passport.availability?.source === 'measured' &&
+      passport.availability.value.healthy === false;
+  }
+
   async execute(req: CanonicalRequest, signal?: AbortSignal): Promise<CanonicalResponse> {
     const combo = globalComboManager.getCombo(req.model);
     if (!combo) {
@@ -152,9 +161,13 @@ export class LatticeComboPlugin implements ProviderPlugin {
     const targets = pinnedTarget && combo.targets.includes(pinnedTarget)
       ? [pinnedTarget, ...combo.targets.filter((target) => target !== pinnedTarget)]
       : [...combo.targets];
+    // A verified failed probe is a reason to try an alternative, not a permanent
+    // negative capability claim. Keep all targets when none is known-healthy.
+    const healthyTargets = targets.filter((target) => !this.isUnhealthyTarget(target));
+    const candidates = healthyTargets.length > 0 ? healthyTargets : targets;
 
     let attemptCount = 0;
-    for (const target of targets) {
+    for (const target of candidates) {
       if (attemptCount >= MAX_STREAM_TARGET_SWITCHES) {
         logger.warn(`[LatticeCombo] Target attempt budget exhausted for combo ${combo.id}`);
         break;
@@ -168,6 +181,14 @@ export class LatticeComboPlugin implements ProviderPlugin {
         skippedCount++;
         continue;
       }
+
+      const targetBreaker = globalBreakerRegistry.get(resolved.plugin.id);
+      if (!targetBreaker.allow()) {
+        lastError = lastError ?? new GatewayError(503, 'breaker_open', `Provider ${resolved.plugin.id} is circuit-broken`);
+        skippedCount++;
+        continue;
+      }
+      targetBreaker.beginAttempt();
 
       const contextWindow = await this.getModelContextWindow(target);
       if (contextWindow > maxContextSeen.value) maxContextSeen.value = contextWindow;
@@ -204,6 +225,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
         };
 
         const res = await resolved.plugin.execute(targetReq, signal);
+        targetBreaker.recordSuccess();
         if (sessionKey) this.affinityStore.pinTarget(sessionKey, target);
         return {
           ...res,
@@ -211,6 +233,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
         };
       } catch (err: any) {
         lastError = err;
+        targetBreaker.recordFailure(err);
         if (this.isContextOverflowError(err)) {
           overflowCount++;
           logger.warn(
@@ -279,8 +302,12 @@ export class LatticeComboPlugin implements ProviderPlugin {
     const targets = pinnedTarget && combo.targets.includes(pinnedTarget)
       ? [pinnedTarget, ...combo.targets.filter((target) => target !== pinnedTarget)]
       : [...combo.targets];
+    // A verified failed probe is a reason to try an alternative, not a permanent
+    // negative capability claim. Keep all targets when none is known-healthy.
+    const healthyTargets = targets.filter((target) => !this.isUnhealthyTarget(target));
+    const candidates = healthyTargets.length > 0 ? healthyTargets : targets;
 
-    for (const target of targets) {
+    for (const target of candidates) {
       if (switchCount >= MAX_STREAM_TARGET_SWITCHES) {
         logger.warn(`[LatticeCombo] Switch budget exhausted for combo ${combo.id}`);
         break;
@@ -293,6 +320,14 @@ export class LatticeComboPlugin implements ProviderPlugin {
         skippedCount++;
         continue;
       }
+
+      const targetBreaker = globalBreakerRegistry.get(resolved.plugin.id);
+      if (!targetBreaker.allow()) {
+        lastError = lastError ?? new GatewayError(503, 'breaker_open', `Provider ${resolved.plugin.id} is circuit-broken`);
+        skippedCount++;
+        continue;
+      }
+      targetBreaker.beginAttempt();
 
       const contextWindow = await this.getModelContextWindow(target);
       if (contextWindow > maxContextSeen.value) maxContextSeen.value = contextWindow;
@@ -351,6 +386,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
           }
         } catch (err: any) {
           lastError = err;
+          targetBreaker.recordFailure(err);
           switchCount++;
           logger.warn(`[LatticeCombo] Stream target ${target} failed before content: ${err.message || err}. Retrying next target...`);
           continue;
@@ -363,6 +399,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
           continue;
         }
 
+        targetBreaker.recordSuccess();
         if (sessionKey) this.affinityStore.pinTarget(sessionKey, target);
         const comboId = combo.id;
         return (async function* () {
@@ -387,6 +424,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
           } catch (streamErr: any) {
             // Content has already been emitted. Switching models now would
             // duplicate tool calls and break the client's session.
+            targetBreaker.recordFailure(streamErr);
             logger.error(`[LatticeCombo] Mid-stream error on target ${target}: ${streamErr.message || streamErr}`);
             yield {
               type: 'stream_error',
@@ -401,6 +439,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
         })();
       } catch (err: any) {
         lastError = err;
+        targetBreaker.recordFailure(err);
         switchCount++;
         if (this.isContextOverflowError(err)) {
           overflowCount++;

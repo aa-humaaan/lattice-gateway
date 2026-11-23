@@ -257,9 +257,15 @@ export function createModelPassportStore(
           (passport.claims as Record<string, unknown>)[name] = claim;
         }
       }
-      passports.set(passport.id, passport);
+      // A probe result is measured evidence too: a catalogue refresh must not erase it.
+      const record: UnsignedPassport = {
+        ...unsigned(passport),
+        ...(current?.availability ? { availability: current.availability } : {}),
+      };
+      const updated = signedPassport(record, signer);
+      passports.set(updated.id, updated);
       persist();
-      return passport;
+      return updated;
     },
     recordAvailability(id: string, observation: AvailabilityObservation): ModelPassport {
       const current = passports.get(id);

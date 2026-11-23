@@ -2,6 +2,7 @@ import type { StoredAccount, AccountStatus } from '../core/types/plugin';
 import { logger } from '../utils/logger';
 import { randomBytes } from 'crypto';
 import { globalHealthStore, type HealthStore } from './health-store';
+import { globalBreakerRegistry, type BreakerRegistry } from '../core/breaker';
 
 const QUOTA_EXHAUSTION_THRESHOLD_SECONDS = 3600;
 
@@ -21,7 +22,10 @@ export interface RuntimeSnapshot {
 }
 
 export class AccountPoolManager {
-  constructor(private readonly healthStore: HealthStore = globalHealthStore) {}
+  constructor(
+    private readonly healthStore: HealthStore = globalHealthStore,
+    private readonly breakers: BreakerRegistry = globalBreakerRegistry
+  ) {}
 
   private persistenceHook?: () => void;
 
@@ -91,6 +95,98 @@ export class AccountPoolManager {
 
   releaseLease(leaseId: string): void {
     this.leases.delete(leaseId);
+  }
+
+  // Per-request reservations. Counts are runtime-only and never persisted.
+  private inFlight = new Map<string, number>();
+
+  getInFlightCount(accountId: string): number {
+    return this.inFlight.get(accountId) ?? 0;
+  }
+
+  getInFlightCounts(): Record<string, number> {
+    return Object.fromEntries(this.inFlight);
+  }
+
+  private reserve(accountId: string): () => void {
+    this.inFlight.set(accountId, this.getInFlightCount(accountId) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const remaining = Math.max(0, this.getInFlightCount(accountId) - 1);
+      if (remaining === 0) this.inFlight.delete(accountId);
+      else this.inFlight.set(accountId, remaining);
+    };
+  }
+
+  /**
+   * The shared allocator used by every provider plugin. Least in-flight wins,
+   * with cumulative usage as a stable tie-break. The returned release is
+   * idempotent and also fires on client abort.
+   */
+  acquireAccount(
+    candidates: StoredAccount[],
+    options: { preferredId?: string; triedIds?: Set<string>; signal?: AbortSignal } = {}
+  ): { account: StoredAccount; release: () => void } | undefined {
+    const eligible = candidates.filter(
+      (a) => !options.triedIds?.has(a.id) && this.breakers.get(a.providerId).allow()
+    );
+    if (eligible.length === 0) return undefined;
+
+    const preferred = options.preferredId
+      ? eligible.find((a) => a.id === options.preferredId)
+      : undefined;
+
+    let chosen = preferred;
+    if (!chosen) {
+      const score = (a: StoredAccount) => [
+        this.getInFlightCount(a.id),
+        a.requestsUsed ?? 0,
+        a.tokensUsed ?? 0,
+        a.lastUsedAt ?? 0,
+      ];
+      const compare = (a: StoredAccount, b: StoredAccount): number => {
+        const as = score(a);
+        const bs = score(b);
+        for (let i = 0; i < as.length; i++) {
+          if (as[i] !== bs[i]) return as[i] - bs[i];
+        }
+        return 0;
+      };
+
+      chosen = eligible[0];
+      for (const candidate of eligible.slice(1)) {
+        if (compare(candidate, chosen) < 0) chosen = candidate;
+      }
+    }
+
+    // Selection is also a use: least-recently-used rotation falls out of this
+    // on the next request without any shared cursor state.
+    chosen.lastUsedAt = Date.now();
+    const breaker = this.breakers.get(chosen.providerId);
+    breaker.beginAttempt();
+    const releaseReservation = this.reserve(chosen.id);
+    const release = () => {
+      releaseReservation();
+      // A probe with no recorded outcome (e.g. client abort) must not wedge
+      // the breaker in half-open forever.
+      breaker.cancelProbe();
+    };
+    if (options.signal) {
+      if (options.signal.aborted) release();
+      else options.signal.addEventListener('abort', release, { once: true });
+    }
+    return { account: chosen, release };
+  }
+
+  /** Report a provider outcome to the shared breaker (health failures only). */
+  reportProviderFailure(providerId: string, error: unknown): boolean {
+    return this.breakers.get(providerId).recordFailure(error);
+  }
+
+  reportProviderSuccess(providerId: string): void {
+    this.breakers.get(providerId).recordSuccess();
   }
 
   recordUsageForAccount(accountId: string, promptTokens: number, completionTokens: number): void {

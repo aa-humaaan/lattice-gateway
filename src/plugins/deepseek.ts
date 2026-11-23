@@ -19,6 +19,7 @@ import { parseSSEStream } from '../utils/sse-parser';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
 import { globalSessionAffinityStore, type SessionAffinityStore } from '../core/session-affinity';
 import { globalCredentialResolver, type CredentialResolver } from '../core/credential-resolver';
+import { globalAccountPool } from '../pool/account-pool';
 
 export interface ChromeSessionExport {
   userToken?: string;
@@ -507,11 +508,17 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
     const triedIds = new Set<string>();
     const sessionKey = req.affinity?.sessionKey;
     const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+    const reservations: Array<() => void> = [];
 
+    try {
     for (let attempt = 0; attempt < attempts; attempt++) {
-      const account = this.getNextAccount(preferredId, triedIds);
+      const reservation = globalAccountPool.acquireAccount(activeAccounts, { preferredId, triedIds, signal });
+      if (!reservation) continue;
+      const account = reservation.account;
+      reservations.push(reservation.release);
       triedIds.add(account.id);
       account.lastUsedAt = Date.now();
+      req.accountId = account.id;
 
       const headers = this.buildHeaders(account, req.rawHeaders?.['user-agent']);
       const url = this.getCompletionUrl();
@@ -620,6 +627,9 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
     }
 
     throw lastError || new GatewayError(500, '500', 'Failed to execute DeepSeek request');
+    } finally {
+      for (const release of reservations) release();
+    }
   }
 
   async executeStream(
@@ -645,11 +655,18 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
     const triedIds = new Set<string>();
     const sessionKey = req.affinity?.sessionKey;
     const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+    const reservations: Array<() => void> = [];
+    let handedOff = false;
 
+    try {
     for (let attempt = 0; attempt < attempts; attempt++) {
-      const account = this.getNextAccount(preferredId, triedIds);
+      const reservation = globalAccountPool.acquireAccount(activeAccounts, { preferredId, triedIds, signal });
+      if (!reservation) continue;
+      const account = reservation.account;
+      reservations.push(reservation.release);
       triedIds.add(account.id);
       account.lastUsedAt = Date.now();
+      req.accountId = account.id;
 
       const headers = this.buildHeaders(account, req.rawHeaders?.['user-agent']);
       const url = this.getCompletionUrl();
@@ -705,7 +722,7 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
         }
 
         servingAccount = account;
-        servingAccount.errorCount = 0;
+        account.errorCount = 0;
         if (sessionKey) this.affinityStore.pinAccount(sessionKey, this.id, account.id);
         streamRes = res;
         break;
@@ -731,7 +748,7 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
     const reqId = req.id;
     const reqModel = req.model;
 
-    return (async function* () {
+    const rawStream = (async function* (): AsyncGenerator<CanonicalStreamEvent> {
       yield { type: 'stream_start', id: reqId, model: reqModel, created: timestamp };
 
       const thinkingDeltas: string[] = [];
@@ -850,6 +867,18 @@ export class DeepSeekPoolPlugin implements ProviderPlugin {
 
       yield { type: 'stream_end', stopReason, usage };
     })();
+
+    handedOff = true;
+    return (async function* (): AsyncGenerator<CanonicalStreamEvent> {
+      try {
+        yield* rawStream;
+      } finally {
+        for (const release of reservations) release();
+      }
+    })();
+    } finally {
+      if (!handedOff) for (const release of reservations) release();
+    }
   }
 
   async healthCheck(): Promise<HealthCheckResult> {

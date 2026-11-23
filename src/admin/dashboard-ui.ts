@@ -4181,8 +4181,8 @@ export function getDashboardHtml(nonce?: string): string {
           list.innerHTML = '<div style="padding:14px; text-align:center; color:var(--text-tertiary); font-size:0.8rem; background:var(--bg-canvas); border:1px dashed var(--border-subtle); border-radius:6px;">No fallback targets configured yet. Select models below to build your zero-drop failover chain.</div>';
         } else {
           list.innerHTML = wizardTargets.map((t, idx) => {
-            let providerId = t.includes('/') ? t.split('/')[0] : t;
-            if (t.startsWith('cline-free/')) providerId = 'cline';
+            const catalog = typeof allModels !== 'undefined' ? allModels : [];
+            const providerId = catalog.find(m => m.id === t)?.providerId || (t.includes('/') ? t.split('/')[0] : t);
             const pAccounts = allAccountsData.filter(a => a.providerId === providerId);
             const activeCount = pAccounts.filter(a => a.status === 'active').length;
             const rankLabel = idx === 0 ? 'Primary' : (idx === 1 ? 'Secondary' : 'Fallback #' + idx);

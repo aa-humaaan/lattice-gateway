@@ -72,6 +72,7 @@ export interface LogEvent {
   method: string;
   path: string;
   provider: string;
+  accountId?: string;
   model: string;
   status: number;
   latencyMs: number;
@@ -132,6 +133,7 @@ export function broadcastLog(log: LogEvent): void {
     method: enrichedLog.method || 'POST',
     path: enrichedLog.path || '',
     provider: enrichedLog.provider || 'unknown',
+    ...(enrichedLog.accountId ? { accountId: enrichedLog.accountId } : {}),
     model: enrichedLog.model || '',
     status: enrichedLog.status ?? 200,
     latencyMs: enrichedLog.latencyMs || 0,
@@ -165,8 +167,9 @@ export function createAdminRouter(): Hono {
   if (!globalPluginRegistry.has('deepseek')) {
     globalPluginRegistry.register(new DeepSeekPoolPlugin());
   }
-  if (!globalPluginRegistry.has('lattice-combo')) {
-    globalPluginRegistry.register(new LatticeComboPlugin());
+  const comboPlugin = new LatticeComboPlugin();
+  if (!globalPluginRegistry.has(comboPlugin.id)) {
+    globalPluginRegistry.register(comboPlugin);
   }
 
   const router = new Hono();

@@ -5,6 +5,7 @@ import {
   normalizeAnthropicMessages,
   normalizeOpenAIResponses,
 } from '../engine/dialect/normalizer';
+import { assertProviderCapabilities } from '../engine/dialect/capabilities';
 import {
   serializeOpenAIChat,
   serializeAnthropicMessage,
@@ -17,9 +18,7 @@ import {
 } from '../engine/dialect/stream-adapter';
 import { createXMLToolInterceptor } from '../engine/dialect/xml-tool-interceptor';
 import { GatewayError } from './types/errors';
-import { ProviderPlugin } from './types/plugin';
 import { createAdminRouter, broadcastLog } from '../admin/admin-router';
-import { globalComboManager } from '../pool/combos';
 import { globalAccountPool } from '../pool/account-pool';
 import { estimatePromptTokens } from '../utils/token-estimator';
 import {
@@ -30,7 +29,7 @@ import {
 import { withIdleTimeout } from '../utils/idle-timeout';
 import { withRequestDeadline } from '../utils/request-deadline';
 import { globalPluginRegistry } from '../plugins/registry';
-import { assertRemovedAggregatorAvailable } from '../plugins/removed-aggregator';
+import { createModelResolver, type ModelResolution } from '../utils/model-resolver';
 import { getGlobalModelPassportStore } from './model-passports';
 import { deriveSessionKey } from './session-affinity';
 import {
@@ -114,68 +113,11 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
   });
 
   // --------------------------------------------------------------------------
-  // Model Catalog Cache & Provider Resolution
+  // Provider Resolution — one catalog-driven resolver shared with combos/admin
   // --------------------------------------------------------------------------
-  interface CachedModelCatalog {
-    timestamp: number;
-    modelToPlugin: Map<string, ProviderPlugin>;
-  }
-  let catalogCache: CachedModelCatalog | null = null;
-  const CATALOG_CACHE_TTL_MS = 60_000; // 60s TTL
+  const resolver = createModelResolver(() => plugins.values());
 
-  async function getModelPluginMap(): Promise<Map<string, ProviderPlugin>> {
-    const now = Date.now();
-    if (catalogCache && now - catalogCache.timestamp < CATALOG_CACHE_TTL_MS) {
-      return catalogCache.modelToPlugin;
-    }
-
-    const map = new Map<string, ProviderPlugin>();
-    for (const plugin of plugins.values()) {
-      if (globalPluginRegistry.has(plugin.id) && !globalPluginRegistry.isEnabled(plugin.id)) continue;
-      try {
-        const models = await plugin.listModels();
-        for (const m of models) {
-          map.set(m.id, plugin);
-          // If model has a vendor prefix (e.g., "kilo/claude-3-7-sonnet"),
-          // also map the bare model name if unambiguous
-          if (m.id.includes('/')) {
-            const bareName = m.id.split('/').slice(1).join('/');
-            if (!map.has(bareName)) {
-              map.set(bareName, plugin);
-            }
-          }
-        }
-      } catch {
-        // Suppress individual plugin catalog lookup failures during cache build
-      }
-    }
-
-    catalogCache = { timestamp: now, modelToPlugin: map };
-    return map;
-  }
-
-  // Claude Code & Universal Model Aliases -> Virtual Combos / Default Providers
-  const MODEL_ALIASES: Record<string, string> = {
-    'claude-3-7-sonnet-20250219': 'lattice/code-flagship',
-    'claude-3-7-sonnet': 'lattice/code-flagship',
-    'claude-3-5-sonnet-20241022': 'lattice/code-flagship',
-    'claude-3-5-sonnet-20240620': 'lattice/code-flagship',
-    'claude-3-5-sonnet': 'lattice/code-flagship',
-    'claude-3-5-haiku-20241022': 'lattice/1m-free',
-    'claude-3-5-haiku': 'lattice/1m-free',
-    'claude-3-haiku-20240307': 'lattice/fast-free',
-    'claude-3-opus-20240229': 'lattice/code-flagship',
-    'claude-3-opus': 'lattice/code-flagship',
-    'claude-sonnet-4-6': 'lattice/code-flagship',
-    'claude-opus-4-6': 'lattice/code-flagship',
-    'claude-haiku-4-5': 'lattice/1m-free',
-    'auto': 'lattice/1m-free',
-    'default': 'lattice/code-flagship',
-    'lattice/long-context-free': 'lattice/1m-free',
-  };
-
-  // Helper to resolve provider plugin and normalized model for requested model
-  async function resolveProvider(modelId: string): Promise<{ plugin: ProviderPlugin; resolvedModel: string }> {
+  async function resolveProvider(modelId: string): Promise<ModelResolution> {
     if (plugins.size === 0) {
       throw new GatewayError(
         503,
@@ -183,64 +125,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
         'No provider plugins are currently registered or active'
       );
     }
-
-    // Check alias mapping first
-    const aliased = MODEL_ALIASES[modelId] || modelId;
-    assertRemovedAggregatorAvailable(aliased);
-
-    // In single-provider environments (e.g. M1 mock provider dev/test),
-    // route directly to the active provider.
-    if (plugins.size === 1) {
-      return { plugin: plugins.values().next().value!, resolvedModel: aliased };
-    }
-
-    // Handle client harnesses (e.g. OpenCode) prefixing the provider name "lattice/"
-    let targetModel = aliased;
-    if (targetModel.startsWith('lattice/')) {
-      const remainder = targetModel.slice('lattice/'.length);
-      const [firstSub] = remainder.split('/');
-
-      // If remainder has a known sub-provider prefix or another lattice prefix:
-      // e.g. "lattice/kilo/..." -> "kilo/...", "lattice/lattice/..." -> "lattice/..."
-      if (plugins.has(firstSub) || firstSub === 'cline-free') {
-        targetModel = remainder;
-      } else {
-        // Also check if remainder is a known model in the active catalog (e.g. "lattice/big-pickle")
-        const modelMap = await getModelPluginMap();
-        if (modelMap.has(remainder) && (!plugins.has('lattice') || !globalComboManager.isCombo(targetModel))) {
-          targetModel = remainder;
-        }
-      }
-    }
-
-    // 1. Direct provider prefix match: "providerId/modelName"
-    const [providerId] = targetModel.split('/');
-    const enabled = (id: string) =>
-      !globalPluginRegistry.has(id) || globalPluginRegistry.isEnabled(id);
-    if (plugins.has(providerId) && enabled(providerId)) {
-      return { plugin: plugins.get(providerId)!, resolvedModel: targetModel };
-    }
-
-    // 2. Direct plugin ID match (e.g. "mock", "kilo")
-    if (plugins.has(targetModel) && enabled(targetModel)) {
-      return { plugin: plugins.get(targetModel)!, resolvedModel: targetModel };
-    }
-
-    // 3. Catalog lookup: check if any active plugin provides this model
-    const modelMap = await getModelPluginMap();
-    if (modelMap.has(targetModel)) {
-      return { plugin: modelMap.get(targetModel)!, resolvedModel: targetModel };
-    }
-    if (modelMap.has(modelId)) {
-      return { plugin: modelMap.get(modelId)!, resolvedModel: modelId };
-    }
-
-    // 4. Model not found across active plugins â€” fail with HTTP 404
-    throw new GatewayError(
-      404,
-      'model_not_found',
-      `No active provider found for model: ${modelId} (resolved as ${targetModel})`
-    );
+    return resolver.resolve(modelId);
   }
 
   // --------------------------------------------------------------------------
@@ -264,6 +149,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     const sessionKey = deriveSessionKey(c.req.raw.headers, rawBody);
     if (sessionKey) canonicalReq.affinity = { sessionKey };
     const { plugin: provider, resolvedModel } = await resolveProvider(canonicalReq.model);
+    assertProviderCapabilities(canonicalReq, provider);
     canonicalReq.model = resolvedModel;
 
     // Real Tokenizer prompt counting at the gateway edge before forwarding
@@ -282,25 +168,31 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           c.req.raw.signal
         );
       } catch (err) {
+        globalAccountPool.reportProviderFailure(provider.id, err);
         if (isContextOverflow(err)) {
           observeContextOverflow(observedPassportStore(), canonicalReq.model, realPromptTokens);
         }
         throw err;
       }
+      globalAccountPool.reportProviderSuccess(provider.id);
       observeCanonicalResponse(observedPassportStore(), canonicalReq.model, canonicalRes);
       const latencyMs = Math.max(1, Date.now() - reqStartTime);
       const promptTokens = canonicalRes.usage?.promptTokens || realPromptTokens;
       const completionTokens =
         canonicalRes.usage?.completionTokens ||
         countCompletionTokens(canonicalRes.content);
-      globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
-      if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, promptTokens, completionTokens);
+      if (canonicalReq.accountId) {
+        globalAccountPool.recordTokenUsage(canonicalReq.accountId, promptTokens, completionTokens);
+      } else {
+        globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
+      }
       broadcastLog({
         requestId: reqId,
         timestamp: Date.now(),
         method: 'POST',
         path: '/v1/chat/completions',
         provider: provider.id,
+        accountId: canonicalReq.accountId,
         model: canonicalReq.model,
         status: 200,
         latencyMs,
@@ -317,7 +209,14 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     const requestTimeoutMs = config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1800000;
     const idleTimeoutMs = config.idleTimeoutMs || config.defaultIdleTimeoutMs || 120000;
 
-    const upstreamEvents = await provider.executeStream(canonicalReq, c.req.raw.signal);
+    let upstreamEvents: Awaited<ReturnType<typeof provider.executeStream>>;
+    try {
+      upstreamEvents = await provider.executeStream(canonicalReq, c.req.raw.signal);
+      globalAccountPool.reportProviderSuccess(provider.id);
+    } catch (err) {
+      globalAccountPool.reportProviderFailure(provider.id, err);
+      throw err;
+    }
     const interceptor = createXMLToolInterceptor();
     const cleanEvents = interceptor.transform(upstreamEvents);
     const timedEvents = withIdleTimeout(cleanEvents, {
@@ -360,6 +259,12 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
         // A client abort ends iteration without a stream_end; nothing was
         // delivered, so record no usage and no success log entry.
         if (c.req.raw.signal.aborted) return;
+        if (streamStatus !== 200) {
+          globalAccountPool.reportProviderFailure(
+            provider.id,
+            new GatewayError(streamStatus, 'upstream_error', 'upstream stream failed')
+          );
+        }
         const latencyMs = Math.max(1, Date.now() - reqStartTime);
         const finalCompletion =
           upstreamCompletionTokens !== undefined
@@ -367,8 +272,11 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
             : (accumulatedOutput.length > 0 ? countTextTokens(accumulatedOutput) : 0);
 
         if (sawStreamEnd && streamStatus === 200) {
-          globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
-          if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
+          if (canonicalReq.accountId) {
+            globalAccountPool.recordTokenUsage(canonicalReq.accountId, finalPrompt, finalCompletion);
+          } else {
+            globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
+          }
         }
         broadcastLog({
           requestId: reqId,
@@ -376,6 +284,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           method: 'POST',
           path: '/v1/chat/completions',
           provider: provider.id,
+          accountId: canonicalReq.accountId,
           model: canonicalReq.model,
           status: streamStatus,
           latencyMs,
@@ -426,6 +335,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     const sessionKey = deriveSessionKey(c.req.raw.headers, rawBody);
     if (sessionKey) canonicalReq.affinity = { sessionKey };
     const { plugin: provider, resolvedModel } = await resolveProvider(canonicalReq.model);
+    assertProviderCapabilities(canonicalReq, provider);
     canonicalReq.model = resolvedModel;
 
     // Real Tokenizer prompt counting at the gateway edge before forwarding
@@ -444,25 +354,31 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           c.req.raw.signal
         );
       } catch (err) {
+        globalAccountPool.reportProviderFailure(provider.id, err);
         if (isContextOverflow(err)) {
           observeContextOverflow(observedPassportStore(), canonicalReq.model, realPromptTokens);
         }
         throw err;
       }
+      globalAccountPool.reportProviderSuccess(provider.id);
       observeCanonicalResponse(observedPassportStore(), canonicalReq.model, canonicalRes);
       const latencyMs = Math.max(1, Date.now() - reqStartTime);
       const promptTokens = canonicalRes.usage?.promptTokens || realPromptTokens;
       const completionTokens =
         canonicalRes.usage?.completionTokens ||
         countCompletionTokens(canonicalRes.content);
-      globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
-      if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, promptTokens, completionTokens);
+      if (canonicalReq.accountId) {
+        globalAccountPool.recordTokenUsage(canonicalReq.accountId, promptTokens, completionTokens);
+      } else {
+        globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
+      }
       broadcastLog({
         requestId: reqId,
         timestamp: Date.now(),
         method: 'POST',
         path: '/v1/messages',
         provider: provider.id,
+        accountId: canonicalReq.accountId,
         model: canonicalReq.model,
         status: 200,
         latencyMs,
@@ -479,7 +395,14 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     const requestTimeoutMs = config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1800000;
     const idleTimeoutMs = config.idleTimeoutMs || config.defaultIdleTimeoutMs || 120000;
 
-    const upstreamEvents = await provider.executeStream(canonicalReq, c.req.raw.signal);
+    let upstreamEvents: Awaited<ReturnType<typeof provider.executeStream>>;
+    try {
+      upstreamEvents = await provider.executeStream(canonicalReq, c.req.raw.signal);
+      globalAccountPool.reportProviderSuccess(provider.id);
+    } catch (err) {
+      globalAccountPool.reportProviderFailure(provider.id, err);
+      throw err;
+    }
     const interceptor = createXMLToolInterceptor();
     const cleanEvents = interceptor.transform(upstreamEvents);
     const timedEvents = withIdleTimeout(cleanEvents, {
@@ -522,6 +445,12 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
         // A client abort ends iteration without a stream_end; nothing was
         // delivered, so record no usage and no success log entry.
         if (c.req.raw.signal.aborted) return;
+        if (streamStatus !== 200) {
+          globalAccountPool.reportProviderFailure(
+            provider.id,
+            new GatewayError(streamStatus, 'upstream_error', 'upstream stream failed')
+          );
+        }
         const latencyMs = Math.max(1, Date.now() - reqStartTime);
         const finalCompletion =
           upstreamCompletionTokens !== undefined
@@ -529,8 +458,11 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
             : (accumulatedOutput.length > 0 ? countTextTokens(accumulatedOutput) : 0);
 
         if (sawStreamEnd && streamStatus === 200) {
-          globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
-          if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
+          if (canonicalReq.accountId) {
+            globalAccountPool.recordTokenUsage(canonicalReq.accountId, finalPrompt, finalCompletion);
+          } else {
+            globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
+          }
         }
         broadcastLog({
           requestId: reqId,
@@ -538,6 +470,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           method: 'POST',
           path: '/v1/messages',
           provider: provider.id,
+          accountId: canonicalReq.accountId,
           model: canonicalReq.model,
           status: streamStatus,
           latencyMs,
@@ -587,6 +520,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     const sessionKey = deriveSessionKey(c.req.raw.headers, rawBody);
     if (sessionKey) canonicalReq.affinity = { sessionKey };
     const { plugin: provider, resolvedModel } = await resolveProvider(canonicalReq.model);
+    assertProviderCapabilities(canonicalReq, provider);
     canonicalReq.model = resolvedModel;
 
     // Real Tokenizer prompt counting at the gateway edge before forwarding
@@ -605,25 +539,31 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           c.req.raw.signal
         );
       } catch (err) {
+        globalAccountPool.reportProviderFailure(provider.id, err);
         if (isContextOverflow(err)) {
           observeContextOverflow(observedPassportStore(), canonicalReq.model, realPromptTokens);
         }
         throw err;
       }
+      globalAccountPool.reportProviderSuccess(provider.id);
       observeCanonicalResponse(observedPassportStore(), canonicalReq.model, canonicalRes);
       const latencyMs = Math.max(1, Date.now() - reqStartTime);
       const promptTokens = canonicalRes.usage?.promptTokens || realPromptTokens;
       const completionTokens =
         canonicalRes.usage?.completionTokens ||
         countCompletionTokens(canonicalRes.content);
-      globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
-      if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, promptTokens, completionTokens);
+      if (canonicalReq.accountId) {
+        globalAccountPool.recordTokenUsage(canonicalReq.accountId, promptTokens, completionTokens);
+      } else {
+        globalAccountPool.recordProviderUsage(provider.id, promptTokens, completionTokens);
+      }
       broadcastLog({
         requestId: reqId,
         timestamp: Date.now(),
         method: 'POST',
         path: '/v1/responses',
         provider: provider.id,
+        accountId: canonicalReq.accountId,
         model: canonicalReq.model,
         status: 200,
         latencyMs,
@@ -640,7 +580,14 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
     const requestTimeoutMs = config.requestTimeoutMs || config.defaultRequestTimeoutMs || 1800000;
     const idleTimeoutMs = config.idleTimeoutMs || config.defaultIdleTimeoutMs || 120000;
 
-    const upstreamEvents = await provider.executeStream(canonicalReq, c.req.raw.signal);
+    let upstreamEvents: Awaited<ReturnType<typeof provider.executeStream>>;
+    try {
+      upstreamEvents = await provider.executeStream(canonicalReq, c.req.raw.signal);
+      globalAccountPool.reportProviderSuccess(provider.id);
+    } catch (err) {
+      globalAccountPool.reportProviderFailure(provider.id, err);
+      throw err;
+    }
     const interceptor = createXMLToolInterceptor();
     const cleanEvents = interceptor.transform(upstreamEvents);
     const timedEvents = withIdleTimeout(cleanEvents, {
@@ -683,6 +630,12 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
         // A client abort ends iteration without a stream_end; nothing was
         // delivered, so record no usage and no success log entry.
         if (c.req.raw.signal.aborted) return;
+        if (streamStatus !== 200) {
+          globalAccountPool.reportProviderFailure(
+            provider.id,
+            new GatewayError(streamStatus, 'upstream_error', 'upstream stream failed')
+          );
+        }
         const latencyMs = Math.max(1, Date.now() - reqStartTime);
         const finalCompletion =
           upstreamCompletionTokens !== undefined
@@ -690,8 +643,11 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
             : (accumulatedOutput.length > 0 ? countTextTokens(accumulatedOutput) : 0);
 
         if (sawStreamEnd && streamStatus === 200) {
-          globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
-          if (canonicalReq.accountId) globalAccountPool.recordUsageForAccount(canonicalReq.accountId, finalPrompt, finalCompletion);
+          if (canonicalReq.accountId) {
+            globalAccountPool.recordTokenUsage(canonicalReq.accountId, finalPrompt, finalCompletion);
+          } else {
+            globalAccountPool.recordProviderUsage(provider.id, finalPrompt, finalCompletion);
+          }
         }
         broadcastLog({
           requestId: reqId,
@@ -699,6 +655,7 @@ export function registerRoutes(app: Hono<AppEnv>, context: ServerContext): void 
           method: 'POST',
           path: '/v1/responses',
           provider: provider.id,
+          accountId: canonicalReq.accountId,
           model: canonicalReq.model,
           status: streamStatus,
           latencyMs,

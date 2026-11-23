@@ -388,6 +388,9 @@ export class ClinePoolPlugin implements ProviderPlugin {
 
   resetIndex(): void {
     this.activeAccountIndex = 0;
+    // The shared allocator breaks ties on lastUsedAt; reset it too so a test
+    // or operator reset starts from a deterministic first account.
+    for (const account of this.accounts) account.lastUsedAt = undefined;
   }
 
   getActiveAccounts(): StoredAccount[] {
@@ -616,9 +619,12 @@ export class ClinePoolPlugin implements ProviderPlugin {
     let lastErr: unknown;
     const sessionKey = req.affinity?.sessionKey;
     const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+    const reservations: Array<() => void> = [];
 
+    try {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const account = this.getActiveAccount(triedIds, preferredId);
+      const reservation = globalAccountPool.acquireAccount(this.getActiveAccounts(), { preferredId, triedIds, signal });
+      const account = reservation?.account;
       if (!account) {
         if (lastErr) throw lastErr;
         const lowestRetry = this.getLowestCooldownRemaining();
@@ -629,8 +635,10 @@ export class ClinePoolPlugin implements ProviderPlugin {
           { retryAfter: lowestRetry }
         );
       }
+      reservations.push(reservation!.release);
       triedIds.add(account.id);
       account.lastUsedAt = Date.now();
+      req.accountId = account.id;
 
       const headers = this.buildHeaders(account, req.id);
       const model = req.model.replace(/^cline(-free)?\//, '');
@@ -699,6 +707,9 @@ export class ClinePoolPlugin implements ProviderPlugin {
     }
 
     throw lastErr || new GatewayError(500, '500', 'Cline upstream execution exhausted all accounts');
+    } finally {
+      for (const release of reservations) release();
+    }
   }
 
   private transformCanonicalResponse(data: any, req: CanonicalRequest): CanonicalResponse {
@@ -731,9 +742,13 @@ export class ClinePoolPlugin implements ProviderPlugin {
     let lastErr: unknown;
     const sessionKey = req.affinity?.sessionKey;
     const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+    const reservations: Array<() => void> = [];
+    let handedOff = false;
 
+    try {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const account = this.getActiveAccount(triedIds, preferredId);
+      const reservation = globalAccountPool.acquireAccount(this.getActiveAccounts(), { preferredId, triedIds, signal });
+      const account = reservation?.account;
       if (!account) {
         if (lastErr) throw lastErr;
         const lowestRetry = this.getLowestCooldownRemaining();
@@ -744,8 +759,10 @@ export class ClinePoolPlugin implements ProviderPlugin {
           { retryAfter: lowestRetry }
         );
       }
+      reservations.push(reservation!.release);
       triedIds.add(account.id);
       account.lastUsedAt = Date.now();
+      req.accountId = account.id;
 
       const headers = this.buildHeaders(account, req.id);
       const model = req.model.replace(/^cline(-free)?\//, '');
@@ -803,10 +820,21 @@ export class ClinePoolPlugin implements ProviderPlugin {
       }
 
       if (sessionKey) this.affinityStore.pinAccount(sessionKey, this.id, account.id);
-      return this.streamFromResponse(res, req);
+      const raw = this.streamFromResponse(res, req);
+      handedOff = true;
+      return (async function* () {
+        try {
+          yield* raw;
+        } finally {
+          for (const release of reservations) release();
+        }
+      })();
     }
 
     throw lastErr || new GatewayError(500, '500', 'Cline upstream stream exhausted all accounts');
+    } finally {
+      if (!handedOff) for (const release of reservations) release();
+    }
   }
 
   private streamFromResponse(

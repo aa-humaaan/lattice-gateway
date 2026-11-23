@@ -7,6 +7,7 @@ export interface LedgerEvent {
   method: string;
   path: string;
   provider: string;
+  accountId?: string;
   model: string;
   status: number;
   latencyMs: number;

@@ -106,14 +106,26 @@ export interface ErrorClassificationResult {
 // ProviderPlugin Core Interface Contract
 // ============================================================================
 
+export interface ProviderCapabilities {
+  /** Provider accepts OpenAI response_format / structured outputs. */
+  responseFormat?: boolean;
+  /** Provider accepts frequency/presence penalty, seed, n and logit_bias. */
+  samplingFields?: boolean;
+  /** Provider accepts Anthropic cache_control on content blocks. */
+  cacheControl?: boolean;
+}
+
 export interface ProviderPlugin {
   readonly id: string;
   readonly displayName: string;
   readonly description?: string;
   readonly defaultBaseUrl: string;
   readonly supportedAuthTypes?: readonly AuthType[];
+  readonly capabilities?: ProviderCapabilities;
 
-  // Catalog Discovery
+  // Catalog Discovery. `cachedModels` is the synchronous catalog snapshot used
+  // by callers that cannot await (admin catalog, provider-id lookups).
+  cachedModels?: ModelDescriptor[];
   listModels(account?: StoredAccount): Promise<ModelDescriptor[]>;
 
   // Execution Handlers (Milestone 1 Core)

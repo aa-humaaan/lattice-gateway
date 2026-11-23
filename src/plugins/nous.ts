@@ -718,15 +718,20 @@ export class NousProviderPlugin implements ProviderPlugin {
     let lastErr: unknown;
     const sessionKey = req.affinity?.sessionKey;
     const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+    const reservations: Array<() => void> = [];
 
+    try {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const account = this.getActiveAccount(triedIds, preferredId);
-      if (!account && activeAccounts.length > 0) {
-        break;
-      }
-      if (account) {
+      const reservation = globalAccountPool.acquireAccount(activeAccounts, { preferredId, triedIds, signal });
+      const account = reservation?.account;
+      if (reservation && account) {
+        reservations.push(reservation.release);
         triedIds.add(account.id);
         account.lastUsedAt = Date.now();
+        req.accountId = account.id;
+      }
+      if (!account && activeAccounts.length > 0) {
+        break;
       }
 
       const headers = this.buildHeaders(account);
@@ -815,6 +820,9 @@ export class NousProviderPlugin implements ProviderPlugin {
       'All Nous accounts are currently rate-limited or in cooldown',
       { retryAfter: lowestRetry }
     );
+    } finally {
+      for (const release of reservations) release();
+    }
   }
 
   async executeStream(
@@ -827,15 +835,21 @@ export class NousProviderPlugin implements ProviderPlugin {
     let lastErr: unknown;
     const sessionKey = req.affinity?.sessionKey;
     const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+    const reservations: Array<() => void> = [];
+    let handedOff = false;
 
+    try {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const account = this.getActiveAccount(triedIds, preferredId);
-      if (!account && activeAccounts.length > 0) {
-        break;
-      }
-      if (account) {
+      const reservation = globalAccountPool.acquireAccount(activeAccounts, { preferredId, triedIds, signal });
+      const account = reservation?.account;
+      if (reservation && account) {
+        reservations.push(reservation.release);
         triedIds.add(account.id);
         account.lastUsedAt = Date.now();
+        req.accountId = account.id;
+      }
+      if (!account && activeAccounts.length > 0) {
+        break;
       }
 
       const headers = this.buildHeaders(account);
@@ -992,7 +1006,15 @@ export class NousProviderPlugin implements ProviderPlugin {
       }
 
       // Intercept and normalize raw XML tool calls from Hermes streaming tokens
-      return applyXMLToolInterceptor(rawStreamGenerator());
+      const raw = rawStreamGenerator();
+      handedOff = true;
+      return applyXMLToolInterceptor((async function* () {
+        try {
+          yield* raw;
+        } finally {
+          for (const release of reservations) release();
+        }
+      })());
     }
 
     if (lastErr) throw lastErr;
@@ -1003,6 +1025,9 @@ export class NousProviderPlugin implements ProviderPlugin {
       'All Nous accounts are currently rate-limited or in cooldown',
       { retryAfter: lowestRetry }
     );
+    } finally {
+      if (!handedOff) for (const release of reservations) release();
+    }
   }
 
   /**

@@ -17,6 +17,7 @@ import { globalAccountPool } from '../pool/account-pool';
 import { parseSSEStream } from '../utils/sse-parser';
 import { parseXMLToolCall, applyXMLToolInterceptor } from '../engine/dialect/xml-tool-interceptor';
 import { serializeOpenAIMessages } from '../engine/dialect/serializer';
+import { forwardSamplingFields } from '../engine/dialect/forwarding';
 import { logger } from '../utils/logger';
 import { parseRetryAfterSeconds } from '../utils/retry-after';
 import { failFastNetworkError } from '../utils/network-error';
@@ -311,6 +312,7 @@ export const KILO_CURATED_MODELS: ModelDescriptor[] = [
 
 export class KiloProviderPlugin implements ProviderPlugin {
   readonly id = 'kilo';
+  readonly capabilities = { responseFormat: true, samplingFields: true };
   readonly displayName = 'Kilo Code Upstream Plugin';
   readonly description = 'Universal AI router & free-tier gateway by Kilo Code';
   readonly defaultBaseUrl: string;
@@ -734,20 +736,20 @@ export class KiloProviderPlugin implements ProviderPlugin {
     let lastErr: unknown;
     const sessionKey = req.affinity?.sessionKey;
     const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+    const reservations: Array<() => void> = [];
 
+    try {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const account = this.getActiveAccount(triedIds, preferredId);
-      if (!account && activeAccounts.length > 0) {
-        break;
-      }
-      if (account) {
+      const reservation = globalAccountPool.acquireAccount(activeAccounts, { preferredId, triedIds, signal });
+      const account = reservation?.account;
+      if (reservation && account) {
+        reservations.push(reservation.release);
         triedIds.add(account.id);
         account.lastUsedAt = Date.now();
-        // The chosen account is surfaced for usage attribution. A lease is
-        // reserved only through the pool manager API; plugins with their own
-        // account lists record attribution but do not gate selection on a
-        // lease, because failover must stay inside the same model.
         req.accountId = account.id;
+      }
+      if (!account && activeAccounts.length > 0) {
+        break;
       }
 
       const headers = this.buildHeaders(account);
@@ -766,6 +768,7 @@ export class KiloProviderPlugin implements ProviderPlugin {
             max_tokens: req.maxTokens,
             tools: req.tools && req.tools.length > 0 ? req.tools : undefined,
             tool_choice: req.toolChoice,
+            ...forwardSamplingFields(req),
             stream: false,
           }),
           signal,
@@ -836,6 +839,9 @@ export class KiloProviderPlugin implements ProviderPlugin {
       'All Kilo accounts are currently rate-limited or in cooldown',
       { retryAfter: lowestRetry }
     );
+    } finally {
+      for (const release of reservations) release();
+    }
   }
 
   async executeStream(
@@ -848,20 +854,21 @@ export class KiloProviderPlugin implements ProviderPlugin {
     let lastErr: unknown;
     const sessionKey = req.affinity?.sessionKey;
     const preferredId = sessionKey ? this.affinityStore.getAccount(sessionKey, this.id) : undefined;
+    const reservations: Array<() => void> = [];
+    let handedOff = false;
 
+    try {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const account = this.getActiveAccount(triedIds, preferredId);
-      if (!account && activeAccounts.length > 0) {
-        break;
-      }
-      if (account) {
+      const reservation = globalAccountPool.acquireAccount(activeAccounts, { preferredId, triedIds, signal });
+      const account = reservation?.account;
+      if (reservation && account) {
+        reservations.push(reservation.release);
         triedIds.add(account.id);
         account.lastUsedAt = Date.now();
-        // The chosen account is surfaced for usage attribution. A lease is
-        // reserved only through the pool manager API; plugins with their own
-        // account lists record attribution but do not gate selection on a
-        // lease, because failover must stay inside the same model.
         req.accountId = account.id;
+      }
+      if (!account && activeAccounts.length > 0) {
+        break;
       }
 
       const headers = this.buildHeaders(account);
@@ -880,6 +887,7 @@ export class KiloProviderPlugin implements ProviderPlugin {
             max_tokens: req.maxTokens,
             tools: req.tools && req.tools.length > 0 ? req.tools : undefined,
             tool_choice: req.toolChoice,
+            ...forwardSamplingFields(req),
             stream: true,
           }),
           signal,
@@ -1021,7 +1029,15 @@ export class KiloProviderPlugin implements ProviderPlugin {
         yield { type: 'stream_end', stopReason };
       }
 
-      return applyXMLToolInterceptor(rawStreamGenerator());
+      const raw = rawStreamGenerator();
+      handedOff = true;
+      return applyXMLToolInterceptor((async function* () {
+        try {
+          yield* raw;
+        } finally {
+          for (const release of reservations) release();
+        }
+      })());
     }
 
     if (lastErr) throw lastErr;
@@ -1032,6 +1048,9 @@ export class KiloProviderPlugin implements ProviderPlugin {
       'All Kilo accounts are currently rate-limited or in cooldown',
       { retryAfter: lowestRetry }
     );
+    } finally {
+      if (!handedOff) for (const release of reservations) release();
+    }
   }
 
   /**
