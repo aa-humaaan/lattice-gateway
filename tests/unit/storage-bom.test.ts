@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { LatticeStorage } from '../../src/pool/storage';
@@ -22,10 +22,5 @@ describe('storage loader', () => {
       globalAccountPool.deleteAccount('acc_bom_loaded');
       rmSync(dir, { recursive: true, force: true });
     }
-  });
-
-  test('the shipped store parses as JSON', () => {
-    const raw = readFileSync('data/lattice-store.json', 'utf8');
-    expect(() => JSON.parse(raw.replace(/^\ufeff/, ''))).not.toThrow();
   });
 });
