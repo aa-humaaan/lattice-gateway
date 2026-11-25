@@ -1,10 +1,29 @@
-import { describe, it, expect } from 'bun:test';
+import { beforeAll, describe, it, expect } from 'bun:test';
 import { createAdminRouter, broadcastLog } from '../../src/admin/admin-router';
 import { globalPluginRegistry } from '../../src/plugins/registry';
 import type { ProviderPlugin } from '../../src/core/types/plugin';
 import { deriveSessionKey, globalSessionAffinityStore } from '../../src/core/session-affinity';
+import { KiloProviderPlugin } from '../../src/plugins/kilo';
+import { NousProviderPlugin } from '../../src/plugins/nous';
+import { ClinePoolPlugin } from '../../src/plugins/cline';
+import { OpenCodeProviderPlugin } from '../../src/plugins/opencode';
+import { DeepSeekPoolPlugin } from '../../src/plugins/deepseek';
 
 describe('Admin Mission Control Dashboard & REST Control Plane', () => {
+  // Test files share a process, so another suite may have registered stub
+  // plugins under the real provider ids. Own these instances explicitly.
+  beforeAll(() => {
+    for (const plugin of [
+      new KiloProviderPlugin(),
+      new NousProviderPlugin(),
+      new ClinePoolPlugin(),
+      new OpenCodeProviderPlugin(),
+      new DeepSeekPoolPlugin(),
+    ]) {
+      globalPluginRegistry.register(plugin);
+    }
+  });
+
   const router = createAdminRouter();
 
   it('serves dashboard HTML on GET /admin with interactive modal and wizard markup', async () => {
