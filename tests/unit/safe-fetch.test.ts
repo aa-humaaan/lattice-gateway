@@ -19,12 +19,14 @@ describe('P0-7: safeFetch redirect validation', () => {
     }
   });
 
+  const publicResolve = async (_hostname: string) => ['93.184.216.34'];
+
   it('refuses an HTTPS-to-HTTP downgrade on redirect', async () => {
     const stub = (() => Promise.resolve(new Response('go', {
       status: 302,
       headers: { Location: 'http://example.com/downgraded' },
     }))) as unknown as typeof fetch;
-    const guarded = createSafeFetch(stub);
+    const guarded = createSafeFetch(stub, publicResolve);
     await expect(guarded('https://example.com/start')).rejects.toThrow(/downgrade|unsafe|http/i);
   });
 
@@ -50,8 +52,36 @@ describe('P0-7: safeFetch redirect validation', () => {
       seen = init;
       return Promise.resolve(new Response('ok'));
     }) as unknown as typeof fetch;
-    await createSafeFetch(stub)('https://example.com/');
+    await createSafeFetch(stub, publicResolve)('https://example.com/');
     expect(seen?.redirect).toBe('manual');
+  });
+});
+
+describe('P0-7b: safeFetch DNS resolution guard', () => {
+  const stub = (() => Promise.resolve(new Response('ok'))) as unknown as typeof fetch;
+
+  it('refuses a public-looking host that resolves into private space', async () => {
+    let calls = 0;
+    const counting = ((input: any) => { calls++; return Promise.resolve(new Response('ok')); }) as unknown as typeof fetch;
+    const guarded = createSafeFetch(counting, async () => ['10.0.0.5']);
+    await expect(guarded('https://metadata.example.com/v1')).rejects.toThrow(/private|refus/i);
+    expect(calls).toBe(0);
+  });
+
+  it('refuses a host whose DNS lookup fails', async () => {
+    const guarded = createSafeFetch(stub, async () => { throw new Error('ENOTFOUND'); });
+    await expect(guarded('https://gone.example.com/')).rejects.toThrow(/unresolvable|DNS/i);
+  });
+
+  it('refuses a host with no DNS records', async () => {
+    const guarded = createSafeFetch(stub, async () => []);
+    await expect(guarded('https://empty.example.com/')).rejects.toThrow(/no DNS records/i);
+  });
+
+  it('allows a host that resolves to public addresses', async () => {
+    const guarded = createSafeFetch(stub, async () => ['93.184.216.34', '2606:4700::1111']);
+    const res = await guarded('https://public.example.com/');
+    expect(res.status).toBe(200);
   });
 });
 

@@ -16,16 +16,15 @@ bin/lattice.exe
 .tmp/
 .superpowers/
 
-# Credentials. Never commit the live account store — see SECURITY.md.
-data/lattice-store.json
-data/lattice-auth.json
-data/request-ledger.ndjson
-data/model-passports.json
-data/model-passports.json.tmp
-data/model-passport-key.json
-data/lattice-secrets.json
-data/lattice-secrets.json.tmp
-data/lattice-keychain.json
-data/lattice-keychain.json.tmp
-data/account-health.json
-data/account-health.json.tmp
+# Runtime state and credentials. Never commit these — see SECURITY.md.
+# Family patterns cover .tmp, .backup-* and rotated ledger variants; exact
+# filenames used to let backups and rotated ledgers slip through.
+data/lattice-store.json*
+data/lattice-auth.json*
+data/request-ledger*
+data/model-passports.json*
+data/model-passport-key.json*
+data/lattice-secrets.json*
+data/lattice-keychain.json*
+data/account-health.json*
+data/imports/

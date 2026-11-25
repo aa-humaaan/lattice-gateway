@@ -13,6 +13,7 @@
     "build": "bun build --compile --target=bun-windows-x64 ./bin/lattice.ts --outfile lattice.exe && bun -e \"import * as fs from 'fs'; fs.copyFileSync('lattice.exe', 'bin/lattice.exe');\"",
     "typecheck": "bunx tsc --noEmit",
     "check:dashboard": "bun scripts/check-dashboard.mjs",
+    "why": "bun bin/why.ts",
     "conformance": "bun scripts/run-conformance.ts",
     "verify": "bun run typecheck && bun run check:dashboard && bun test tests/unit"
   },

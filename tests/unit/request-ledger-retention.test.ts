@@ -90,6 +90,26 @@ describe('P1-6 request ledger', () => {
     }
   });
 
+  test('prune removes rotated files whose records are entirely outside retention', () => {
+    const dir = tempDir();
+    try {
+      const path = join(dir, 'ledger.ndjson');
+      let now = 1_000_000;
+      const ledger = createLedger(path, { maxFileBytes: 300, retentionMs: 1000, now: () => now });
+      for (let i = 0; i < 20; i++) {
+        ledger.append(event({ requestId: `old-${i}`, timestamp: now, model: 'kilo/a-model-with-a-long-name' }));
+      }
+      expect(ledger.stats().rotatedFiles).toBeGreaterThan(0);
+      now = 1_000_000 + 2000;
+      expect(ledger.prune()).toBe(20);
+      expect(ledger.stats().rotatedFiles).toBe(0);
+      expect(readdirSync(dir).some((f) => f !== 'ledger.ndjson')).toBe(false);
+      expect(ledger.metrics().totalRequests).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('metrics query time is independent of ledger size (10k vs 1M rows)', () => {
     const dir = tempDir();
     try {

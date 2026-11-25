@@ -99,6 +99,13 @@ export const requestLedger = createLedger(
   process.env.LATTICE_LEDGER_PATH || 'data/request-ledger.ndjson'
 );
 
+// Retention is enforced in production, not only when maintenance is invoked by
+// tests: prune once at startup, then hourly. The timer must not hold the
+// process open when the gateway shuts down.
+requestLedger.prune();
+const ledgerMaintenance = setInterval(() => requestLedger.prune(), 60 * 60 * 1000);
+ledgerMaintenance.unref();
+
 // OAuth Device Flow Session Tracker
 interface OAuthSessionState {
   id: string;

@@ -1,3 +1,4 @@
+import { redactSecrets } from '../utils/redact';
 import type { LedgerEvent } from './request-ledger';
 
 export interface Receipt {
@@ -31,7 +32,7 @@ export function buildReceipt(event: LedgerEvent): Receipt {
     `Latency: ${event.latencyMs}ms`,
     `Tokens: ${event.promptTokens} prompt + ${event.completionTokens} completion = ${event.totalTokens}` +
       (event.estimated ? ' (estimated)' : ' (reported)'),
-  ];
+  ].map(redactSecrets);
   return {
     requestId: event.requestId,
     provider: event.provider,

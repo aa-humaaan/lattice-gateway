@@ -202,7 +202,7 @@ describe('ADV-3 302 redirect to link-local metadata', () => {
       if (url.startsWith('http://')) downgradeHits++;
       return new Response(null, { status: 302, headers: { Location: 'http://evil.example/v1' } });
     }) as typeof fetch;
-    const sf2 = createSafeFetch(impl2);
+    const sf2 = createSafeFetch(impl2, async () => ['93.184.216.34']);
     let e2 = '';
     try { await sf2('https://trusted.example/v1'); } catch (e: any) { e2 = e.message; }
     console.log(`ADV-3 downgrade error="${e2}" downgradeHits=${downgradeHits}`);

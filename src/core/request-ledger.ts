@@ -303,13 +303,22 @@ export function createLedger(filePath: string, options: LedgerOptions = {}) {
     prune(): number {
       const cutoff = opts.now() - opts.retentionMs;
       let removed = 0;
+      const stale: string[] = [];
       for (const file of files()) {
         const raw = readFileSync(file, 'utf8');
         const { events, validLength } = parseLines(raw);
         const kept = events.filter((event) => event.timestamp >= cutoff);
         removed += events.length - kept.length;
         const content = kept.map((event) => `${JSON.stringify(event)}\n`).join('');
-        if (content !== raw.slice(0, validLength)) writeFileSync(file, content, 'utf8');
+        if (kept.length === 0 && file !== filePath) {
+          stale.push(file);
+        } else if (content !== raw.slice(0, validLength)) {
+          writeFileSync(file, content, 'utf8');
+        }
+      }
+      if (stale.length) {
+        for (const file of stale) unlinkSync(file);
+        rotatedFiles = rotatedFiles.filter((file) => !stale.includes(file));
       }
       rebuild();
       return removed;

@@ -43,6 +43,28 @@ export function isSafeUpstreamBaseUrl(value: unknown): boolean {
   return true;
 }
 
+/**
+ * Classify an address returned by DNS before an upstream fetch. The URL check
+ * above only sees a hostname; this closes the gap where a public-looking name
+ * resolves into private, loopback, link-local, ULA or multicast space. Unknown
+ * formats fail closed; well-formed global IPv6 is allowed.
+ */
+export function isPrivateResolvedAddress(address: string): boolean {
+  const ip = address.toLowerCase().replace(/^\[|\]$/g, '');
+  if (/^::ffff:/i.test(ip) || ip === '::1' || ip === '::') return true;
+  if (/^(fc|fd|fe[89ab])/i.test(ip)) return true;
+  const v4 = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!v4) return !/^[0-9a-f:]+$/i.test(ip);
+  const [a, b] = [Number(v4[1]), Number(v4[2])];
+  if (a === 10 || a === 0 || a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  if (a >= 224) return true;
+  return false;
+}
+
 export interface GatewayConfig {
   port: number;
   host: string;
