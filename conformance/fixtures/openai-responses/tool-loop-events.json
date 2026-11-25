@@ -1,6 +1,7 @@
 {
-  "name": "tool-loop-events",
+  "name": "tool-loop-responses",
   "dialect": "openai-responses",
+  "feature": "tool-loop",
   "request": {
     "model": "test",
     "input": "look up the weather"

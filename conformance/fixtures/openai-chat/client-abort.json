@@ -1,0 +1,29 @@
+{
+  "name": "client-abort-chat",
+  "dialect": "openai-chat",
+  "feature": "client-abort",
+  "request": { "model": "test", "messages": [{ "role": "user", "content": "abort" }] },
+  "canonicalExpect": { "model": "test", "messages.0.role": "user" },
+  "response": {
+    "id": "chat_abort",
+    "model": "test",
+    "created": 1,
+    "content": [{ "type": "text", "text": "partial" }],
+    "stopReason": "stop",
+    "usage": { "promptTokens": 1, "completionTokens": 1, "totalTokens": 2 }
+  },
+  "responseExpect": { "object": "chat.completion", "choices.0.finish_reason": "stop" },
+  "streamEvents": [
+    { "type": "stream_start", "id": "chat_abort", "model": "test", "created": 1 },
+    { "type": "text_delta", "delta": "partial" },
+    { "type": "text_delta", "delta": "never" },
+    { "type": "stream_end", "stopReason": "stop" }
+  ],
+  "abortAfter": 2,
+  "streamExpectEvents": [
+    { "type": "chat.completion.chunk", "fields": { "id": "chat_abort", "choices.0.delta.role": "assistant" } },
+    { "type": "chat.completion.chunk", "fields": { "choices.0.delta.content": "partial" } },
+    { "type": "[DONE]" }
+  ],
+  "streamStatus": "passed"
+}

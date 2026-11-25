@@ -61,7 +61,7 @@ export function parseDeepSeekChromeSession(
   };
 }
 
-class DeepSeekPoolPlugin implements ProviderPlugin {
+class StubDeepSeekPoolPlugin implements ProviderPlugin {
   readonly id = 'deepseek';
   readonly displayName = 'DeepSeek Multi-Account Cookie Pool';
   readonly defaultBaseUrl: string;
@@ -210,13 +210,13 @@ class DeepSeekPoolPlugin implements ProviderPlugin {
 
 describe('Feature F11: Plugin DeepSeek Web Pool Upstream & Sessions', () => {
   let mockServer: MockUpstreamServer;
-  let deepseekPlugin: DeepSeekPoolPlugin;
+  let deepseekPlugin: StubDeepSeekPoolPlugin;
   let gatewayServer: any;
   let client: TestClient;
 
   beforeAll(async () => {
     mockServer = await createMockUpstream();
-    deepseekPlugin = new DeepSeekPoolPlugin(mockServer.url, [
+    deepseekPlugin = new StubDeepSeekPoolPlugin(mockServer.url, [
       parseDeepSeekChromeSession('ds_acc_1', {
         userToken: 'token_ds_user_1',
         sessionId: 'sess_1',

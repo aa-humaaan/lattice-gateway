@@ -1,5 +1,31 @@
 import type { ModelDescriptor } from '../core/types/plugin';
+import { readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger';
+
+/** Data-only combo policy. See docs/combo-policies.md for the format. */
+export interface ComboPolicy {
+  version: 1;
+  strategy: 'tier-failover';
+  tiers: string[];
+  maxFailuresPerTier: number;
+}
+
+export interface ComboPolicyTarget {
+  model: string;
+  tier: string;
+}
+
+interface ComboPolicyFile {
+  id: string;
+  name: string;
+  description?: string;
+  useProxies?: boolean;
+  policy: ComboPolicy;
+  targets: ComboPolicyTarget[];
+  contextWindow?: number;
+}
 
 export interface VirtualCombo {
   id: string;               // e.g. "lattice/code-flagship"
@@ -8,12 +34,55 @@ export interface VirtualCombo {
   description?: string;
   useProxies?: boolean;
   createdAt: number;
+  policy?: ComboPolicy;
+  tiers?: Record<string, string>;   // target model id -> tier
+  contextWindow?: number;           // only a verified claim, never name-inferred
+}
+
+export const BUILTIN_POLICY_DIR = fileURLToPath(new URL('./combo-policies/', import.meta.url));
+
+export function orderComboTargets(combo: VirtualCombo, pinnedTarget?: string): string[] {
+  const targets = [...combo.targets];
+  if (combo.policy) {
+    const rank = (target: string) => {
+      const tier = combo.tiers?.[target];
+      const index = tier ? combo.policy!.tiers.indexOf(tier) : -1;
+      return index < 0 ? combo.policy!.tiers.length : index;
+    };
+    targets.sort((a, b) => rank(a) - rank(b));
+  }
+  if (pinnedTarget && targets.includes(pinnedTarget)) {
+    return [pinnedTarget, ...targets.filter((target) => target !== pinnedTarget)];
+  }
+  return targets;
+}
+
+export function comboTargetTier(combo: VirtualCombo, target: string): string | undefined {
+  return combo.tiers?.[target];
 }
 
 export class ComboManager {
   private combos = new Map<string, VirtualCombo>();
 
-  constructor() {
+  constructor(policyDir: string = BUILTIN_POLICY_DIR) {
+    for (const file of readdirSync(policyDir).filter((name) => name.endsWith('.json')).sort()) {
+      const definition = JSON.parse(readFileSync(join(policyDir, file), 'utf8')) as ComboPolicyFile;
+      if (!definition.id || !definition.name || !definition.policy || !definition.targets) {
+        throw new Error(`Invalid combo policy: ${file}`);
+      }
+      this.createCombo({
+        id: definition.id,
+        name: definition.name,
+        description: definition.description,
+        useProxies: definition.useProxies,
+        targets: definition.targets.map((target) => target.model),
+        tiers: Object.fromEntries(definition.targets.map((target) => [target.model, target.tier])),
+        policy: definition.policy,
+        contextWindow: definition.contextWindow,
+        createdAt: Date.now(),
+      });
+    }
+
     // 1M Context Window Free Tier Combo
     this.createCombo({
       id: 'lattice/1m-free',
@@ -43,21 +112,6 @@ export class ComboManager {
         'kilo/code-fast:free',
       ],
       description: 'Zero-drop multi-provider coding engine with automatic 429 fallback',
-      createdAt: Date.now(),
-    });
-
-    this.createCombo({
-      id: 'lattice/fast-free',
-      name: 'Lattice Fast Free 0$ Tier',
-      targets: [
-        'kilo/nvidia/nemotron-3.5-lightning:free',
-        'kilo/code-fast:free',
-        'kilo/kilo-auto/free',
-        'kilo/deepseek-r1:free',
-        'big-pickle',
-        'mimo-v2.6-flash-free',
-      ],
-      description: 'High-speed 0$ cost inference aggregator with automatic failover',
       createdAt: Date.now(),
     });
   }
@@ -102,7 +156,7 @@ export class ComboManager {
       providerId: 'lattice',
       ownedBy: 'lattice-gateway',
       created: Math.floor(c.createdAt / 1000),
-      contextWindow: c.id.includes('1m') ? 1048576 : 200000,
+      ...(c.contextWindow ? { contextWindow: c.contextWindow } : {}),
       supportsThinking: true,
       supportsTools: true,
       supportsStreaming: true,

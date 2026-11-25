@@ -1,0 +1,17 @@
+{
+  "id": "opencode",
+  "displayName": "OpenCode Zen Provider Plugin",
+  "description": "Keyless anonymous and API-key free model inference gateway",
+  "defaultBaseUrl": "https://opencode.ai/inference/openai/v1",
+  "modelPrefixes": ["opencode/", "zen/"],
+  "models": [
+    "big-pickle",
+    "mimo-v2.6-flash-free",
+    "deepseek-v4.1-flash-free"
+  ],
+  "capabilities": { "responseFormat": true, "samplingFields": true },
+  "supportedAuthTypes": ["anonymous", "api_key"],
+  "adapter": "../adapters/opencode.ts",
+  "factory": "createPlugin",
+  "lifecycle": { "hooks": [] }
+}

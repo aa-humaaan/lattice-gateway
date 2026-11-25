@@ -24,7 +24,9 @@ describe('SEC-05: startup banner prints token fingerprints only', () => {
     expect(lines).not.toContain('ENV_OVERRIDE_ADMIN');
   });
 
-  it('both entrypoints report the tokens from loadConfig, not generated ones', () => {
+  // SOURCE GUARD: the banner call itself is exercised above; this check proves
+  // both shipped entrypoints wire it up, which no importable API exposes.
+  it('SOURCE GUARD: both entrypoints report the tokens from loadConfig, not generated ones', () => {
     for (const file of ['src/index.ts', 'bin/lattice.ts']) {
       const src = readFileSync(file, 'utf8');
       expect(src).toContain('tokenBannerLines(config)');

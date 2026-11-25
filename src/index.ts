@@ -7,24 +7,28 @@ import { globalComboManager } from './pool/combos';
 import { globalStorage } from './pool/storage';
 import { loadOrCreateAuthTokens, tokenBannerLines } from './core/auth-tokens';
 import { formatPortConflict } from './utils/port-error';
+import { initializeFromManifest, shutdownFromManifest } from './core/plugin-lifecycle';
+import { fileURLToPath } from 'url';
 
 import { KiloProviderPlugin } from './plugins/kilo';
 import { NousProviderPlugin } from './plugins/nous';
 import { ClinePoolPlugin } from './plugins/cline';
-import { OpenCodeProviderPlugin } from './plugins/opencode';
 import { DeepSeekPoolPlugin } from './plugins/deepseek';
 import { LatticeComboPlugin } from './plugins/combo';
 
 // 1. Load persistent accounts, combos, and proxy configs
 globalStorage.load();
 
-// 2. Instantiate and register the 6 primary upstream plugins + combo failover harness
+// 2. Instantiate the still-hardcoded plugins; OpenCode comes from its manifest.
 const kiloPlugin = new KiloProviderPlugin();
 const nousPlugin = new NousProviderPlugin();
 const clinePlugin = new ClinePoolPlugin();
-const opencodePlugin = new OpenCodeProviderPlugin();
 const deepseekPlugin = new DeepSeekPoolPlugin();
 const comboPlugin = new LatticeComboPlugin();
+
+const manifestDir = fileURLToPath(new URL('./plugins/manifests', import.meta.url));
+await globalPluginRegistry.loadManifestsFrom(manifestDir);
+const opencodePlugin = globalPluginRegistry.get('opencode') as any;
 
 // Wire accounts from global pool into plugins
 for (const acc of globalAccountPool.listAccounts()) {
@@ -38,7 +42,6 @@ for (const acc of globalAccountPool.listAccounts()) {
 globalPluginRegistry.register(kiloPlugin);
 globalPluginRegistry.register(nousPlugin);
 globalPluginRegistry.register(clinePlugin);
-globalPluginRegistry.register(opencodePlugin);
 globalPluginRegistry.register(deepseekPlugin);
 globalPluginRegistry.register(comboPlugin);
 
@@ -65,7 +68,9 @@ const config = loadConfig({
   gatewayToken: authTokens.gatewayToken,
   adminToken: authTokens.adminToken,
 });
-const app = createServer(config, globalPluginRegistry.getAll());
+const pluginInstances = globalPluginRegistry.getAll();
+await initializeFromManifest(globalPluginRegistry, { dataDir: config.dataDir || 'data', logger });
+const app = createServer(config, pluginInstances);
 
 let server: any;
 try {
@@ -109,5 +114,13 @@ ${tokenBannerLines(config)}
   Storage Path:     data/lattice-store.json
 ========================================================================
 `);
+
+const shutdown = async () => {
+  await shutdownFromManifest(globalPluginRegistry);
+  try { server.stop(); } catch {}
+  process.exit(0);
+};
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
 
 export { app, server };

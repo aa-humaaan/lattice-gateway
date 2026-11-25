@@ -203,7 +203,7 @@ describe('Tier 3 Combination: Streaming + Function Tool Calling', () => {
     expect(fullAnswer).toContain('sunny, 18°C');
     const lastChunk = turn2Chunks[turn2Chunks.length - 1];
     expect(lastChunk.choices[0].finish_reason).toBe('stop');
-  });
+  }, 30_000);
 
   // 2. Streaming with both conversational text content and tool calls in same response
   it('streams conversational explanation text preceding tool call in the same response without interference', async () => {

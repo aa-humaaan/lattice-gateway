@@ -27,7 +27,7 @@ export interface ZenGateTool {
   description: string;
 }
 
-class OpenCodeProviderPlugin implements ProviderPlugin {
+class StubOpenCodeProviderPlugin implements ProviderPlugin {
   readonly id = 'opencode';
   readonly displayName = 'OpenCode Zen Provider';
   readonly defaultBaseUrl: string;
@@ -152,13 +152,13 @@ class OpenCodeProviderPlugin implements ProviderPlugin {
 
 describe('Feature F10: Plugin OpenCode Zen Upstream & Gate Tools', () => {
   let mockServer: MockUpstreamServer;
-  let opencodePlugin: OpenCodeProviderPlugin;
+  let opencodePlugin: StubOpenCodeProviderPlugin;
   let gatewayServer: any;
   let client: TestClient;
 
   beforeAll(async () => {
     mockServer = await createMockUpstream();
-    opencodePlugin = new OpenCodeProviderPlugin(mockServer.url);
+    opencodePlugin = new StubOpenCodeProviderPlugin(mockServer.url);
 
     const app = createServer({ port: 0 }, [opencodePlugin]);
     gatewayServer = Bun.serve({

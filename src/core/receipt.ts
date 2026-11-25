@@ -3,6 +3,7 @@ import type { LedgerEvent } from './request-ledger';
 export interface Receipt {
   requestId?: string;
   provider: string;
+  accountId?: string;
   model: string;
   status: number;
   latencyMs: number;
@@ -25,7 +26,8 @@ export function buildReceipt(event: LedgerEvent): Receipt {
   const lines = [
     `Request ${event.requestId ?? '(no id)'}: ${event.method} ${event.path}`,
     `Outcome: HTTP ${event.status} ${outcome}`,
-    `Provider: ${event.provider}  Model: ${event.model}`,
+    `Provider: ${event.provider}  Model: ${event.model}` +
+      (event.accountId ? `  Account: ${event.accountId}` : ''),
     `Latency: ${event.latencyMs}ms`,
     `Tokens: ${event.promptTokens} prompt + ${event.completionTokens} completion = ${event.totalTokens}` +
       (event.estimated ? ' (estimated)' : ' (reported)'),
@@ -33,6 +35,7 @@ export function buildReceipt(event: LedgerEvent): Receipt {
   return {
     requestId: event.requestId,
     provider: event.provider,
+    ...(event.accountId ? { accountId: event.accountId } : {}),
     model: event.model,
     status: event.status,
     latencyMs: event.latencyMs,

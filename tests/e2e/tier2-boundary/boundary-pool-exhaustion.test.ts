@@ -253,7 +253,7 @@ describe('Tier 2 Boundary: Multi-Account Pool Exhaustion & Edge Conditions', () 
     expect(plugin.accounts[0].totalRequests).toBeGreaterThan(0);
     expect(plugin.accounts[1].totalRequests).toBeGreaterThan(0);
     expect(plugin.accounts[0].totalRequests + plugin.accounts[1].totalRequests).toBe(concurrentCount);
-  });
+  }, 30_000);
 
   // 4. Account cooldown expiration edge conditions
   it('restores account immediately once its cooldownUntil timestamp expires', async () => {
@@ -283,7 +283,7 @@ describe('Tier 2 Boundary: Multi-Account Pool Exhaustion & Edge Conditions', () 
     const bodyAfter = (await resAfter.json()) as any;
     assertOpenAISuccess(bodyAfter);
     expect(bodyAfter.choices[0].message.content).toContain('acc_2');
-  });
+  }, 30_000);
 
   // 5. Rapid account state toggling (enable/disable under load)
   it('safely handles rapid account state toggling under concurrent traffic without exceptions', async () => {

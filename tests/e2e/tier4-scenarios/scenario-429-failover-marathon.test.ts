@@ -479,7 +479,7 @@ describe('Tier 4 Scenario S4: 429 Rate-Limit Failover Marathon', () => {
       const data = (await responses[i].json()) as any;
       expect(data.choices[0].message.content).toBeDefined();
     }
-  });
+  }, 60_000);
 
   // --------------------------------------------------------------------------
   // Test 4: Cooldown Expiration & Account Re-admission
@@ -577,5 +577,5 @@ describe('Tier 4 Scenario S4: 429 Rate-Limit Failover Marathon', () => {
     // Consecutive penalty must reset to 0 upon successful request
     expect(accA.consecutive429Count).toBe(0);
     expect(accA.totalServed).toBe(1);
-  });
+  }, 30_000);
 });

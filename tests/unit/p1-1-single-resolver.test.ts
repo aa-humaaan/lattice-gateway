@@ -107,7 +107,9 @@ describe('P1-1: one catalog-driven resolver', () => {
     expect(globalPluginRegistry.has('lattice-combo')).toBe(false);
   });
 
-  test('no hardcoded provider-prefix startsWith checks remain outside plugin definitions', () => {
+  // SOURCE GUARD: prefix hardcoding is a source-level design property; the
+  // routing behavior above cannot reveal a dormant literal in another file.
+  test('SOURCE GUARD: no hardcoded provider-prefix startsWith checks remain outside plugin definitions', () => {
     for (const path of [
       'src/utils/model-resolver.ts',
       'src/core/router.ts',

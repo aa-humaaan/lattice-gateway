@@ -4,6 +4,7 @@ import { loadConfig, GatewayConfig } from './config';
 import { registerRoutes } from './router';
 import { ProviderPlugin } from './types/plugin';
 import { GatewayError, serializeDialectError } from './types/errors';
+import { constantTimeEqual } from './auth-tokens';
 
 export type AppEnv = {
   Variables: {
@@ -14,18 +15,6 @@ export type AppEnv = {
 export interface ServerContext {
   config: GatewayConfig;
   plugins: Map<string, ProviderPlugin>;
-}
-
-function isLoopbackOrigin(origin: string): boolean {
-  try {
-    const url = new URL(origin);
-    return (
-      (url.protocol === 'http:' || url.protocol === 'https:') &&
-      ['localhost', '127.0.0.1', '::1'].includes(url.hostname)
-    );
-  } catch {
-    return false;
-  }
 }
 
 export function createServer(
@@ -63,15 +52,12 @@ export function createServer(
   });
 
   // Browser-origin guard. A gateway bound to loopback is still reachable from
-  // any web page the operator visits; requiring an explicit Origin stops that.
+  // any web page the operator visits. Only origins in the explicit allow-list
+  // pass — loopback gets no implicit exemption, whatever the port.
   app.use('*', async (c, next) => {
     const origin = c.req.header('origin');
-    if (
-      origin &&
-      !config.corsOrigins.includes('*') &&
-      !config.corsOrigins.includes(origin) &&
-      !isLoopbackOrigin(origin)
-    ) {
+    if (!origin) return next();
+    if (!config.corsOrigins.includes('*') && !config.corsOrigins.includes(origin)) {
       return c.json({ error: { type: 'forbidden', message: 'Origin not allowed' } }, 403);
     }
     await next();
@@ -142,10 +128,10 @@ export function createServer(
 
     const path = c.req.path;
     const isAdmin = path === '/admin' || path.startsWith('/admin/') || path.startsWith('/api/');
-    const required = isAdmin
-      ? config.adminToken || config.gatewayToken
-      : config.gatewayToken;
-    if (!required) return next();
+    const required = isAdmin ? config.adminToken : config.gatewayToken;
+    // A library consumer that supplied only a gateway token must not inherit
+    // admin rights. A fully tokenless in-process gateway keeps its old contract.
+    if (!required && (!isAdmin || !config.gatewayToken)) return next();
 
     const authHeader = c.req.header('authorization') || '';
     const provided =
@@ -153,10 +139,18 @@ export function createServer(
       c.req.header('x-api-key') ||
       '';
 
-    if (provided !== required) {
+    const missingAdminToken = isAdmin && !config.adminToken;
+    if (missingAdminToken || !constantTimeEqual(provided, required ?? '')) {
       c.header('WWW-Authenticate', 'Bearer');
       return c.json(
-        { error: { type: 'authentication_error', message: 'Unauthorized' } },
+        {
+          error: {
+            type: 'authentication_error',
+            message: missingAdminToken
+              ? 'Admin token not configured; set LATTICE_ADMIN_TOKEN or adminToken'
+              : 'Unauthorized',
+          },
+        },
         401
       );
     }

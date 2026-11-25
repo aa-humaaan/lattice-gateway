@@ -4,6 +4,8 @@ import {
 } from 'fs';
 import { join } from 'path';
 import { logger } from '../utils/logger';
+import { globalSecretStore, type SecretStore } from '../core/secret-store';
+import { moveSecretsToStore, OVERLAY_KEYS } from '../core/credential-resolver';
 import { globalAccountPool, type RuntimeSnapshot } from './account-pool';
 import { globalComboManager } from './combos';
 import { globalProxyPool } from './proxy-pool';
@@ -42,9 +44,11 @@ registerStoreMigration(1, (data) => {
 export class LatticeStorage {
   private dataDir: string;
   private filePath: string;
+  private secretStore: SecretStore;
 
-  constructor(dataDir = process.env.DATA_DIR || 'data') {
+  constructor(dataDir = process.env.DATA_DIR || 'data', secretStore: SecretStore = globalSecretStore) {
     this.dataDir = dataDir;
+    this.secretStore = secretStore;
     this.filePath = join(dataDir, 'lattice-store.json');
     this.ensureDir();
     globalAccountPool.setPersistenceHook(() => this.save());
@@ -74,6 +78,23 @@ export class LatticeStorage {
     copyFileSync(this.filePath, destination);
     try { chmodSync(destination, 0o600); } catch { /* Windows may not expose POSIX modes. */ }
     logger.warn(`[Storage] Backing up pre-migration store to ${destination}`);
+  }
+
+  /** Move any credential material still carried in accounts into the secret store. */
+  private migratePlaintextSecrets(data: PersistentData): boolean {
+    let changed = false;
+    for (const acc of data.accounts ?? []) {
+      const credentials = acc?.credentials;
+      if (!credentials || typeof credentials !== 'object') continue;
+      const carriesSecret = OVERLAY_KEYS.some((key) => {
+        const value = credentials[key];
+        return value !== undefined && value !== null && value !== '';
+      });
+      if (!carriesSecret) continue;
+      acc.credentials = moveSecretsToStore(this.secretStore, acc.id, credentials);
+      changed = true;
+    }
+    return changed;
   }
 
   /** Write to a temp file in the same directory, fsync, then atomically rename. */
@@ -113,18 +134,21 @@ export class LatticeStorage {
     if (version > STORE_SCHEMA_VERSION) {
       this.quarantine(`schemaVersion ${version} is newer than supported ${STORE_SCHEMA_VERSION}`);
     }
+    let needsWrite = false;
     if (version < STORE_SCHEMA_VERSION) {
       this.backup();
-      let migrated = data;
+      let upgraded = data;
       for (let v = version; v < STORE_SCHEMA_VERSION; v++) {
         const migration = migrations.get(v);
         if (!migration) this.quarantine(`no migration from schemaVersion ${v}`);
-        migrated = migration(migrated, v);
+        upgraded = migration(upgraded, v);
       }
-      migrated.schemaVersion = STORE_SCHEMA_VERSION;
-      data = migrated;
-      this.writeAtomic(data as PersistentData);
+      upgraded.schemaVersion = STORE_SCHEMA_VERSION;
+      data = upgraded;
+      needsWrite = true;
     }
+    if (this.migratePlaintextSecrets(data)) needsWrite = true;
+    if (needsWrite) this.writeAtomic(data as PersistentData);
 
     for (const acc of data.accounts) globalAccountPool.addAccount(acc);
     for (const c of data.combos) globalComboManager.createCombo(c);

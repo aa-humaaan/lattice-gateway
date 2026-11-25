@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, realpathSync } from 'fs';
+import { isAbsolute, join, relative, resolve, sep } from 'path';
 import type { StoredAccount } from './types/plugin';
 import { globalAccountPool } from '../pool/account-pool';
 import type { SecretStore } from './secret-store';
@@ -42,6 +43,16 @@ function digestOf(records: RawRecord[]): string {
   return createHash('sha256').update(JSON.stringify(records)).digest('hex');
 }
 
+/** Operator-controlled staging area for import exports. */
+export function defaultImportDir(): string {
+  return resolve(process.env.LATTICE_IMPORT_DIR || join(process.env.DATA_DIR || 'data', 'imports'));
+}
+
+function isWithin(base: string, target: string): boolean {
+  const rel = relative(base, target);
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
 function readJsonAccounts(path: string): RawRecord[] {
   const parsed = JSON.parse(readFileSync(path, 'utf8')) as { accounts?: RawRecord[] };
   if (!Array.isArray(parsed.accounts)) throw new Error('Import file must contain an accounts array');
@@ -60,13 +71,27 @@ const READERS: Record<ImportSource, (path: string) => RawRecord[]> = {
   sqlite9router: readSqlite9router,
 };
 
-export function createImportManager(secretStore: SecretStore, ttlMs = 60_000) {
+export function createImportManager(secretStore: SecretStore, ttlMs = 60_000, allowedDir = defaultImportDir()) {
   const pending = new Map<string, PendingImport>();
+  const base = resolve(allowedDir);
+
+  function assertAllowedPath(path: string): void {
+    if (!path || typeof path !== 'string') throw new Error('An explicit import path is required');
+    const target = resolve(path);
+    if (!isWithin(base, target)) {
+      throw new Error(`Import path must be inside the allow-listed directory: ${base}`);
+    }
+    // Reject symlinks inside the staging area that resolve outside it.
+    if (existsSync(target) && existsSync(base) &&
+        !isWithin(realpathSync(base), realpathSync(target))) {
+      throw new Error(`Import path must be inside the allow-listed directory: ${base}`);
+    }
+  }
 
   return {
     preview(source: ImportSource, path: string): ImportPreview {
       if (!source || !(source in READERS)) throw new Error(`Unsupported import source: ${source}`);
-      if (!path || typeof path !== 'string') throw new Error('An explicit import path is required');
+      assertAllowedPath(path);
       if (!existsSync(path)) throw new Error(`Import path does not exist: ${path}`);
       const records = READERS[source](path);
       const digest = digestOf(records);

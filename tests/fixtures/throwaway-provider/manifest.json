@@ -1,0 +1,16 @@
+{
+  "id": "throwaway",
+  "displayName": "Throwaway Test Provider",
+  "description": "Manifest-only provider used to prove zero core edits are needed",
+  "defaultBaseUrl": "http://127.0.0.1:9",
+  "modelPrefixes": ["throwaway/"],
+  "models": ["throwaway/echo"],
+  "capabilities": { "responseFormat": true, "samplingFields": true },
+  "supportedAuthTypes": ["api_key"],
+  "adapter": "./adapter.ts",
+  "factory": "createPlugin",
+  "lifecycle": { "hooks": ["initialize", "shutdown"] },
+  "configSchema": {
+    "apiKey": { "type": "string", "required": true, "env": "THROWAWAY_API_KEY" }
+  }
+}

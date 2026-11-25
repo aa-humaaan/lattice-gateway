@@ -4,8 +4,10 @@ import { readFileSync } from 'fs';
 const sources = ['start.bat', 'start.ps1', 'src/index.ts', 'bin/lattice.ts'];
 
 describe('launchers never kill unrelated processes', () => {
+  // SOURCE GUARD: launcher scripts are not importable modules; the forbidden
+  // commands matter only as shipped text, so inspect the files directly.
   for (const file of sources) {
-    test(`${file} contains no process-killing commands`, () => {
+    test(`SOURCE GUARD: ${file} contains no process-killing commands`, () => {
       const source = readFileSync(file, 'utf8');
       expect(source).not.toMatch(/taskkill/i);
       expect(source).not.toMatch(/Stop-Process/i);
@@ -21,7 +23,9 @@ describe('launchers never kill unrelated processes', () => {
     expect(formatPortConflict(4000, { code: 'EADDRINUSE' })).not.toContain('undefined');
   });
 
-  test('entrypoints explain what to do when the port is busy', () => {
+  // SOURCE GUARD: entrypoint behavior below is tested via formatPortConflict;
+  // this check only proves both entrypoints actually call it.
+  test('SOURCE GUARD: entrypoints explain what to do when the port is busy', () => {
     for (const file of ['src/index.ts', 'bin/lattice.ts']) {
       const source = readFileSync(file, 'utf8');
       expect(source).toMatch(/formatPortConflict\(config\.port, err\)/);

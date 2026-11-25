@@ -7,9 +7,11 @@ import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 export type ConformanceDialect = 'openai-chat' | 'anthropic-messages' | 'openai-responses';
+export type ConformanceFeature = 'plain-text' | 'tool-loop' | 'error' | 'client-abort';
 export interface ConformanceFixture {
   name: string;
   dialect: ConformanceDialect;
+  feature?: ConformanceFeature;
   request: unknown;
   canonicalExpect: Record<string, unknown>;
   response: CanonicalResponse;
@@ -18,6 +20,8 @@ export interface ConformanceFixture {
   /** Ordered, field-level assertions against the emitted SSE events. */
   streamExpectEvents?: Array<{ type: string; fields?: Record<string, unknown> }>;
   streamContains?: string[];
+  /** Abort the client after this many canonical events are consumed. */
+  abortAfter?: number;
   streamStatus?: 'unsupported';
 }
 export interface ConformanceFailure { stage: 'canonical' | 'response' | 'stream'; path: string; expected: unknown; actual: unknown }
@@ -26,6 +30,32 @@ export interface ConformanceResult { name: string; dialect: ConformanceDialect; 
 function valueAt(root: unknown, path: string): unknown {
   return path.split('.').reduce<unknown>((value, key) =>
     value != null && typeof value === 'object' ? (value as any)[key] : undefined, root);
+}
+
+interface EmittedEvent { type: string; payload: any }
+
+/** Parse SSE frames into an ordered list. Chat emits data-only frames, so its
+ *  event identity comes from the payload (`object`, or `error`); other dialects
+ *  carry an explicit `event:` name. */
+function parseSse(text: string): EmittedEvent[] {
+  const emitted: EmittedEvent[] = [];
+  for (const block of text.split(/\n\n/)) {
+    const lines = block.split(/\r?\n/);
+    const dataLine = lines.find((line) => line.startsWith('data:'));
+    if (!dataLine) continue;
+    const data = dataLine.slice(5).trim();
+    if (data === '[DONE]') {
+      emitted.push({ type: '[DONE]', payload: undefined });
+      continue;
+    }
+    const payload = JSON.parse(data);
+    const eventLine = lines.find((line) => line.startsWith('event:'));
+    const type = eventLine
+      ? eventLine.slice(6).trim()
+      : payload?.object ?? (payload?.error ? 'error' : payload?.type);
+    emitted.push({ type, payload });
+  }
+  return emitted;
 }
 
 export async function runConformanceFixture(fixture: ConformanceFixture): Promise<ConformanceResult> {
@@ -57,22 +87,34 @@ export async function runConformanceFixture(fixture: ConformanceFixture): Promis
   }
   let streamStatus: ConformanceResult['streamStatus'] = fixture.streamStatus ?? 'not-tested';
   if (fixture.streamEvents) {
-    async function* events() { for (const event of fixture.streamEvents!) yield event; }
+    const controller = new AbortController();
+    async function* events() {
+      let consumed = 0;
+      for (const event of fixture.streamEvents!) {
+        yield event;
+        consumed++;
+        if (fixture.abortAfter === consumed) controller.abort();
+      }
+    }
+    const options = { keepaliveMs: 0, signal: controller.signal };
     const stream = fixture.dialect === 'anthropic-messages'
-      ? createAnthropicSSEStream(events(), { keepaliveMs: 0 })
+      ? createAnthropicSSEStream(events(), options)
       : fixture.dialect === 'openai-responses'
-        ? createResponsesSSEStream(events(), { keepaliveMs: 0 })
-        : createOpenAISSEStream(events(), { keepaliveMs: 0 });
+        ? createResponsesSSEStream(events(), options)
+        : createOpenAISSEStream(events(), options);
     const text = await new Response(stream).text();
     for (const expected of fixture.streamContains ?? []) {
       if (!text.includes(expected)) failures.push({ stage: 'stream', path: 'contains', expected, actual: text });
     }
     if (fixture.streamExpectEvents) {
-      const emitted: Array<{ type: string; payload: any }> = [];
-      const sse = /event:\s*([^\n]+)\ndata:\s*([^\n]+)\n\n/g;
-      let match: RegExpExecArray | null;
-      while ((match = sse.exec(text))) {
-        emitted.push({ type: match[1].trim(), payload: JSON.parse(match[2]) });
+      const emitted = parseSse(text);
+      if (emitted.length !== fixture.streamExpectEvents.length) {
+        failures.push({
+          stage: 'stream',
+          path: 'events.length',
+          expected: fixture.streamExpectEvents.length,
+          actual: emitted.length,
+        });
       }
       fixture.streamExpectEvents.forEach((expected, index) => {
         const actual = emitted[index];
@@ -83,8 +125,9 @@ export async function runConformanceFixture(fixture: ConformanceFixture): Promis
         if (actual.type !== expected.type) {
           failures.push({ stage: 'stream', path: `events[${index}].type`, expected: expected.type, actual: actual.type });
         }
-        if (actual.payload?.type !== expected.type) {
-          failures.push({ stage: 'stream', path: `events[${index}].payload.type`, expected: expected.type, actual: actual.payload?.type });
+        if (actual.payload && Object.prototype.hasOwnProperty.call(actual.payload, 'type')
+            && actual.payload.type !== expected.type) {
+          failures.push({ stage: 'stream', path: `events[${index}].payload.type`, expected: expected.type, actual: actual.payload.type });
         }
         for (const [path, wanted] of Object.entries(expected.fields ?? {})) {
           const got = valueAt(actual.payload, path);

@@ -48,12 +48,35 @@ describe('upstream base URL allow-list', () => {
       { provider: 'opencode', baseUrl: 'http://169.254.169.254/latest/meta-data', apiKey: 'x' },
     ] }));
     try {
-      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')));
+      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')), 60_000, dir);
       const result = manager.confirm(manager.preview('jsonAccounts', file).token);
       const account = globalAccountPool.getAccount(result.accountIds[0]);
       expect(account?.credentials.baseUrl).toBeUndefined();
       expect(JSON.stringify(account?.credentials)).not.toContain('169.254.169.254');
       for (const id of result.accountIds) globalAccountPool.deleteAccount(id);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('SEC-08: the import endpoint rejects an absolute path outside the staging directory', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('fs');
+    const { tmpdir } = await import('os');
+    const { join } = await import('path');
+    const dir = mkdtempSync(join(tmpdir(), 'lattice-sec08-'));
+    const outside = join(dir, 'accounts.json');
+    writeFileSync(outside, JSON.stringify({ accounts: [{ provider: 'private-provider-XYZ' }] }));
+    try {
+      const app = createServer({ adminToken: 'admin-secret', gatewayToken: 'gw-secret' });
+      const res = await app.request('/api/accounts/import/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer admin-secret' },
+        body: JSON.stringify({ source: 'jsonAccounts', path: outside }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { success: boolean };
+      expect(body.success).toBe(false);
+      expect(JSON.stringify(body)).not.toContain('private-provider-XYZ');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -77,7 +100,9 @@ describe('upstream base URL allow-list', () => {
   });
 });
 
-describe('dashboard output escaping', () => {
+// SOURCE GUARD: escapeHtml is inline script text, not an exported module. The
+// guard extracts and executes that shipped function, then checks call sites.
+describe('SOURCE GUARD: dashboard output escaping', () => {
   const src = readFileSync('src/admin/dashboard-ui.ts', 'utf8');
 
   test('the shipped escapeHtml escapes quotes and angle brackets', () => {

@@ -9,6 +9,7 @@ import type {
   CanonicalStreamEvent,
 } from '../../src/core/types/canonical';
 import { GatewayError } from '../../src/core/types/errors';
+import { globalBreakerRegistry } from '../../src/core/breaker';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -145,6 +146,8 @@ describe('Combo Context-Aware Failover', () => {
   afterEach(() => {
     globalComboManager.deleteCombo('test/ctxfailover-combo');
     globalComboManager.deleteCombo('test/ctxfailover-clamp');
+    globalComboManager.deleteCombo('test/unavailable-combo');
+    globalBreakerRegistry.reset();
     for (const id of registered) {
       globalPluginRegistry.unregister(id);
     }
@@ -287,7 +290,88 @@ describe('Combo Context-Aware Failover', () => {
       messages: [{ role: 'user', content: bigPrompt(50000) }],
     });
 
-    await expect(plugin.execute(req)).rejects.toThrow(/context window/i);
+    const err = await plugin.execute(req).catch((e) => e);
+    expect(err).toBeInstanceOf(GatewayError);
+    expect(err.status).toBe(400);
+    expect(err.code).toBe('context_length_exceeded');
+    expect(err.message).toMatch(/context window/i);
+  });
+
+  it('returns 503 all_targets_unavailable when every target is circuit-broken (non-stream)', async () => {
+    const downA = new StubPlugin('unavail-a', [{ id: 'unavail-a/model', name: 'A' }]);
+    const downB = new StubPlugin('unavail-b', [{ id: 'unavail-b/model', name: 'B' }]);
+    registerPlugin(downA);
+    registerPlugin(downB);
+    for (const id of ['unavail-a', 'unavail-b']) {
+      globalBreakerRegistry.configure(id, {
+        failureThreshold: 1,
+        backoffBaseMs: 60_000,
+        backoffCeilingMs: 60_000,
+        jitterRatio: 0,
+      });
+      globalBreakerRegistry.get(id).recordFailure(new GatewayError(503, 'service_unavailable', 'down'));
+    }
+    globalComboManager.createCombo({
+      id: 'test/unavailable-combo',
+      name: 'Unavailable Combo',
+      targets: ['unavail-a/model', 'unavail-b/model'],
+      createdAt: Date.now(),
+    });
+
+    const err = await new LatticeComboPlugin().execute(
+      makeRequest({ model: 'test/unavailable-combo' })
+    ).catch((e) => e);
+    expect(err).toBeInstanceOf(GatewayError);
+    expect(err.status).toBe(503);
+    expect(err.code).toBe('all_targets_unavailable');
+    expect(err.message).toMatch(/all targets.*unavailable/i);
+  });
+
+  it('returns 503 all_targets_unavailable when every target is unresolvable', async () => {
+    globalComboManager.createCombo({
+      id: 'test/unavailable-combo',
+      name: 'Unresolvable Combo',
+      targets: ['ghost-a/model', 'ghost-b/model'],
+      createdAt: Date.now(),
+    });
+
+    const err = await new LatticeComboPlugin().execute(
+      makeRequest({ model: 'test/unavailable-combo' })
+    ).catch((e) => e);
+    expect(err).toBeInstanceOf(GatewayError);
+    expect(err.status).toBe(503);
+    expect(err.code).toBe('all_targets_unavailable');
+    expect(err.message).toMatch(/all targets.*unavailable/i);
+  });
+
+  it('returns 503 all_targets_unavailable when every stream target is circuit-broken', async () => {
+    const downA = new StubPlugin('unavail-stream-a', [{ id: 'unavail-stream-a/model', name: 'A' }]);
+    const downB = new StubPlugin('unavail-stream-b', [{ id: 'unavail-stream-b/model', name: 'B' }]);
+    registerPlugin(downA);
+    registerPlugin(downB);
+    for (const id of ['unavail-stream-a', 'unavail-stream-b']) {
+      globalBreakerRegistry.configure(id, {
+        failureThreshold: 1,
+        backoffBaseMs: 60_000,
+        backoffCeilingMs: 60_000,
+        jitterRatio: 0,
+      });
+      globalBreakerRegistry.get(id).recordFailure(new GatewayError(503, 'service_unavailable', 'down'));
+    }
+    globalComboManager.createCombo({
+      id: 'test/unavailable-combo',
+      name: 'Unavailable Stream Combo',
+      targets: ['unavail-stream-a/model', 'unavail-stream-b/model'],
+      createdAt: Date.now(),
+    });
+
+    const err = await new LatticeComboPlugin()
+      .executeStream(makeRequest({ model: 'test/unavailable-combo', stream: true }))
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(GatewayError);
+    expect(err.status).toBe(503);
+    expect(err.code).toBe('all_targets_unavailable');
+    expect(err.message).toMatch(/all targets.*unavailable/i);
   });
 
   it('clamps maxTokens to the available output budget for the selected target', async () => {

@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lattice Gateway — Engineering Audit · 24 Nov 2026</title>
+<style>
+:root{
+  --paper:#100f0e;
+  --paper-2:#191817;
+  --paper-3:#211f1d;
+  --ink:#efeae0;
+  --ink-2:#c9c3b7;
+  --muted:#8f887c;
+  --line:#312d28;
+  --line-2:#4a443c;
+  --rust:#d8795c;
+  --amber:#d9a550;
+  --olive:#96a37c;
+  --steel:#8fa0a8;
+  --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.62 var(--sans);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none;border-bottom:1px solid var(--line-2)}
+a:hover{border-color:var(--ink)}
+code,kbd{font:13px/1.5 var(--mono);background:var(--paper-3);border:1px solid var(--line);border-radius:3px;padding:1px 5px;color:var(--ink-2);white-space:nowrap}
+pre{background:var(--paper-2);border:1px solid var(--line);border-left:2px solid var(--line-2);padding:14px 16px;overflow-x:auto;margin:0 0 18px}
+pre code{background:none;border:0;padding:0;white-space:pre;font-size:12.5px;color:var(--ink-2)}
+
+/* ---------- cover ---------- */
+.cover{max-width:1180px;margin:0 auto;padding:86px 40px 54px;border-bottom:1px solid var(--line)}
+.kicker{font:600 10px/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:30px}
+.kicker b{color:var(--rust);font-weight:600}
+.cover h1{font:400 clamp(46px,7.6vw,92px)/.98 var(--serif);letter-spacing:-.035em;margin:0 0 16px}
+.cover .dek{font:400 clamp(18px,2.1vw,25px)/1.42 var(--serif);color:var(--ink-2);max-width:42ch;margin:0 0 38px}
+.rule{width:60px;height:2px;background:var(--rust);margin:0 0 34px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));border-top:1px solid var(--line)}
+.meta div{padding:13px 20px 15px 0;border-bottom:1px solid var(--line)}
+.meta dt{font:600 9px/1.4 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:0 0 5px}
+.meta dd{margin:0;font:13px/1.5 var(--sans);color:var(--ink)}
+.verdict{margin:42px 0 0;padding:20px 0 0 24px;border-left:2px solid var(--rust);font:400 20px/1.52 var(--serif);max-width:74ch}
+.verdict small{display:block;font:600 9.5px/1.4 var(--mono);letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+
+/* ---------- shell ---------- */
+.shell{display:grid;grid-template-columns:210px minmax(0,1fr);gap:54px;max-width:1180px;margin:0 auto;padding:0 40px}
+nav.toc{position:sticky;top:0;align-self:start;padding:44px 0;font:12px/1.9 var(--sans)}
+nav.toc p{font:600 9px/1.4 var(--mono);letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+nav.toc a{display:block;border:0;color:var(--ink-2);padding:2px 0 2px 10px;border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);border-left-color:var(--rust)}
+main{padding:44px 0 96px;min-width:0}
+
+/* ---------- sections ---------- */
+section{padding:0 0 54px;margin:0 0 8px}
+h2{font:400 30px/1.2 var(--serif);letter-spacing:-.02em;margin:0 0 6px;scroll-margin-top:24px}
+h2 .num{font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--rust);display:block;margin-bottom:10px}
+h3{font:600 13px/1.4 var(--sans);letter-spacing:.01em;margin:30px 0 10px;color:var(--ink)}
+p{max-width:74ch;margin:0 0 15px;color:var(--ink-2)}
+p strong{color:var(--ink);font-weight:600}
+.lede{font:400 18px/1.62 var(--serif);color:var(--ink);max-width:70ch}
+hr.sep{border:0;border-top:1px solid var(--line);margin:0 0 34px}
+
+/* ---------- scorecard ---------- */
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:0 0 26px}
+.score div{background:var(--paper-2);padding:16px 16px 18px}
+.score .n{font:400 30px/1 var(--serif);letter-spacing:-.02em;display:block;margin-bottom:7px}
+.score .l{font:600 9px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ok{color:var(--olive)}.warn{color:var(--amber)}.bad{color:var(--rust)}.neu{color:var(--steel)}
+
+/* ---------- bars ---------- */
+.bars{margin:0 0 20px;border-top:1px solid var(--line)}
+.bar{display:grid;grid-template-columns:88px minmax(0,1fr) 44px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font:12px/1.4 var(--mono)}
+.bar .lab{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:9.5px}
+.bar .track{height:7px;background:var(--paper-3);position:relative;overflow:hidden}
+.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--line-2)}
+.bar .fill.c1{background:var(--rust)}.bar .fill.c2{background:var(--amber)}.bar .fill.c3{background:var(--steel)}.bar .fill.c4{background:var(--olive)}
+.bar .val{text-align:right;color:var(--ink-2)}
+
+/* ---------- findings ---------- */
+.finding{display:grid;grid-template-columns:62px minmax(0,1fr);gap:20px;padding:22px 0;border-top:1px solid var(--line)}
+.finding:last-of-type{border-bottom:1px solid var(--line)}
+.sev{font:600 9px/1.5 var(--mono);letter-spacing:.1em;text-transform:uppercase;padding-top:4px}
+.sev i{display:block;font-style:normal;font-size:9px;color:var(--muted);letter-spacing:.08em;margin-top:2px}
+.sev.p0{color:var(--rust)}.sev.p1{color:var(--amber)}.sev.p2{color:var(--steel)}.sev.p3{color:var(--olive)}
+.finding h4{font:600 15.5px/1.4 var(--sans);margin:0 0 7px;color:var(--ink)}
+.finding h4 .id{font:600 10px/1.4 var(--mono);color:var(--muted);letter-spacing:.08em;margin-left:8px}
+.finding p{margin:0 0 10px;font-size:14.5px;color:var(--ink-2)}
+.finding .ev{font:12px/1.6 var(--mono);color:var(--muted);border-left:2px solid var(--line-2);padding:2px 0 2px 12px;margin:0 0 10px;overflow-wrap:anywhere}
+.finding .ev b{color:var(--ink-2);font-weight:400}
+.fix{font-size:14px;color:var(--ink-2)}
+.fix b{font:600 9.5px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--olive);display:block;margin-bottom:4px}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;margin:0 0 20px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+th{font:600 9px/1.4 var(--mono);letter-spacing:.11em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 14px;background:var(--paper-3);border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-size:12px;white-space:nowrap}
+td .mono{font-family:var(--mono);font-size:12px}
+
+/* ---------- checklist ---------- */
+ol.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+ol.steps li{counter-increment:s;position:relative;padding:0 0 16px 42px;border-left:1px solid var(--line);margin-left:12px}
+ol.steps li:last-child{border-left-color:transparent}
+ol.steps li::before{content:counter(s,decimal-leading-zero);position:absolute;left:-1px;top:1px;transform:translateX(-50%);background:var(--paper);border:1px solid var(--line-2);width:25px;height:25px;border-radius:50%;display:grid;place-items:center;font:600 9.5px/1 var(--mono);color:var(--rust)}
+ol.steps b{color:var(--ink);font-weight:600;display:block;font-size:14.5px;margin-bottom:3px}
+ol.steps span{font-size:14px;color:var(--ink-2)}
+ol.steps em{font:12px/1.5 var(--mono);color:var(--muted);font-style:normal;display:block;margin-top:4px;overflow-wrap:anywhere}
+
+.callout{border:1px solid var(--line);border-left:2px solid var(--olive);background:var(--paper-2);padding:18px 20px;margin:0 0 20px}
+.callout.warnbox{border-left-color:var(--amber)}
+.callout h5{font:600 10px/1.4 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--olive);margin:0 0 8px}
+.callout.warnbox h5{color:var(--amber)}
+.callout p:last-child{margin:0}
+
+footer{max-width:1180px;margin:0 auto;padding:28px 40px 70px;border-top:1px solid var(--line);font:11.5px/1.7 var(--mono);color:var(--muted)}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr;gap:0;padding:0 22px}
+  nav.toc{position:static;padding:28px 0 0;border-bottom:1px solid var(--line);margin-bottom:10px}
+  nav.toc a{display:inline-block;margin-right:14px;padding:2px 0}
+  .cover{padding:56px 22px 40px}
+  main{padding:32px 0 60px}
+  .finding{grid-template-columns:1fr;gap:8px}
+  .sev{padding-top:0}
+  footer{padding:24px 22px 50px}
+}
+@media print{
+  :root{--paper:#fff;--paper-2:#faf9f7;--paper-3:#f2f0ec;--ink:#16150f;--ink-2:#3d3a33;--muted:#6b675e;--line:#d9d5cc;--line-2:#a9a49a}
+  body{font-size:11pt}
+  nav.toc{display:none}
+  .shell{grid-template-columns:1fr;padding:0}
+  .finding,.score,.callout,pre{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="kicker">Independent audit · <b>read-only</b> · evidence-first · 24 Nov 2026</div>
+  <h1>Lattice Gateway</h1>
+  <p class="dek">A gateway that pools five providers, speaks three dialects, and reports its own numbers. This audit tests the claims rather than the prose.</p>
+  <div class="rule"></div>
+  <dl class="meta">
+    <div><dt>Repository</dt><dd>lattice-gateway · v0.1.0</dd></div>
+    <div><dt>Audited tree</dt><dd>054059c + 82 uncommitted paths</dd></div>
+    <div><dt>Stack</dt><dd>Bun 1.4.2 · TypeScript 5.7 · Hono 4.7 · Windows 11</dd></div>
+    <div><dt>Size</dt><dd>21,196 src lines · 26,407 test lines</dd></div>
+    <div><dt>Net</dt><dd>Sound core, edge debt</dd></div>
+  </dl>
+  <p class="verdict">
+    <small>Verdict</small>
+    Unusually for a project this size, the core is not the problem. Atomic durable writes, a nonce-only CSP, an SSRF guard that blocks address aliasing, a loopback origin check without a loophole, twelve deterministic conformance fixtures, and a circuit breaker with correct single-flight probe semantics — all verified by hand. What is left is edge work: a gitignore pattern that would commit a token-bearing backup, a state file fsynced on every request, a ledger whose retention code nobody calls, and a suite that cannot tell a slow box from a regression.
+  </p>
+</header>
+
+<div class="shell">
+<nav class="toc">
+  <p>Contents</p>
+  <a href="#evidence">01 · Evidence</a>
+  <a href="#scoreboard">02 · Scoreboard</a>
+  <a href="#critical">03 · Critical</a>
+  <a href="#high">04 · High</a>
+  <a href="#moderate">05 · Moderate</a>
+  <a href="#low">06 · Low &amp; hygiene</a>
+  <a href="#strengths">07 · What holds up</a>
+  <a href="#plan">08 · Ordered plan</a>
+  <a href="#method">09 · Method</a>
+</nav>
+
+<main>
+
+<!-- ======================= EVIDENCE ======================= -->
+<section id="evidence">
+  <h2><span class="num">01</span>Evidence</h2>
+  <p class="lede">Every number below came from a command run against this working tree, not from the project's own reports.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Check</th><th>Command</th><th>Result</th><th>Read</th></tr></thead>
+      <tbody>
+        <tr><td>Type safety</td><td class="num">bunx tsc --noEmit</td><td class="num ok">clean, 0 errors</td><td>Strict mode holds.</td></tr>
+        <tr><td>Dialect conformance</td><td class="num">bun run conformance</td><td class="num ok">12 / 12 fixtures</td><td>Deterministic, reproducible.</td></tr>
+        <tr><td>Dashboard script guard</td><td class="num">bun run check:dashboard</td><td class="num ok">1 script parses · 121,396 chars</td><td>Escaping bug class is gated.</td></tr>
+        <tr><td>Unit suite</td><td class="num">bun test tests/unit</td><td class="num bad">579 pass · 2 fail</td><td>One clock, one leaked-port test.</td></tr>
+        <tr><td>Full suite</td><td class="num">bun test</td><td class="num bad">884 pass · 15 fail · 491 s</td><td>11 of 15 are the 5&nbsp;s clock.</td></tr>
+        <tr><td>Orphaned listeners</td><td class="num">Get-NetTCPConnection after bun test</td><td class="num bad">3 leaked per run</td><td>spawn kills the shim, not the server.</td></tr>
+        <tr><td>Concurrency cost</td><td class="num">20 parallel requests, persistence on/off</td><td class="num bad">8,582 ms vs 261 ms</td><td>Per-request fsync serialises the burst.</td></tr>
+        <tr><td>Kill -9 store durability</td><td class="num">bun test tests/audit/part4-independent.test.ts</td><td class="num ok">8 / 8 pass standalone</td><td>Atomic write is real.</td></tr>
+        <tr><td>Live origin guard</td><td class="num">GET /healthz · Origin: http://evil.example</td><td class="num ok">403</td><td>No implicit loopback exemption.</td></tr>
+        <tr><td>Live admin shell</td><td class="num">GET /admin</td><td class="num ok">200 · nonce CSP</td><td>Data APIs still 401.</td></tr>
+        <tr><td>Ledger on disk</td><td class="num">data/request-ledger*.ndjson</td><td class="num bad">46.6 MB · 2 files</td><td>Retention code has no caller.</td></tr>
+        <tr><td>Persistence cost</td><td class="num">1 request, hook on vs off</td><td class="num bad">825 ms vs 1 ms</td><td>Per-request fsync dominates latency.</td></tr>
+        <tr><td>Ledger perf test</td><td class="num">bun test tests/unit/request-ledger-retention.test.ts</td><td class="num warn">metrics 0.02 ms vs 0.20 ms → timeout at 5&nbsp;s</td><td>Test passes its assertion, fails the clock.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warnbox">
+    <h5>Two facts worth keeping in view</h5>
+    <p>The <code>timeout</code> key under <code>[test]</code> in <code>bunfig.toml</code> has no effect in this Bun build (1.4.2). A control test that sleeps six seconds fails with <em>"timed out after 5000ms"</em> even after the value is raised from 10000 to 20000 — the per-test budget stays 5&nbsp;s unless <code>--timeout</code> is passed on the command line, which does work. Most of the full-suite failures are this, not regressions.</p>
+    <p>Separately, the ledger perf test measured 0.02&nbsp;ms (10k rows) and 0.20&nbsp;ms (1M rows). The property it guards — query time independent of size — holds. It only reports failure because the fixture writes a million rows and exceeds the wall clock.</p>
+  </div>
+</section>
+
+<!-- ======================= SCOREBOARD ======================= -->
+<section id="scoreboard">
+  <h2><span class="num">02</span>Scoreboard</h2>
+  <p>Severity reflects consequence if left alone, not effort to fix. A P0 would put credentials or state at risk today.</p>
+
+  <div class="score">
+    <div><span class="n bad">1</span><span class="l">P0 · act now</span></div>
+    <div><span class="n warn">7</span><span class="l">P1 · this week</span></div>
+    <div><span class="n neu">7</span><span class="l">P2 · next pass</span></div>
+    <div><span class="n ok">5</span><span class="l">P3 · hygiene</span></div>
+    <div><span class="n ok">10</span><span class="l">Verified strengths</span></div>
+  </div>
+
+  <div class="bars">
+    <div class="bar"><span class="lab">Critical</span><span class="track"><span class="fill c1" style="width:9%"></span></span><span class="val">1</span></div>
+    <div class="bar"><span class="lab">High</span><span class="track"><span class="fill c2" style="width:64%"></span></span><span class="val">7</span></div>
+    <div class="bar"><span class="lab">Moderate</span><span class="track"><span class="fill c3" style="width:63%"></span></span><span class="val">7</span></div>
+    <div class="bar"><span class="lab">Hygiene</span><span class="track"><span class="fill c4" style="width:45%"></span></span><span class="val">5</span></div>
+  </div>
+
+  <p>One finding is a credential-exposure risk and belongs before the next commit. Two are test-harness defects that make every other number untrustworthy — a leaked process table and a clock that cannot be configured. The one users feel is the per-request fsync: 8.3&nbsp;seconds on a burst of twenty requests.</p>
+</section>
+
+<!-- ======================= CRITICAL ======================= -->
+<section id="critical">
+  <h2><span class="num">03</span>Critical</h2>
+  <p class="lede">One finding. It is the only one that can put a live credential into a commit, and the fix is one character.</p>
+
+  <div class="finding">
+    <div class="sev p0">P0<i>security</i></div>
+    <div>
+      <h4>Versioned backups of the credential store are not git-ignored <span class="id">SEC-01</span></h4>
+      <p><code>.gitignore</code> lists <code>data/lattice-store.json</code> exactly, but the storage layer writes siblings with suffixes: <code>.tmp</code> on every save, <code>.backup-&lt;stamp&gt;</code> on schema migration, <code>.corrupt-&lt;stamp&gt;</code> on quarantine. None of those match the literal entry, so git sees them as new files.</p>
+      <p>This is already live. The tree contains a migration backup holding plaintext OAuth material, and git is ready to commit it:</p>
+      <p class="ev"><b>git status:</b> ?? data/lattice-store.json.backup-2026-11-24T12-54-03-765Z<br><b>Contents:</b> 5 accounts · accessToken (JWT, 407 chars) · refreshToken (40 chars) · email<br><b>Check:</b> git check-ignore data/lattice-store.json.tmp → <b>not ignored</b><br><b>Source:</b> src/pool/storage.ts:72 (backup), :64 (quarantine), :80 (writeAtomic .tmp)</p>
+      <p class="fix"><b>Fix</b>Ignore the family, not the name: <code>data/lattice-store.json*</code>. Regenerate the suffix list from every <code>${filePath}</code> template in <code>storage.ts</code> and <code>secret-store.ts</code>, then confirm with <code>git status --untracked-files=all data</code> showing nothing. If any of these files were ever committed on another branch, the tokens are burned and must be rotated at the provider — <code>SECURITY.md</code> already prescribes that order.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= HIGH ======================= -->
+<section id="high">
+  <h2><span class="num">04</span>High</h2>
+  <p class="lede">These degrade reliability or trust in the numbers, and each is cheap to fix relative to its blast radius.</p>
+
+  <div class="finding">
+    <div class="sev p1">P1<i>hygiene</i></div>
+    <div>
+      <h4>Tests write into the operator's live telemetry <span class="id">SEC-02</span></h4>
+      <p>Every other state file honours <code>DATA_DIR</code>, which is what lets tests and operators relocate the data directory. The ledger does not — it is constructed at module load from a hardcoded default:</p>
+      <p class="ev"><b>src/admin/admin-router.ts:97</b><br>createLedger(process.env.LATTICE_LEDGER_PATH || 'data/request-ledger.ndjson')<br><b>DATA_DIR references in admin-router.ts:</b> 0<br><b>Consequence:</b> test traffic lands in the operator's real ledger — verified: one tier-4 run added 35 rows to data/request-ledger.ndjson</p>
+      <p>The test preload sets <code>DATA_DIR</code> to a temp directory, so the isolation looks complete but is not. Every test run permanently pollutes the numbers the dashboard reports, and because retention is never applied (OPS-01), the contamination cannot be aged out.</p>
+      <p class="fix"><b>Fix</b>Default to <code>join(DATA_DIR || 'data', 'request-ledger.ndjson')</code> so one option moves all state together. The test preload already sets <code>DATA_DIR</code>; this single change makes the ledger follow it.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p1">P1<i>ops</i></div>
+    <div>
+      <h4>Ledger retention is implemented, documented, and never called <span class="id">OPS-01</span></h4>
+      <p>The ledger has rotation on write (<code>maybeRotate</code>, size and age based) but pruning only runs inside <code>prune()</code> and <code>rotate()</code>, and nothing calls either. Rotation moves the file; it never deletes. The result is unbounded disk use and an unbounded set of files that <code>rebuild()</code> reads at startup.</p>
+      <p class="ev"><b>Callers of .prune():</b> tests only (<b>tests/unit/request-ledger-retention.test.ts:67</b>)<br><b>Callers of .rotate():</b> none outside the module<br><b>On disk now:</b> request-ledger.ndjson 7.9 MB + request-ledger.1795447239550-5uh4ck.ndjson 38.8 MB = <b>46.6 MB in 2 files</b><br><b>Defaults:</b> retentionMs 7 days · maxFileBytes 10 MiB · rotateEveryMs 24 h</p>
+      <p class="fix"><b>Fix</b>Run <code>prune()</code> on the same tick as rotation — after <code>rotate()</code> inside <code>maybeRotate()</code>, or on an hourly timer started once. Then delete rotation files older than <code>retentionMs</code>. Both are a few lines and turn three unused options into the policy the comments already describe.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p1">P1<i>perf</i></div>
+    <div>
+      <h4>Startup reads and re-parses the entire ledger history synchronously <span class="id">OPS-02</span></h4>
+      <p><code>rebuild()</code> runs at construction and on every prune/rotate, reading each file in full, parsing every line, sorting by timestamp, and accumulating points. With 46.6&nbsp;MB across two files that is a blocking startup cost, and it grows without limit because of OPS-01.</p>
+      <p class="ev"><b>src/core/request-ledger.ts:203-230</b> readFileSync per file → parseLines → sort → addPoint loop<br><b>Measured at 1M rows:</b> rebuild completed, queries then took 0.20 ms — the aggregation is fine, the load is the cost</p>
+      <p class="fix"><b>Fix</b>Aggregates are already O(1) per query. Stop rebuilding them from raw history: persist a compact checkpoint (per-hour buckets) next to the ledger and load that instead, replaying only files newer than the checkpoint. Combined with OPS-01 this bounds startup work to one retention window.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p1">P1<i>tests</i></div>
+    <div>
+      <h4>Spawned-helper tests leak the real server process, and the leaked gateways poison later runs <span class="id">TEST-01</span></h4>
+      <p>Several tests start a real gateway with <code>spawn('bun', ['run', …])</code> and then <code>kill('SIGKILL')</code> it. On Windows that kills the <code>cmd.exe</code> shim, not the gateway. The listener survives, keeps the port, and every later run of the same test talks to the <em>old</em> process — whose store lives in a temp directory that no longer exists. That is why <code>ADV-1</code> reports an invalid store: it is reading nothing, because the gateway it thinks it started never bound the port.</p>
+      <p>This is measurable and self-accumulating. After a single full-suite run:</p>
+      <p class="ev"><b>Leaked listeners after one <code>bun test</code>:</b> 3 bun processes still bound to loopback ports (45991, 50326, 50345)<br><b>Accumulated across this audit session:</b> <b>48</b> orphaned bun listeners on loopback ports, oldest from 14:59<br><b>Spawn tree:</b> spawn pid 29612 = <code>cmd.exe /c bun run …</code> → real server pid 32704 → after <code>SIGKILL</code> of 29612, pid 32704 still listening<br><b>Mechanism:</b> <code>spawn('bun', …)</code> resolves to the npm <code>bun.ps1</code>/<code>cmd.exe</code> shim, which starts the real binary as a child<br><b>Verified fix:</b> <code>spawn(process.execPath, [entry])</code> → spawned pid <em>is</em> the listener; 3/3 ADV-1 rounds pass with a valid store and the port reclaimed each time</p>
+      <p>Two contributing factors make it worse. <code>ADV-1</code> hardcodes port <code>45991</code> instead of an ephemeral port, so the second run collides with the first. And the exit path does not verify the child died, so the leak is silent.</p>
+      <p class="fix"><b>Fix</b>Three lines. (1) Spawn the real binary, not the shim: <code>spawn(process.execPath, [entrypoint], …)</code>. Verified — with that change the spawned pid <em>is</em> the listener, <code>SIGKILL</code> releases the port, and three consecutive ADV-1 rounds pass with a valid store every time. (2) Allocate an ephemeral port per test instead of hardcoding 45991. (3) Assert the port was released before the test ends, so a future leak fails loudly instead of silently poisoning the next run.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p1">P1<i>tests</i></div>
+    <div>
+      <h4>Eleven of fifteen failures are the 5&nbsp;s clock, not the code <span class="id">TEST-02</span></h4>
+      <p>With the process table clean, the suite still fails 15 of 899, and 11 of those are <em>"timed out after 5000ms"</em>. Four are real assertions. The distinction matters: the timeouts will not be fixed by touching the code under test.</p>
+      <p class="ev"><b>Run 3 (clean process table):</b> 884 pass · 15 fail · 491 s<br><b>11 timeouts:</b> abort-storm 5084 ms, opencode-multiturn 6064, p1-1-characterization 11059, request-ledger-retention 60712, combo-failover 14683, multidialect-concurrency 12853 + 8926, proxy-rotation 7501, scenario-429-marathon 14516, long-horizon 5018, roo-cline-xml 6415<br><b>4 assertions:</b> the cooldown wall-clock check, plus the three abort tests measuring setup latency</p>
+      <p>The <code>timeout</code> key under <code>[test]</code> in <code>bunfig.toml</code> is inert in Bun 1.4.2 — a control test that sleeps six seconds still fails at 5000 ms after raising the key to 20000. Only the <code>--timeout</code> CLI flag works, which means CI and local runs use different budgets unless the flag is written down.</p>
+      <p class="fix"><b>Fix</b>Pass an explicit budget as the third test argument (<code>test(name, fn, 30000)</code>) rather than relying on config, and put <code>--timeout</code> in the <code>package.json</code> script so CI cannot drift. Then re-run: what is left is the genuine assertion failures. Per PERF-01, expect several of the concurrency timeouts to disappear once the per-request fsync is gone.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p1">P1<i>honesty</i></div>
+    <div>
+      <h4>The only priced model is one no plugin serves <span class="id">DATA-01</span></h4>
+      <p>Pricing has a single entry, <code>openai/gpt-4o</code>. No enabled plugin exposes that exact ID — Kilo serves <code>kilo/gpt-4o</code>, which does not match, so the lookup returns null. In consequence every cost figure the dashboard shows is <code>null</code>, and the routing-cost ranking in the resolver is a no-op for every real candidate.</p>
+      <p class="ev"><b>Probe:</b> costUsd('openai/gpt-4o') → 0.00075 · costUsd('kilo/gpt-4o') → <b>null</b> · costUsd('gpt-4o') → <b>null</b><br><b>src/core/pricing-data.json:</b> 1 model, 12 lines<br><b>src/core/pricing.ts:72-82</b> rankRoutingCandidates returns input unchanged when <i>any</i> cost is null</p>
+      <p>This is honest by construction — <code>costUsd</code> refuses to invent numbers — but it means the cost column, the "saved" figures, and the price-aware routing are all inert. The README's cost claims are unbacked in practice.</p>
+      <p class="fix"><b>Fix</b>Either populate <code>pricing-data.json</code> with the IDs plugins actually advertise, or drop the price column and the ranking until it does. A one-model table that matches nothing is worse than no table: it implies a capability that silently returns null.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="sev p1">P1<i>perf</i></div>
+    <div>
+      <h4>Every request fsyncs the whole state file before it can reply <span class="id">PERF-01</span></h4>
+      <p>The account pool persists on each state change, and a state change happens on every completion — <code>recordTokenUsage</code> / <code>recordProviderUsage</code> call <code>persistState()</code> → <code>save()</code> → <code>writeAtomic()</code>, which writes, <code>fsync</code>s, and renames the full store. That synchronous disk flush runs inside the response path.</p>
+      <p>Measured on this machine, one at a time:</p>
+      <p class="ev"><b>save() alone:</b> 214, 297, 324, 302, 314, 316, 302, 211, 523, 533 ms — median <b>314 ms</b> for an 8 KB file<br><b>write+rename without fsync:</b> 0.8 ms · <b>with fsync:</b> 84.5 ms<br><b>End-to-end, one non-streaming request:</b> 825, 628, 431, 513, 417 ms<br><b>Same request with the persistence hook neutralised:</b> 1, 1, 1, 1, 1, 1 ms<br><b>20 concurrent requests:</b> 8,582 ms with persistence · <b>261 ms</b> without</p>
+      <p>So the gateway's own latency is dominated by durability bookkeeping, not by the provider. The concurrency measurement makes the second-order effect concrete: <b>20 simultaneous requests take 8,582&nbsp;ms with persistence on and 261&nbsp;ms with it off</b> — a 33× difference. Every concurrent-load test in the suite runs against that serialised fsync queue.</p>
+      <p class="fix"><b>Fix</b>Debounce state persistence — coalesce writes on a short timer (the health store already accepts a <code>debounceMs</code> argument, so the pattern exists) and flush on shutdown and on state transitions that matter (account add, cooldown, combo change). Usage counters are the bulk of the churn and are reconstructible from the ledger; they do not need per-request fsync. This is the single change with the largest measured effect on the product: ~400 ms off a serial request and ~8.3 s off a burst of twenty.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= MODERATE ======================= -->
+<section id="moderate">
+  <h2><span class="num">05</span>Moderate</h2>
+  <p class="lede">Structural debt that slows every change, plus two findings where the code reports something it does not actually do.</p>
+
+  <div class="finding">
+    <div class="sev p2">P2<i>structure</i></div>
+    <div>
+      <h4>The plugin "manifest" system has exactly one user <span class="id">ARCH-01</span></h4>
+      <p>There is a manifest type, a lifecycle registry, an adapter convention, and a JSON file — for one plugin. The other five are still hardcoded in two entrypoints, each of which repeats the same registration block. The abstraction costs more than the duplication it was meant to remove.</p>
+      <p class="ev"><b>src/plugins/manifests/</b> 1 file (opencode.json)<br><b>src/plugins/adapters/</b> 1 file, 6 lines, constructs one class<br><b>src/index.ts:22-46</b> and <b>bin/lattice.ts:58-82</b> — same hardcoded wiring, 50 shared lines<br><b>src/core/plugin-lifecycle.ts</b> 42 lines, no hook declared by any manifest (<code>"hooks": []</code>)</p>
+      <p class="fix"><b>Fix</b>Pick a direction. Either migrate the remaining five (then delete the hardcoded blocks — the manifest path is genuinely better), or delete <code>plugin-lifecycle.ts</code>, the manifest types, and the adapter folder until a second plugin needs them. The current half-state gives you the cost of both designs.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p2">P2<i>duplication</i></div>
+    <div>
+      <h4>Two entrypoints are 50 lines of copy, and one is already ahead of the other <span class="id">ARCH-02</span></h4>
+      <p><code>src/index.ts</code> and <code>bin/lattice.ts</code> both bootstrap storage, instantiate five plugins, load manifests, wire accounts, build config, serve, and install shutdown handlers. They have drifted: the banner, the port-conflict hint, and the storage path line differ.</p>
+      <p class="ev"><b>Overlap:</b> 50 of 131 bin lines appear verbatim in src/index.ts<br><b>Drift:</b> src/index.ts says <code>bun run src/index.ts --port</code>; bin says <code>lattice.exe --port</code>; src prints a hardcoded "Active Plugins" list<br><b>Neither is built:</b> bin/lattice.exe does not exist, yet both launchers prefer it when present</p>
+      <p class="fix"><b>Fix</b>Make <code>bin/lattice.ts</code> a three-line wrapper that imports and calls a single <code>startGateway()</code> exported from <code>src/index.ts</code>. One banner, one hint, one place to add a plugin.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p2">P2<i>duplication</i></div>
+    <div>
+      <h4>Five provider plugins are the same file with different constants <span class="id">ARCH-03</span></h4>
+      <p>Kilo, Nous, Cline, OpenCode, and DeepSeek each implement <code>execute</code>, <code>executeStream</code>, <code>listModels</code>, <code>healthCheck</code>, <code>probe</code>, and <code>classifyError</code> with near-identical bodies. Kilo and Nous share 392 identical lines outright — hundreds of fourteen-line windows are byte-for-byte the same. Twenty-one call sites repeat the same <code>new GatewayError(res.status, String(res.status), …)</code> idiom.</p>
+      <p class="ev"><b>Lines:</b> kilo 1128 · nous 1098 · cline 942 · opencode 918 · deepseek 915<br><b>kilo↔nous:</b> 392 shared lines · kilo↔cline 123 · nous↔deepseek 79<br><b>Error idiom:</b> 21 occurrences of <code>String(res.status)</code> as an error code</p>
+      <p class="fix"><b>Fix</b>Extract one <code>BaseHttpPlugin</code> holding the fetch/stream/error-mapping skeleton and let each provider override only URL building, headers, and response shape. That is the abstraction the manifest system promised and did not deliver. Also replace <code>String(res.status)</code> with a mapped code — a numeric string is not an error type.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p2">P2<i>correctness</i></div>
+    <div>
+      <h4>Three dialect handlers repeat the same 150-line tail <span class="id">ARCH-04</span></h4>
+      <p>Each of <code>/v1/chat/completions</code>, <code>/v1/messages</code>, and <code>/v1/responses</code> contains its own copy of prompt counting, gate, capability assertion, breaker recording, usage accounting, log broadcast, and stream-outcome bookkeeping — around 200 lines apiece. A fix to the accounting path must be made three times.</p>
+      <p class="ev"><b>src/core/router.ts</b> handlers at :162 (202 lines), :364 (201), :565 (150)<br><b>Repeated calls:</b> gateProvider ×3 · assertProviderCapabilities ×3 · countPromptTokens ×3 · recordTokenUsage ×3 · recordProviderUsage ×3 · broadcastLog ×6</p>
+      <p class="fix"><b>Fix</b>The dialect-specific part is only normalize → resolve → serialize. Everything between is one pipeline: extract <code>runDialect(handler)</code> that takes a normalizer and a serializer. This is the single highest-leverage refactor in the codebase.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p2">P2<i>correctness</i></div>
+    <div>
+      <h4>Request bodies are fully buffered before the size check can reject them <span class="id">ARCH-05</span></h4>
+      <p>The body-limit middleware drains the stream into an array to count bytes, then rebuilds a <code>Request</code>. That is correct for chunked bodies with no declared length, but it means any such request — including a large legitimate prompt — is held entirely in memory before routing begins, and the reattached body is a fresh buffer rather than the original stream.</p>
+      <p class="ev"><b>src/core/server.ts:81-112</b> reader.read() loop → Uint8Array concat → new Request<br><b>Trigger:</b> <code>declared === 0</code> — i.e. no <code>Content-Length</code>, which is the normal shape of a chunked upload</p>
+      <p class="fix"><b>Fix</b>The size ceiling is right; the cost is the copy. Stop reading at <code>maxBytes</code> (already done) and, where the dialect permits, stream-parse instead of concatenating. At minimum, document that this middleware defeats request streaming, since the project's own README advertises streaming as a core property.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p2">P2<i>honesty</i></div>
+    <div>
+      <h4>The README documents a command that does not exist <span class="id">DOC-01</span></h4>
+      <p>Section 10 tells the reader to run <code>bun run why &lt;request-id&gt;</code> to trace a request. There is no such script. <code>buildReceipt</code> exists and is tested, but nothing wires it to a CLI, so the receipt capability is unreachable from the documented interface.</p>
+      <p class="ev"><b>package.json scripts:</b> start, dev, test, test:unit, test:coverage, build, typecheck, check:dashboard, conformance, verify — no <code>why</code><br><b>bun run why →</b> error: Script not found "why"<br><b>src/core/receipt.ts</b> exported, only called from tests/unit/receipt.test.ts</p>
+      <p class="fix"><b>Fix</b>Add the script (a 15-line file that reads the ledger, finds the ID, prints the receipt) or remove the paragraph. A documented interface that errors on use is worse than no interface.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="sev p2">P2<i>hygiene</i></div>
+    <div>
+      <h4>Token comparison is not constant-time <span class="id">SEC-03</span></h4>
+      <p>The bearer check compares strings with <code>!==</code>. On a loopback-bound gateway this is a low practical risk, but the tokens are the only thing between the admin API and any local process, and the fix is one function.</p>
+      <p class="ev"><b>src/core/server.ts:142</b> if (missingAdminToken || provided !== required)<br><b>timingSafeEqual uses in src:</b> 0</p>
+      <p class="fix"><b>Fix</b>Compare SHA-256 digests with <code>crypto.timingSafeEqual</code>. Hashing first also removes the length side-channel.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= LOW ======================= -->
+<section id="low">
+  <h2><span class="num">06</span>Low &amp; hygiene</h2>
+  <p class="lede">Small, mechanical, and safe to batch into one cleanup commit.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Where</th><th>What</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="num">HYG-01</td><td class="mono">src/core/router.ts:24<br>src/plugins/combo.ts:19</td>
+          <td>Imports <code>estimatePromptTokens</code> and never calls it — dead import in two files.</td>
+          <td>Delete both imports, or delete <code>token-estimator.ts</code> if nothing else uses it (108 lines duplicating the real tokenizer at 4 chars/token).</td>
+        </tr>
+        <tr>
+          <td class="num">HYG-02</td><td class="mono">src/utils/token-estimator.ts</td>
+          <td>108 lines reimplementing token counting at 4 chars/token while <code>token-counter.ts</code> does real BPE. Two sources of truth for the same number.</td>
+          <td>Keep the tokenizer, delete the estimator. Its only consumer is a test.</td>
+        </tr>
+        <tr>
+          <td class="num">HYG-03</td><td class="mono">admin-router.ts:154,429,538,950<br>dashboard-ui.ts:3823<br>harness-manager.ts:56,642<br>kilo.ts:1095 · nous.ts:1072</td>
+          <td>Nine empty <code>catch {}</code> blocks. Several are defensible (log-subscriber fan-out, base64 JWT decode, best-effort cleanup); the two plugin <code>probe</code> bodies swallow a model-sync failure and silently report the stale curated count.</td>
+          <td>Log at debug level in the probe cases. Keep the fan-out ones silent but mark them with a one-line reason.</td>
+        </tr>
+        <tr>
+          <td class="num">HYG-04</td><td class="mono">root</td>
+          <td>Audit artifacts accumulate in the repo root: two <em>tracked</em> reports (<code>LATTICE_AUDIT.html</code> 59&nbsp;KB, <code>LATTICE_GATEWAY_REPORT.html</code> 112&nbsp;KB), two untracked HTML reports, a re-verification write-up, and <code>crush_model_report.md</code>. Nearly half a megabyte of stale reports beside the source.</td>
+          <td>Move to <code>docs/audits/</code> and stop tracking generated reports, or delete. They are output, not source, and they will rot.</td>
+        </tr>
+        <tr>
+          <td class="num">HYG-05</td><td class="mono">src/admin/dashboard-ui.ts</td>
+          <td>4,650 lines holding a 165 KB HTML body and a 112 KB inline script inside a TypeScript template literal. The escaping fragility this creates is real enough that a dedicated guard script exists for it.</td>
+          <td>Move the shell to a real <code>.html</code> asset and serve it with the nonce injected. Deletes the escaping problem and the guard script with it.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Also worth a line: <code>SECURITY.md</code> says the store "has been shipping" with live tokens and that they exist in git history. I checked — <code>git log --all -- data/lattice-store.json</code> returns nothing and <code>git rev-list --all --objects -- data</code> is empty. The history is clean; the risk is forward-looking (SEC-01), not retroactive. The advisory should be corrected so it does not send an operator to rotate tokens unnecessarily, and so the real gap gets the attention.</p>
+</section>
+
+<!-- ======================= STRENGTHS ======================= -->
+<section id="strengths">
+  <h2><span class="num">07</span>What holds up</h2>
+  <p class="lede">These were tested, not assumed. They are the reason the verdict is "sound core" rather than "rewrite".</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Property</th><th>How it was verified</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Atomic, durable store</strong></td><td>Three rounds of <code>SIGKILL</code> two milliseconds into a 120k-account write: store parsed as valid every time, corrupt load quarantined and refused to start rather than silently resetting. This is the fix that most projects get wrong.</td></tr>
+        <tr><td><strong>Dashboard injection defence</strong></td><td>Nonce-only CSP with no <code>unsafe-inline</code>, verified live: <code>script-src 'nonce-…'</code>, <code>object-src 'none'</code>, <code>frame-ancestors 'none'</code>. Adversarial test confirms a raw payload does not reach the grid unescaped.</td></tr>
+        <tr><td><strong>SSRF guard on upstream URLs</strong></td><td>Blocks decimal/octal/hex IPv4 aliasing, IPv4-mapped IPv6, link-local 169.254, private ranges, and HTTPS→HTTP downgrade on redirect. Adversarial redirect to the metadata endpoint was refused with zero target hits.</td></tr>
+        <tr><td><strong>Origin guard without a loopback loophole</strong></td><td>Live request with a foreign <code>Origin</code> returned 403 on both <code>/healthz</code> and <code>/v1/models</code>. No implicit localhost exemption, which is the usual mistake.</td></tr>
+        <tr><td><strong>Auth boundaries</strong></td><td>The admin shell is public (it is static HTML); every admin data API returns 401 without the token, verified live. <code>/v1/*</code> requires the gateway token.</td></tr>
+        <tr><td><strong>Dialect conformance</strong></td><td>12/12 fixtures pass across OpenAI Chat, Anthropic Messages, and OpenAI Responses, covering tools, thinking, SSE ordering, error frames, and client abort. Reproducible byte-for-byte.</td></tr>
+        <tr><td><strong>Stream abort is immediate</strong></td><td>A direct probe shows abort surfacing in <b>0&nbsp;ms</b> with the upstream <code>AbortController</code> firing. Abort handling is genuinely correct; the slow abort tests measure per-request setup cost (PERF-01) and the harness shim (TEST-01), not a hang.</td></tr>
+        <tr><td><strong>Circuit breaker semantics</strong></td><td>5xx/timeout/network count; 4xx and caller aborts do not; the half-open probe is single-flight and cancelled on ambiguous outcomes. Adversarial test: opens at threshold, blocks calls, then recovers.</td></tr>
+        <tr><td><strong>Secret-store separation for imported accounts</strong></td><td><code>moveSecretsToStore</code> strips credential keys before persistence and the resolver overlays them at use time; imported and manually-added accounts keep only metadata in the store. <em>Caveat:</em> OAuth-added accounts still carry <code>accessToken</code>/<code>refreshToken</code> there by design, which is why SEC-01 matters.</td></tr>
+        <tr><td><strong>Zero TODO/FIXME debt</strong></td><td>No <code>TODO</code>, <code>FIXME</code>, <code>XXX</code>, or <code>HACK</code> anywhere in <code>src</code>, and no stray <code>console.log</code>. Rare and worth keeping.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ======================= PLAN ======================= -->
+<section id="plan">
+  <h2><span class="num">08</span>Ordered plan</h2>
+  <p class="lede">Sequenced by risk retired per unit of effort. Steps 1–2 are pre-commit; the rest can be scheduled.</p>
+
+  <ol class="steps">
+    <li><b>Close the credential-file pattern gap</b><span>Ignore <code>data/lattice-store.json*</code> and regenerate the full suffix list from every write path. Verify with <code>git status --untracked-files=all data</code> showing nothing.</span><em>Retires SEC-01 · minutes</em></li>
+    <li><b>Make the ledger honour DATA_DIR</b><span>One default-path change in admin-router.ts. Stops tests writing to real telemetry and makes the data dir movable as one unit.</span><em>Retires SEC-02 · minutes</em></li>
+    <li><b>Debounce state persistence</b><span>Stop fsyncing the whole store per request. Coalesce on a timer, flush on shutdown and on meaningful transitions. Removes ~400&nbsp;ms from a serial request and 8.3&nbsp;s from a burst of twenty; expect several of the concurrency timeouts to clear with it.</span><em>Retires PERF-01 · hours</em></li>
+    <li><b>Wire retention</b><span>Call <code>prune()</code> after rotation and delete expired rotation files. Bounds disk and, with the checkpoint step, bounds startup.</span><em>Retires OPS-01 · ~15 lines</em></li>
+    <li><b>Fix the test harness before trusting any result</b><span>Spawn <code>process.execPath</code> instead of <code>'bun'</code>, allocate an ephemeral port instead of hardcoding 45991, and assert the port is released before the test ends. Until this is done, every "flaky" failure is suspect.</span><em>Retires TEST-01 · hours</em></li>
+    <li><b>Make the clock configurable</b><span>Pass explicit budgets as the third test argument and put <code>--timeout</code> in the <code>package.json</code> script. The <code>bunfig.toml</code> key does not work in 1.4.2.</span><em>Retires TEST-02 · hours</em></li>
+    <li><b>Checkpoint the ledger aggregates</b><span>Persist per-hour buckets; replay only newer files at boot. Startup cost becomes one retention window instead of all history.</span><em>Retires OPS-02 · half day</em></li>
+    <li><b>Resolve pricing</b><span>Populate real plugin model IDs or remove the cost column and ranking. Do not ship a table that matches nothing.</span><em>Retires DATA-01 · hours</em></li>
+    <li><b>Extract the dialect pipeline</b><span>One <code>runDialect(handler)</code> for the three handlers. Highest-leverage structural change; every future accounting fix lands once.</span><em>Retires ARCH-04 · day</em></li>
+    <li><b>Choose a plugin architecture</b><span>Finish the manifest migration for all five plugins, or delete the manifest machinery. Stop paying for both.</span><em>Retires ARCH-01/02 · day</em></li>
+    <li><b>Extract BaseHttpPlugin</b><span>Shared fetch/stream/error skeleton; providers keep only URLs, headers, response shape. Map status codes to real error types.</span><em>Retires ARCH-03 · 1–2 days</em></li>
+    <li><b>Batch the hygiene items</b><span>Dead imports, estimator, empty catches, report files, constant-time compare, the missing <code>why</code> script, and the SECURITY.md correction in one commit.</span><em>Retires SEC-03, HYG-01…05, DOC-01 · hours</em></li>
+  </ol>
+
+  <div class="callout">
+    <h5>If you only do two things</h5>
+    <p>Step 1 keeps live tokens out of a commit — that is the one that cannot wait. Step 3 is next: it is the only finding a user feels on every request, it costs 8.3 seconds on a burst of twenty, and it is very likely the reason a third of the suite times out.</p>
+  </div>
+</section>
+
+<!-- ======================= METHOD ======================= -->
+<section id="method">
+  <h2><span class="num">09</span>Method &amp; reproducibility</h2>
+  <p>Read-only audit of the working tree at <code>054059c</code> plus 86 uncommitted paths, on Bun 1.4.2 / Windows 11, 24–25 November 2026. No source file was modified. Temporary probe scripts were created and deleted; <code>bunfig.toml</code> was edited and restored to verify the timeout finding. Account and combo contents in <code>data/lattice-store.json</code> are unchanged (6 accounts, 4 combos); its <code>updatedAt</code> field was rewritten by the persistence probes and its ledger gained rows from test runs. Forty-eight leaked <code>bun</code> processes from earlier test runs were found holding loopback ports and terminated; the suite was re-run against a clean process table for the numbers quoted above.</p>
+
+  <h3>Commands run</h3>
+  <pre><code>bunx tsc --noEmit
+bun test
+bun test tests/unit
+bun test tests/audit/part4-independent.test.ts
+bun test tests/unit/request-ledger-retention.test.ts
+bun test --timeout 60000 tests/e2e/tier3-combination tests/e2e/tier4-scenarios
+bun run conformance
+bun run check:dashboard
+bun run why                              # documented, does not exist
+
+# live server, throwaway data dir, port 4599
+DATA_DIR=$TEMP/lg-audit-live PORT=4599 bun run src/index.ts
+  GET /healthz | /admin | /api/status | /v1/models | /api/telemetry
+  GET /healthz + Origin: http://evil.example      → 403
+  POST /v1/chat/completions (no token)            → 401
+
+# git exposure checks
+git status --porcelain --untracked-files=all data
+git check-ignore -v data/lattice-store.json.tmp
+git log --all -- data/lattice-store.json          # empty: history clean
+git rev-list --all --objects -- data              # empty</code></pre>
+
+  <h3>How to re-verify each P0/P1</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>ID</th><th>Reproduce</th><th>Expected after fix</th></tr></thead>
+      <tbody>
+        <tr><td class="num">SEC-01</td><td class="num">git status --untracked-files=all data</td><td>No output.</td></tr>
+        <tr><td class="num">SEC-02</td><td class="num">DATA_DIR=/tmp/x bun test tests/e2e/tier4-scenarios; wc -l data/request-ledger.ndjson</td><td>Row count unchanged.</td></tr>
+        <tr><td class="num">OPS-01</td><td class="num">bun -e "import{createLedger}from'./src/core/request-ledger';const l=createLedger('d/l.ndjson');l.prune()"</td><td>Rotated files older than retention are deleted.</td></tr>
+        <tr><td class="num">OPS-02</td><td class="num">time bun -e "import{createLedger}from'./src/core/request-ledger';createLedger('data/request-ledger.ndjson')"</td><td>Boot cost bounded regardless of history size.</td></tr>
+        <tr><td class="num">PERF-01</td><td class="num">time one request, then <code>globalAccountPool.setPersistenceHook(() =&gt; {})</code> and time again</td><td>Hundreds of ms → ~1 ms.</td></tr>
+        <tr><td class="num">TEST-01</td><td class="num">bun test; then <code>Get-NetTCPConnection -State Listen</code> and look for bun processes still bound</td><td>No listener survives the run.</td></tr>
+        <tr><td class="num">TEST-02</td><td class="num">add a 6-second sleep test, raise <code>bunfig.toml</code> <code>timeout</code> to 20000, run <code>bun test</code></td><td>Passes without a CLI flag; otherwise the budget is unconfigurable and must be passed per test.</td></tr>
+        <tr><td class="num">DATA-01</td><td class="num">bun -e "import{costUsd}from'./src/core/pricing';console.log(costUsd('kilo/gpt-4o',{promptTokens:1,completionTokens:1}))"</td><td>Non-null for models plugins actually serve, or the column is gone.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="color:var(--muted);font-size:13px;margin-top:22px">Scope limits: no live provider calls were made, so upstream behaviour is inferred from fixtures and code. Windows-only environment, so POSIX permission modes were not exercised. Architecture and hygiene findings (P2 and the HYG table) are judgements about maintenance cost, not defects; every P0 and P1 is backed by a command whose output is quoted above.</p>
+</section>
+</main>
+</div>
+
+<footer>
+  Lattice Gateway engineering audit · generated 24 November 2026 · all findings reproducible from the commands in section 09.
+</footer>
+</body>
+</html>

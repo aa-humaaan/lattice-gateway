@@ -232,6 +232,12 @@ export interface CanonicalRequest {
   };
   /** Account selected for execution; usage is charged to this id. */
   accountId?: string;
+  /**
+   * Provider that actually served the request. A virtual combo sets this to the
+   * target provider it routed to, so the router can attribute usage, the ledger
+   * and receipts to the real server instead of the combo itself.
+   */
+  servedByProviderId?: string;
 }
 
 export const CanonicalRequestSchema = z.object({
@@ -307,6 +313,8 @@ export interface CanonicalUsage {
   reasoningTokens?: number;
   cachedTokens?: number;
   cacheCreationTokens?: number;
+  /** True when the upstream omitted usage and these counts are gateway estimates. */
+  estimated?: boolean;
 }
 
 export const CanonicalUsageSchema = z.object({
@@ -316,6 +324,7 @@ export const CanonicalUsageSchema = z.object({
   reasoningTokens: z.number().int().nonnegative().optional(),
   cachedTokens: z.number().int().nonnegative().optional(),
   cacheCreationTokens: z.number().int().nonnegative().optional(),
+  estimated: z.boolean().optional(),
 });
 
 export interface CanonicalResponse {

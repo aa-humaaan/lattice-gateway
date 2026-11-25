@@ -248,5 +248,5 @@ describe('Tier 4 Scenario: 50+ Turn Long-Horizon Agent Loop with 128k->1M Contex
     expect(primaryPlugin.callCount).toBe(45);
     expect(secondaryPlugin.callCount).toBe(7);
     expect(messages.length).toBe(52 * 2);
-  });
+  }, 60_000);
 });

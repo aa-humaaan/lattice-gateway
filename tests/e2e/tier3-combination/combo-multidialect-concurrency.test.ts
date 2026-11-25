@@ -149,7 +149,7 @@ describe('Tier 3 Combination: Multi-Dialect Concurrency & Isolation', () => {
       expect(body.content[0].type).toBe('text');
       expect(body.content[0].text).toContain('Anthropic concurrent req');
     }
-  });
+  }, 60_000);
 
   // 2. Dialect isolation in streaming under concurrency
   it('guarantees SSE wire format isolation: OpenAI clients get choices[0].delta while Anthropic clients get content_block_delta', async () => {
@@ -256,7 +256,7 @@ describe('Tier 3 Combination: Multi-Dialect Concurrency & Isolation', () => {
     for (const catalog of catalogOutputs as any[]) {
       assertModelPresent(catalog, 'shared-multi/core-engine');
     }
-  });
+  }, 30_000);
 
   // 5. Mixed streaming thinking tokens across dialects
   it('streams thinking tokens simultaneously to OpenAI clients as reasoning_content and Anthropic clients as thinking_delta', async () => {

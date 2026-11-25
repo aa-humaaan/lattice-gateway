@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { redactSecrets } from '../../utils/redact';
 
 // ============================================================================
 // Error Classification & Categories
@@ -107,7 +108,7 @@ export class GatewayError extends Error {
       code = opts.code ?? 'error';
     }
 
-    super(msg);
+    super(redactSecrets(msg));
     this.name = 'GatewayError';
     this.status = status;
     this.statusCode = status;
@@ -208,7 +209,7 @@ export function toOpenAIError(error: unknown): { status: number; payload: OpenAI
     };
   }
 
-  const message = error instanceof Error ? error.message : 'Internal Server Error';
+  const message = redactSecrets(error instanceof Error ? error.message : 'Internal Server Error');
   return {
     status: 500,
     payload: {
@@ -259,7 +260,7 @@ export function toAnthropicError(error: unknown): { status: number; payload: Ant
     };
   }
 
-  const message = error instanceof Error ? error.message : 'Internal Server Error';
+  const message = redactSecrets(error instanceof Error ? error.message : 'Internal Server Error');
   return {
     status: 500,
     payload: {
@@ -274,7 +275,7 @@ export function toAnthropicError(error: unknown): { status: number; payload: Ant
 
 export function toResponsesError(error: unknown): { status: number; payload: ResponsesErrorWirePayload } {
   const code = error instanceof GatewayError ? error.code : 'internal_error';
-  const message = error instanceof Error ? error.message : 'Internal Server Error';
+  const message = redactSecrets(error instanceof Error ? error.message : 'Internal Server Error');
   const status = error instanceof GatewayError ? error.status : 500;
 
   return {

@@ -29,7 +29,9 @@ describe('F16: Standalone Packaging & Turnkey Launchers', () => {
   });
 
   // 1. Verification of CLI entrypoint presence
-  it('verifies bin/lattice.ts entrypoint exists and is configured as executable script', () => {
+  // SOURCE GUARD: shebang and imports are shipped text; the spawned-process
+  // tests below cover behavior, this one covers packaging metadata.
+  it('SOURCE GUARD: verifies bin/lattice.ts entrypoint exists and is configured as executable script', () => {
     const entrypointPath = resolve(projectRoot, 'bin', 'lattice.ts');
     expect(existsSync(entrypointPath)).toBeTrue();
 
@@ -40,7 +42,9 @@ describe('F16: Standalone Packaging & Turnkey Launchers', () => {
   });
 
   // 2. Verification of bun build --compile target in package.json
-  it('verifies package.json scripts contain standalone compilation command with lattice.exe output', () => {
+  // SOURCE GUARD: the build script is metadata for an external CLI invocation,
+  // not a function the test can call.
+  it('SOURCE GUARD: verifies package.json scripts contain standalone compilation command with lattice.exe output', () => {
     const pkgPath = resolve(projectRoot, 'package.json');
     expect(existsSync(pkgPath)).toBeTrue();
 
@@ -60,7 +64,7 @@ describe('F16: Standalone Packaging & Turnkey Launchers', () => {
     const freePort = getAvailablePort();
     const entrypointPath = resolve(projectRoot, 'bin', 'lattice.ts');
 
-    const proc = Bun.spawn(['bun', 'run', entrypointPath, '--port', String(freePort), '--host', '127.0.0.1'], {
+    const proc = Bun.spawn([process.execPath, entrypointPath, '--port', String(freePort), '--host', '127.0.0.1'], {
       cwd: projectRoot,
       env: { ...process.env, NODE_ENV: 'test' },
       stdout: 'pipe',
@@ -77,6 +81,7 @@ describe('F16: Standalone Packaging & Turnkey Launchers', () => {
     expect(body.status).toBe('ok');
 
     proc.kill();
+    await proc.exited;
   });
 
   // 4. CLI arguments handling for -p short flag
@@ -84,7 +89,7 @@ describe('F16: Standalone Packaging & Turnkey Launchers', () => {
     const freePort = getAvailablePort();
     const entrypointPath = resolve(projectRoot, 'bin', 'lattice.ts');
 
-    const proc = Bun.spawn(['bun', 'run', entrypointPath, '-p', String(freePort), '-h', '127.0.0.1'], {
+    const proc = Bun.spawn([process.execPath, entrypointPath, '-p', String(freePort), '-h', '127.0.0.1'], {
       cwd: projectRoot,
       env: { ...process.env, NODE_ENV: 'test' },
       stdout: 'pipe',
@@ -101,6 +106,7 @@ describe('F16: Standalone Packaging & Turnkey Launchers', () => {
     expect(body.live).toBeTrue();
 
     proc.kill();
+    await proc.exited;
   });
 
   // 5. Default port 4000 configuration contract
@@ -115,7 +121,9 @@ describe('F16: Standalone Packaging & Turnkey Launchers', () => {
   });
 
   // 6. Verification of launcher scripts contract
-  it('verifies launcher specification and npm start run configuration', () => {
+  // SOURCE GUARD: package.json and launcher text are consumed by external
+  // tooling; the assertions below describe that contract, not runtime code.
+  it('SOURCE GUARD: verifies launcher specification and npm start run configuration', () => {
     const pkgPath = resolve(projectRoot, 'package.json');
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
     expect(pkg.scripts.start).toBe('bun run src/index.ts');

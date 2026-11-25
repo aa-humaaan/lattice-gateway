@@ -22,14 +22,14 @@ The repository has been shipping `data/lattice-store.json` with live OAuth acces
 
 ## Hardening that ships with this tree
 
-- The gateway token and admin token are generated locally at startup and printed once. Send them as `Authorization: Bearer <token>`.
+- The gateway token and admin token are generated on first run and persisted in `data/lattice-auth.json` (0600), so they survive restarts. Only a non-reversible SHA-256 fingerprint is printed at startup — the raw tokens are never printed. Rotate by deleting that file and restarting. Send them as `Authorization: Bearer <token>`.
 - CORS defaults to explicit loopback origins. Cross-origin browser requests carrying a foreign `Origin` are rejected.
 - OAuth status responses no longer contain account credentials.
 - The launchers no longer kill unrelated processes holding port 4000.
 - Upstream `baseUrl` values are allow-listed so a crafted account cannot turn Lattice into an internal-network proxy.
 - There is no silent local sync. The old `POST /api/accounts/sync-local` endpoint, which read two hardcoded personal paths and embedded emails in account IDs, has been removed.
-- Importing accounts is a two-step consent flow: `POST /api/accounts/import/preview` with an explicit `source` and `path` returns only provider/count redaction, then `POST /api/accounts/import/confirm` with the short-lived token actually imports. Preview never exposes tokens, emails, or raw account IDs; imported accounts get opaque random IDs.
-- Secrets are separated from account metadata in `data/lattice-secrets.json` (0600) by default. `GET /api/secrets/availability` honestly reports `file-fallback` in that mode; there is no fake keychain claim.
+- Importing accounts is a two-step consent flow: `POST /api/accounts/import/preview` with an explicit `source` and `path` returns only provider/count redaction, then `POST /api/accounts/import/confirm` with the short-lived token actually imports. `path` must resolve inside the staging directory (`data/imports/`, override with `LATTICE_IMPORT_DIR`); paths elsewhere on disk and symlinks escaping the directory are rejected. Preview never exposes tokens, emails, or raw account IDs; imported accounts get opaque random IDs.
+- Secrets are separated from account metadata in `data/lattice-secrets.json` (0600) by default. On load, any plaintext credential still stored on an account is moved into the secret store and rewritten out of `data/lattice-store.json`. `GET /api/secrets/availability` honestly reports `file-fallback` in that mode; there is no fake keychain claim.
 - With `LATTICE_SECRET_BACKEND=keychain`, secrets move to the OS store: Windows DPAPI (`os-dpapi`), macOS Keychain or Linux libsecret (`keychain`). A probe must pass before that label is reported; failures fall back to the 0600 file.
 
 ## Reporting

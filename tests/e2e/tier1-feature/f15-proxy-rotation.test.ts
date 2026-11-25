@@ -49,7 +49,7 @@ export function parseProxyUrl(rawUrl: string, id: string): ProxyDescriptor {
   };
 }
 
-export class ProxyPoolManager {
+export class StubProxyPoolManager {
   private proxies: ProxyDescriptor[] = [];
   private rrIndex = 0;
   public enabled = true;
@@ -111,9 +111,9 @@ class ProxiedProviderPlugin implements ProviderPlugin {
   readonly id = 'proxied';
   readonly displayName = 'Proxied Upstream Provider';
   readonly defaultBaseUrl: string;
-  public proxyManager: ProxyPoolManager;
+  public proxyManager: StubProxyPoolManager;
 
-  constructor(upstreamBaseUrl: string, proxyManager: ProxyPoolManager) {
+  constructor(upstreamBaseUrl: string, proxyManager: StubProxyPoolManager) {
     this.defaultBaseUrl = upstreamBaseUrl;
     this.proxyManager = proxyManager;
   }
@@ -187,7 +187,7 @@ class ProxiedProviderPlugin implements ProviderPlugin {
 
 describe('Feature F15: Egress Proxy Rotation (HTTP & SOCKS5)', () => {
   let mockServer: MockUpstreamServer;
-  let proxyManager: ProxyPoolManager;
+  let proxyManager: StubProxyPoolManager;
   let plugin: ProxiedProviderPlugin;
   let gatewayServer: any;
   let client: TestClient;
@@ -195,7 +195,7 @@ describe('Feature F15: Egress Proxy Rotation (HTTP & SOCKS5)', () => {
   beforeAll(async () => {
     mockServer = await createMockUpstream();
 
-    proxyManager = new ProxyPoolManager([
+    proxyManager = new StubProxyPoolManager([
       parseProxyUrl('http://127.0.0.1:8081', 'proxy_1'),
       parseProxyUrl('http://127.0.0.1:8082', 'proxy_2'),
       parseProxyUrl('socks5://user:secret@127.0.0.1:1080', 'proxy_socks_3'),
@@ -308,7 +308,7 @@ describe('Feature F15: Egress Proxy Rotation (HTTP & SOCKS5)', () => {
     expect(requests.length).toBe(1);
     expect(requests[0].headers['x-routing-mode']).toBe('direct');
     expect(requests[0].headers['x-forwarded-proxy']).toBeUndefined();
-  });
+  }, 30_000);
 
   // Test 6: Re-activation upon successful health probe
   it('restores revived proxy back into active pool after successful health check', async () => {

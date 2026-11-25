@@ -165,7 +165,9 @@ describe('Milestone M1 — Comprehensive Verification Suite', () => {
         expect(typeof json.stats.totalPromptTokens).toBe('number');
         expect(typeof json.stats.totalCompletionTokens).toBe('number');
         expect(typeof json.stats.totalCachedTokens).toBe('number');
-        expect(typeof json.stats.totalCostSaved).toBe('number');
+        // Cost fields are null until a priced model reports usage — never a guessed 0.
+        expect(json.stats.totalCostUsd).toBeNull();
+        expect(json.stats.totalCostSaved).toBeNull();
         expect(json.providers).toBeDefined();
       }
     });

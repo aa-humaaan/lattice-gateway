@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { LatticeStorage, STORE_SCHEMA_VERSION } from '../../src/pool/storage';
 import { globalAccountPool } from '../../src/pool/account-pool';
+import { createFileSecretStore } from '../../src/core/secret-store';
 
 function withDir(run: (dir: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), 'lattice-atomic-'));
@@ -109,6 +110,44 @@ describe('P0-1: durable store', () => {
         const backups = readdirSync(dir).filter((f) => f.includes('.backup-'));
         expect(backups.length).toBe(1);
         expect(readFileSync(join(dir, backups[0]), 'utf8')).toBe(original);
+      } finally {
+        globalAccountPool.deleteAccount(id);
+      }
+    });
+  });
+
+  it('SEC-04: a v1 store moves plaintext tokens into the secret store and keeps them off disk', () => {
+    withDir((dir) => {
+      const file = join(dir, 'lattice-store.json');
+      const id = 'acc_legacy_plaintext';
+      const secrets = createFileSecretStore(join(dir, 'lattice-secrets.json'));
+      writeFileSync(file, JSON.stringify({
+        schemaVersion: 1,
+        accounts: [{
+          ...account(id),
+          credentials: {
+            accessToken: 'LEGACY_ACCESS_TOKEN_XYZ',
+            refreshToken: 'LEGACY_REFRESH_TOKEN_XYZ',
+            email: 'legacy@example.com',
+          },
+          legacyQuota: 42,
+        }],
+        combos: [], proxies: [], updatedAt: 1,
+      }));
+
+      new LatticeStorage(dir, secrets);
+      try {
+        expect(secrets.get(id, 'accessToken')).toBe('LEGACY_ACCESS_TOKEN_XYZ');
+        expect(secrets.get(id, 'refreshToken')).toBe('LEGACY_REFRESH_TOKEN_XYZ');
+        const stored = JSON.parse(readFileSync(file, 'utf8'));
+        expect(stored.schemaVersion).toBe(STORE_SCHEMA_VERSION);
+        expect(readFileSync(file, 'utf8')).not.toContain('LEGACY_ACCESS_TOKEN_XYZ');
+        expect(readFileSync(file, 'utf8')).not.toContain('LEGACY_REFRESH_TOKEN_XYZ');
+        const acc = globalAccountPool.getAccount(id)!;
+        expect(acc.credentials.accessToken).toBeUndefined();
+        expect(acc.credentials.refreshToken).toBeUndefined();
+        expect(acc.credentials.email).toBe('legacy@example.com');
+        expect((acc.credentials as any).customData?.secretBacked).toBe(true);
       } finally {
         globalAccountPool.deleteAccount(id);
       }

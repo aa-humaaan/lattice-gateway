@@ -1,0 +1,29 @@
+{
+  "name": "error-chat",
+  "dialect": "openai-chat",
+  "feature": "error",
+  "request": { "model": "test", "messages": [{ "role": "user", "content": "fail" }] },
+  "canonicalExpect": { "model": "test", "messages.0.role": "user" },
+  "response": {
+    "id": "chat_error",
+    "model": "test",
+    "created": 1,
+    "content": [],
+    "stopReason": "error",
+    "usage": { "promptTokens": 1, "completionTokens": 0, "totalTokens": 1 }
+  },
+  "responseExpect": { "object": "chat.completion", "choices.0.finish_reason": "error" },
+  "streamEvents": [
+    { "type": "stream_start", "id": "chat_error", "model": "test", "created": 1 },
+    {
+      "type": "stream_error",
+      "error": { "code": "server_error", "message": "upstream failed", "type": "api_error" }
+    }
+  ],
+  "streamExpectEvents": [
+    { "type": "chat.completion.chunk", "fields": { "object": "chat.completion.chunk", "choices.0.delta.role": "assistant" } },
+    { "type": "error", "fields": { "error.code": "server_error", "error.message": "upstream failed", "error.type": "api_error" } },
+    { "type": "[DONE]" }
+  ],
+  "streamStatus": "passed"
+}

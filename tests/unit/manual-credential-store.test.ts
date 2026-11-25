@@ -29,7 +29,7 @@ describe('SEC-04: store permissions and manual credential handling', () => {
     }
   });
 
-  it('writes lattice-store.json with owner-only permissions', () => {
+  it('writes lattice-store.json with owner-only permissions (SOURCE GUARD on win32)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lattice-mode-'));
     try {
       const storage = new LatticeStorage(dir);
@@ -40,6 +40,8 @@ describe('SEC-04: store permissions and manual credential handling', () => {
       if (process.platform !== 'win32') {
         expect(statSync(file).mode & 0o777).toBe(0o600);
       } else {
+        // SOURCE GUARD: Windows does not report POSIX mode bits, so the guard
+        // checks the shipped storage source instead of the file metadata.
         const src = readFileSync('src/pool/storage.ts', 'utf8');
         expect(src).toContain('mode: 0o600');
         expect(src).toContain('chmodSync');

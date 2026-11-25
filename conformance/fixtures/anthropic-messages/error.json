@@ -1,0 +1,25 @@
+{
+  "name": "error-anthropic",
+  "dialect": "anthropic-messages",
+  "feature": "error",
+  "request": { "model": "test", "max_tokens": 16, "messages": [{ "role": "user", "content": "fail" }] },
+  "canonicalExpect": { "model": "test", "messages.0.role": "user" },
+  "response": {
+    "id": "msg_error",
+    "model": "test",
+    "created": 1,
+    "content": [],
+    "stopReason": "error",
+    "usage": { "promptTokens": 1, "completionTokens": 0, "totalTokens": 1 }
+  },
+  "responseExpect": { "type": "message", "stop_reason": "error" },
+  "streamEvents": [
+    { "type": "stream_start", "id": "msg_error", "model": "test", "created": 1 },
+    { "type": "stream_error", "error": { "type": "api_error", "message": "upstream failed" } }
+  ],
+  "streamExpectEvents": [
+    { "type": "message_start", "fields": { "type": "message_start", "message.id": "msg_error" } },
+    { "type": "error", "fields": { "type": "error", "error.type": "api_error", "error.message": "upstream failed" } }
+  ],
+  "streamStatus": "passed"
+}

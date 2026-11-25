@@ -19,7 +19,7 @@ function withFixture(run: (dir: string, file: string) => void) {
 describe('consentful account import', () => {
   test('preview reveals counts and providers but no secrets, emails or raw IDs', () => {
     withFixture((dir, file) => {
-      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')));
+      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')), 60_000, dir);
       const preview = manager.preview('jsonAccounts', file);
       const body = JSON.stringify(preview);
       expect(preview.count).toBe(2);
@@ -34,7 +34,7 @@ describe('consentful account import', () => {
   test('confirm writes opaque-ID accounts and stores secrets out of the preview', () => {
     withFixture((dir, file) => {
       const secrets = createFileSecretStore(join(dir, 'secrets.json'));
-      const manager = createImportManager(secrets);
+      const manager = createImportManager(secrets, 60_000, dir);
       const preview = manager.preview('jsonAccounts', file);
       const result = manager.confirm(preview.token);
       expect(result.count).toBe(2);
@@ -53,7 +53,7 @@ describe('consentful account import', () => {
 
   test('a confirm token is single-use', () => {
     withFixture((dir, file) => {
-      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')));
+      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')), 60_000, dir);
       const preview = manager.preview('jsonAccounts', file);
       manager.confirm(preview.token);
       expect(() => manager.confirm(preview.token)).toThrow(/token/);
@@ -64,7 +64,7 @@ describe('consentful account import', () => {
 
   test('a tampered token is rejected and an expired token is rejected', () => {
     withFixture((dir, file) => {
-      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')), 0);
+      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')), 0, dir);
       const preview = manager.preview('jsonAccounts', file);
       expect(() => manager.confirm(`${preview.token}tampered`)).toThrow(/token/);
       expect(() => manager.confirm(preview.token)).toThrow(/expired/);
@@ -73,7 +73,7 @@ describe('consentful account import', () => {
 
   test('unknown source and a path that was never previewed are rejected', () => {
     withFixture((dir, file) => {
-      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')));
+      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')), 60_000, dir);
       expect(() => manager.preview('unknownSource' as any, file)).toThrow(/source/);
       expect(() => manager.preview('jsonAccounts', join(dir, 'does-not-exist.json'))).toThrow(/path/);
       expect(() => manager.confirm('never-issued')).toThrow(/token/);
@@ -82,8 +82,23 @@ describe('consentful account import', () => {
 
   test('preview reads only operator-supplied paths, never implicit hardcoded locations', () => {
     withFixture((dir, file) => {
-      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')));
+      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')), 60_000, dir);
       expect(() => manager.preview('jsonAccounts', undefined as any)).toThrow(/path/);
+    });
+  });
+
+  test('SEC-08: an absolute path outside the allow-listed directory is rejected', () => {
+    withFixture((dir) => {
+      const manager = createImportManager(createFileSecretStore(join(dir, 'secrets.json')), 60_000, dir);
+      const outside = join(tmpdir(), `lattice-outside-${Date.now()}.json`);
+      writeFileSync(outside, JSON.stringify({ accounts: [{ provider: 'private-provider-XYZ' }] }));
+      try {
+        expect(() => manager.preview('jsonAccounts', outside)).toThrow(/allow-listed directory/);
+        expect(() => manager.preview('jsonAccounts', join(dir, '..', 'lattice-outside-escape.json')))
+          .toThrow(/allow-listed directory/);
+      } finally {
+        rmSync(outside, { force: true });
+      }
     });
   });
 });

@@ -12,7 +12,9 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe('clean slate', () => {
+// SOURCE GUARD: removal of the retired aggregator and of hard-coded operator
+// data is a property of shipped source text; no runtime API reports it.
+describe('SOURCE GUARD: clean slate', () => {
   test('FreeLLMAPI plugin file is gone', () => {
     expect(existsSync('src/plugins/freellmapi.ts')).toBeFalse();
   });

@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en" data-type="software" data-radius="sharp" data-ground="forest">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0f1f10">
+<meta name="page-type" content="software">
+<meta name="site-kind" content="software">
+<meta name="description" content="A working-tree study of the Lattice gateway: architecture, plugin seam, verification and the path to automatic provider plugins.">
+<title>Lattice Gateway, Deep Research Report</title>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;500;600&family=Chivo+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1f10; --surface:#162a17; --ink:#ffffff; --muted:#9aa39a;
+  --line:rgba(255,255,255,.14); --line-2:rgba(198,241,157,.45);
+  --accent:#c6f19d; --accent-ink:#0f1f10;
+  --sans:'Chivo',system-ui,sans-serif; --mono:'Chivo Mono',ui-monospace,Consolas,monospace;
+  --gutter:20px; --nav-h:44px;
+}
+*{box-sizing:border-box}
+html{margin:0;scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 16px)}
+body{margin:0;padding-top:var(--nav-h);background:var(--bg);color:var(--ink);font:400 15px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:3px;transition:text-decoration-color .2s ease,color .2s ease}
+a:hover{color:#e2ffc8;text-decoration-color:var(--accent)}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}
+.skip-link{position:absolute;left:-9999px;top:0;z-index:30;background:var(--accent);color:var(--accent-ink);padding:10px 16px}
+.skip-link:focus{left:12px;top:12px}
+.topbar{position:fixed;inset:0 0 auto 0;height:var(--nav-h);z-index:20;display:flex;align-items:center;gap:10px;padding:0 var(--gutter);background:var(--bg);border-bottom:1px solid var(--line)}
+.topbar__mark{flex:0 0 auto;width:24px;height:24px;border:1px solid var(--accent);border-radius:2px;display:grid;place-items:center;font:600 10px var(--mono);color:var(--accent)}
+.topbar__title{font:500 12px var(--sans);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar__meta{display:none}
+code,pre,.mono,.path{font-family:var(--mono)}
+code{font-size:.84em;color:#dcf5cd;border:1px solid var(--line);border-radius:2px;padding:1px 4px}
+pre{background:#0b170c;border:1px solid var(--line);border-left:2px solid var(--accent);border-radius:2px;padding:12px;overflow:auto;font-size:11px;line-height:1.55;margin:14px 0;color:#d8e8d4}
+pre code{border:0;padding:0;color:inherit}
+h1,h2,h3,h4{font-weight:400;margin:0;letter-spacing:-.02em}
+h1{font:500 clamp(38px,11vw,60px)/.98 var(--sans);letter-spacing:-.04em;margin:14px 0 16px;max-width:14ch}
+h2{font:500 clamp(25px,7vw,34px)/1.1 var(--sans);display:flex;align-items:center;gap:12px}
+h3{font:600 16px/1.4 var(--sans);margin:32px 0 10px}
+h4{font:600 11.5px/1.4 var(--sans);margin:0 0 6px;color:var(--accent)}
+.num{flex:0 0 auto;width:26px;height:26px;border:1px solid var(--accent);border-radius:2px;display:grid;place-items:center;font:500 10px var(--mono);color:var(--accent)}
+p{margin:10px 0;max-width:70ch}
+ul,ol{padding-left:20px;margin:10px 0}
+li{margin:5px 0}
+strong{color:#fff;font-weight:600}
+.layout{display:block;max-width:1360px;margin:0 auto;padding:0 var(--gutter) 48px}
+nav{display:flex;gap:18px;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;margin:0 calc(var(--gutter) * -1);padding:9px var(--gutter);border-bottom:1px solid var(--line-2);font-size:12px}
+nav h5{display:none}
+nav a{flex:0 0 auto;color:var(--muted);text-decoration:none;padding:3px 0}
+nav a:hover,nav a.active{color:var(--ink);text-decoration:none}
+nav a.active{border-bottom:1px solid var(--accent)}
+main{min-width:0;display:block}
+.hero{padding:28px 0 32px;border-bottom:1px solid var(--line-2)}
+.hero__eyebrow{font:500 10px/1.4 var(--mono);letter-spacing:.05em;color:var(--accent)}
+.hero__sub{font-size:16px;line-height:1.6;color:#e6f3e2;max-width:62ch;margin:0 0 24px}
+.hero__grid{display:grid;grid-template-columns:1fr;gap:24px}
+.hero__facts{display:grid;gap:10px;margin:0}
+.hero__facts div{border-top:1px solid var(--line);padding-top:8px;display:grid;grid-template-columns:1fr;gap:2px}
+.hero__facts dt{font:500 10px var(--mono);color:var(--muted)}
+.hero__facts dd{margin:0;font-size:13px;color:var(--ink)}
+.hero__visual{border:1px solid var(--line);border-radius:2px;background:var(--surface);padding:10px}
+.hero__visual svg{display:block;width:100%;height:auto}
+.hero__visual .wire{fill:none;stroke:var(--line-2);stroke-width:1}
+.hero__visual .node-box{fill:#0b170c;stroke:var(--accent);stroke-width:1}
+.hero__visual .node-label{fill:#fff;font:500 9px var(--mono)}
+.hero__visual .pulse{fill:var(--accent)}
+.hero__visual .ghost{fill:none;stroke:rgba(198,241,157,.16);stroke-width:1}
+section{padding:32px 0 44px;border-bottom:1px solid var(--line);scroll-margin-top:calc(var(--nav-h) + 16px)}
+section>h2{margin:0 0 20px}
+.lead{font-size:16px;line-height:1.6;color:#e6f3e2;max-width:68ch}
+.note{border-top:1px solid var(--line-2);padding:14px 0 2px;margin:22px 0}
+.note p,.note ul{margin:6px 0}
+.grid{display:grid;grid-template-columns:1fr;gap:20px;margin:18px 0}
+.stat{border-top:1px solid var(--line);padding-top:10px}
+.stat b{display:block;font:500 25px/1.1 var(--sans);color:var(--accent)}
+.stat span{font-size:11px;color:var(--muted)}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:12.5px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+th,td{border:0;border-bottom:1px solid var(--line);padding:9px 14px 9px 0;text-align:left;vertical-align:top;white-space:normal}
+th{font:600 10px/1.4 var(--mono);color:var(--accent);border-bottom:1px solid var(--line-2)}
+td{color:#dbe9d7}
+.badge{font:400 10px/1.4 var(--mono);color:var(--muted)}
+.badge::before{content:'—';margin-right:5px;color:var(--accent)}
+.b-ok::before{content:'•'}.b-bad::before{content:'×'}
+details{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0;margin:16px 0}
+summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.flow{display:grid;margin:18px 0}
+.flow .node{border-left:1px solid var(--line-2);padding:8px 0 8px 14px}
+.flow .node b{display:inline;font:500 10px/1.5 var(--mono);color:var(--accent);margin-right:8px}
+.flow .node span{font-size:12.5px;color:var(--muted)}
+.flow .arrow{display:none}
+.path{font-size:10.5px;color:#b9d4b3;word-break:break-word}
+.ref{font:10.5px var(--mono);color:var(--muted)}
+.small{font-size:12px;color:var(--muted)}
+.kbd{font:400 10px var(--mono);border:1px solid var(--line);border-radius:2px;padding:2px 5px}
+footer{max-width:1360px;margin:0 auto;padding:0 var(--gutter) 36px;color:var(--muted);font-size:11px;border-top:1px solid var(--line)}
+dl{margin:12px 0}
+dt{font-weight:600;color:var(--ink);margin-top:12px}
+dd{margin:2px 0 0;color:var(--muted)}
+@media(min-width:600px){
+  :root{--gutter:28px}
+  .topbar__title{font-size:13px}
+  h1{font-size:clamp(52px,7vw,72px);max-width:16ch}
+  .grid.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hero__facts div{grid-template-columns:120px 1fr;gap:12px}
+  .hero__facts dd{font-size:14px}
+  .hero__visual{padding:14px}
+  pre{font-size:12px;padding:14px}
+  table{font-size:13.5px}
+}
+@media(min-width:1000px){
+  :root{--gutter:56px;--nav-h:48px}
+  .topbar__meta{display:block;margin-left:auto;font:400 11px var(--mono);color:var(--muted)}
+  .layout{display:grid;grid-template-columns:232px minmax(0,1fr);gap:64px;padding-top:36px}
+  nav{display:block;position:sticky;top:84px;align-self:start;white-space:normal;overflow:visible;margin:0;padding:0;font-size:13px;border:0}
+  nav h5{display:block;font:600 11px/1.4 var(--mono);color:var(--muted);margin:26px 0 8px}
+  nav a{display:block;padding:5px 0 5px 14px;border-left:1px solid var(--line)}
+  nav a.active{border-left:2px solid var(--accent);padding-left:13px;border-bottom:0}
+  .hero{padding:26px 0 48px}
+  .hero__sub{font-size:18px}
+  .hero__grid{grid-template-columns:minmax(0,1fr) minmax(280px,.85fr);gap:48px;align-items:end}
+  section{padding:52px 0 68px}
+  .lead{font-size:17px}
+  .note{padding:18px 0 4px;margin:30px 0}
+  h2{gap:16px}
+  .num{width:30px;height:30px;font-size:11px}
+  .grid{gap:28px;margin:24px 0}
+  .stat b{font-size:28px}
+  .stat span{font-size:12px}
+  pre{font-size:12.5px;padding:16px 18px}
+  table{font-size:13.5px}
+  .flow .node{padding:10px 0 10px 20px}
+  .flow .node span{font-size:13.5px}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+@media print{
+  body{padding-top:0;background:#fff;color:#111}
+  nav,.topbar,.skip-link{display:none}
+  .layout{display:block;padding:0;max-width:none}
+  section,.hero,.note,.stat{break-inside:avoid;border-color:#bbb}
+  a{color:#0645ad}
+  pre{background:#f6f6f6;border-color:#ccc;color:#111}
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><span class="topbar__mark">LG</span><span class="topbar__title">Lattice Gateway — research note</span><span class="topbar__meta">16 sections · 25 Nov 2026</span></div>
+<div class="layout">
+<nav aria-label="Report navigation">
+  <h5>Start</h5>
+  <a href="#snapshot">00 &nbsp; Snapshot and method</a>
+  <a href="#summary">01 &nbsp; Executive summary</a>
+  <a href="#truth">02 &nbsp; Which version is latest</a>
+  <h5>Understand</h5>
+  <a href="#architecture">03 &nbsp; Architecture map</a>
+  <a href="#files">04 &nbsp; Codebase atlas</a>
+  <a href="#lifecycle">05 &nbsp; Request lifecycle</a>
+  <a href="#dialects">06 &nbsp; Dialect engine</a>
+  <a href="#routing">07 &nbsp; Routing and reliability</a>
+  <a href="#security">08 &nbsp; Security and trust</a>
+  <a href="#observability">09 &nbsp; Observability and tests</a>
+  <a href="#plugins">10 &nbsp; Plugin system</a>
+  <h5>Move</h5>
+  <a href="#vision">11 &nbsp; Universal gateway vision</a>
+  <a href="#blueprint">12 &nbsp; Auto-plugin blueprint</a>
+  <a href="#risks">13 &nbsp; Risks and anti-goals</a>
+  <a href="#actions">14 &nbsp; What to move, in order</a>
+  <h5>Reference</h5>
+  <a href="#appendix">15 &nbsp; Appendix</a>
+</nav>
+<main id="main">
+<header class="hero" id="top">
+  <div class="hero__eyebrow">Engineering research note · 25 November 2026</div>
+  <h1>Lattice Gateway</h1>
+  <p class="hero__sub">The universal plugin-driven LLM gateway, studied from the working tree: where each part lives, how a request moves through it, and what it would take for the gateway to build its own plugins.</p>
+  <div class="hero__grid">
+    <dl class="hero__facts">
+      <div><dt>Source</dt><dd>Local working tree at C:\Users\adity\lattice-gateway</dd></div>
+      <div><dt>Commit</dt><dd>054059c · 24 November 2026</dd></div>
+      <div><dt>Find</dt><dd>Local HEAD sits 31 commits ahead of GitHub</dd></div>
+    </dl>
+    <div class="hero__visual" role="img" aria-label="Diagram of three client dialects feeding one core, which connects to account pools and provider plugins">
+      <svg viewBox="0 0 420 210" xmlns="http://www.w3.org/2000/svg">
+        <path class="ghost" d="M0 105H420M210 0V210"/>
+        <path class="wire" d="M70 48H150L190 88M70 105H150L190 105M70 162H150L190 122"/>
+        <rect class="node-box" x="18" y="34" width="72" height="28" rx="2"/>
+        <rect class="node-box" x="18" y="91" width="72" height="28" rx="2"/>
+        <rect class="node-box" x="18" y="148" width="72" height="28" rx="2"/>
+        <text class="node-label" x="30" y="52">CHAT</text>
+        <text class="node-label" x="30" y="109">MESSAGES</text>
+        <text class="node-label" x="30" y="166">RESPONSES</text>
+        <rect class="node-box" x="190" y="80" width="92" height="50" rx="2"/>
+        <text class="node-label" x="207" y="100">CORE</text>
+        <text class="node-label" x="207" y="116">ENGINE</text>
+        <path class="wire" d="M282 95H330L360 70M282 116H330L360 140"/>
+        <rect class="node-box" x="330" y="56" width="72" height="28" rx="2"/>
+        <rect class="node-box" x="330" y="126" width="72" height="28" rx="2"/>
+        <text class="node-label" x="341" y="74">POOLS</text>
+        <text class="node-label" x="338" y="144">PLUGINS</text>
+        <circle class="pulse" cx="150" cy="48" r="3"/><circle class="pulse" cx="150" cy="105" r="3"/><circle class="pulse" cx="150" cy="162" r="3"/>
+        <circle class="pulse" cx="330" cy="95" r="3"/><circle class="pulse" cx="330" cy="116" r="3"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<section id="snapshot">
+<h2><span class="num">00</span> Snapshot &amp; method</h2>
+<p class="lead">This report describes the <strong>working tree</strong> at <span class="path">C:\Users\adity\lattice-gateway</span>. The README and the GitHub default branch are not sources of truth here. Every claim below is tied to a file path and, where useful, a line number.</p>
+<div class="grid g3">
+  <div class="stat"><b>2026-11-25</b><span>Research date</span></div>
+  <div class="stat"><b>054059c</b><span>Local HEAD · 2026-11-24</span></div>
+  <div class="stat"><b>b094a19</b><span>GitHub origin/master · 2026-11-18</span></div>
+  <div class="stat"><b>+31 / 0</b><span>Local commits ahead / behind GitHub</span></div>
+  <div class="stat"><b>~50k</b><span>Lines of source, tests, docs, config</span></div>
+  <div class="stat"><b>727</b><span>Tests claimed in README</span></div>
+</div>
+<h3>What was inspected</h3>
+<ul>
+  <li>Every file under <span class="path">src/</span> (core, engine, plugins, pool, admin, utils, conformance), <span class="path">bin/</span>, <span class="path">scripts/</span>, <span class="path">docs/</span>, <span class="path">tests/</span>, <span class="path">conformance/</span>, <span class="path">.github/</span>.</li>
+  <li>Git history, the diff between local HEAD and the fetched GitHub remote, and the uncommitted worktree (which contains the newest plugin-manifest / lifecycle work).</li>
+  <li>Existing audit HTML reports, used only to cross-check claims and identify stale or disputed points, never copied.</li>
+</ul>
+<h3>Verification done during this research</h3>
+<pre><code>$ bun run typecheck        → clean (tsc --noEmit)
+$ bun run check:dashboard  → OK: 1 inline script(s) parse (121396 chars)
+$ git fetch origin master  → GitHub fetched; local HEAD is 31 commits ahead</code></pre>
+<div class="note info"><h4>Reading rule</h4><p>Where the README, GitHub, and worktree disagree, the <strong>worktree code wins</strong>. The report flags each disagreement explicitly.</p></div>
+</section>
+<section id="summary">
+<h2><span class="num">01</span> Executive summary</h2>
+<p class="lead">Lattice is a single local HTTP/SSE process that speaks three client dialects, routes every request through one immutable core, and delegates each upstream to a plugin. It already behaves like a universal gateway for <em>known</em> providers. It does not yet behave like a universal gateway for <em>unknown</em> providers: adding one still means writing TypeScript, wiring accounts, and editing several hard-coded lists.</p>
+<div class="grid g2">
+  <div class="note good"><h4>What is genuinely solid</h4>
+    <ul>
+      <li>One core, three ingress dialects: OpenAI Chat, Anthropic Messages, OpenAI Responses (<span class="path">src/core/router.ts</span>).</li>
+      <li>Canonical request/response model with real streaming adapters, SSE event sequence, thinking blocks, tool calls, XML-tool recovery (<span class="path">src/engine/dialect/</span>).</li>
+      <li>Fail-closed circuit breakers with single-owner probe semantics; narrow, deliberate account rotation (<span class="path">src/core/breaker.ts</span>, <span class="path">src/pool/account-pool.ts</span>).</li>
+      <li>Virtual combos with pre-content failover and post-content fail-fast, no model splicing mid-answer (<span class="path">src/plugins/combo.ts</span>).</li>
+      <li>Evidence-first model passports: Ed25519-signed, declared/discovered/measured, no invented context windows (<span class="path">src/core/model-passports.ts</span>).</li>
+      <li>Consentful imports, secret overlay, constant-time auth, nonce-only dashboard CSP, SSRF-safe fetch (<span class="path">src/core/account-import.ts</span>, <span class="path">src/core/secret-store.ts</span>, <span class="path">src/core/safe-fetch.ts</span>).</li>
+    </ul>
+  </div>
+  <div class="note warn"><h4>What is unfinished or misleading</h4>
+    <ul>
+      <li>"Zero core edits for a new provider" is only true for routing. Accounts, OAuth, admin fallbacks, harness snippets, and alias/combo catalogs are still hard-coded.</li>
+      <li>Manifest metadata (<code>modelPrefixes</code>, <code>models</code>) is decorative in production; the resolver uses <code>cachedModels</code>/<code>listModels()</code>.</li>
+      <li>No runtime plugin add/remove/reload. Discovery is a one-time directory scan at startup.</li>
+      <li><code>bun run why</code> is documented but not implemented; pricing has one row (<code>openai/gpt-4o</code>).</li>
+      <li>GitHub is 31 commits behind the local tree; a large part of the newest plugin work is uncommitted.</li>
+      <li>Auto-generated plugins would inherit undocumented conventions (canonical event names, <code>msg_</code> IDs, attribution fields, capability declarations) that a doc-scraping LLM cannot infer reliably.</li>
+    </ul>
+  </div>
+</div>
+<h3>The one-sentence verdict on your idea</h3>
+<p><strong>The destination is right; Lattice needs a plugin <em>compiler</em>.</strong> Lattice already owns the stable runtime, dialects, breaker, pools, passports, ledger. What it lacks is a declarative provider description plus a validation gate that turns "here is a website / GitHub URL" into a manifest, an adapter, credentials, and proof that the generated plugin  works. Build that inside Lattice and it becomes universal: one gateway, plugins generated on demand, verified before they ever touch a real request.</p>
+<div class="note info"><h4>How to use this report</h4><p>Sections 03–10 explain the machine as it exists. Section 11 reframes your universal-gateway idea in terms of this code. Section 12 is a concrete build blueprint, section 13 the failure modes to design against, section 14 the ordered work list.</p></div>
+</section>
+
+<section id="truth">
+<h2><span class="num">02</span> Which version is "latest"</h2>
+<p>This matters before anything else: <strong>GitHub is not the latest version of Lattice.</strong> The remote was fetched during this research. Its default branch is older than the local HEAD, which is in turn older than the dirty working tree.</p>
+<div class="flow">
+  <div class="node"><b>GitHub origin/master</b><span>b094a19 · 2026-11-18 · "fix(minors)" · 676 tests claimed</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>Local HEAD</b><span>054059c · 2026-11-24 · 31 commits ahead · scanner-based XML tool parser</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>Working tree</b><span>~80 modified + ~40 untracked files · newest plugin/manifest work</span></div>
+</div>
+<pre><code>$ git rev-list --left-right --count HEAD...origin/master
+31    0        # 31 commits ahead, 0 behind
+
+$ git log --oneline HEAD..origin/master
+(empty)         # GitHub has nothing the local repo lacks
+
+$ git status --short
+M src/core/router.ts, src/core/server.ts, src/plugins/*.ts, ...
+?? src/core/plugin-lifecycle.ts
+?? src/core/types/plugin-manifest.ts
+?? src/plugins/adapters/opencode.ts
+?? src/plugins/manifests/opencode.json
+?? src/pool/combo-policies/fast-free.json
+?? src/utils/redact.ts
+?? AUDIT_REVERIFICATION.md + 4 audit HTML reports</code></pre>
+<h3>Why the uncommitted files matter to your question</h3>
+<p>The exact machinery for plugin generation, a manifest type, a registry loader, an adapter factory, lifecycle hooks, config-from-env, a throwaway-provider test fixture, is <strong>new, uncommitted work</strong>. Anyone reading only GitHub or only the README would conclude Lattice has five hand-written plugins and no manifest path at all. The worktree already contains the first migration of a plugin (OpenCode) to a manifest + adapter, which is the seed of the idea you described.</p>
+<table>
+<thead><tr><th>Source</th><th>Sees manifest plugins?</th><th>Sees latest XML parser / breaker fixes?</th><th>Trust level for this report</th></tr></thead>
+<tbody>
+<tr><td>GitHub default branch</td><td><span class="badge b-bad">No</span></td><td><span class="badge b-bad">No</span></td><td>Historical baseline only</td></tr>
+<tr><td>Local HEAD</td><td><span class="badge b-warn">Partial</span></td><td><span class="badge b-ok">Yes</span></td><td>Committed state</td></tr>
+<tr><td><strong>Working tree</strong></td><td><span class="badge b-ok">Yes</span></td><td><span class="badge b-ok">Yes</span></td><td><strong>Source of truth here</strong></td></tr>
+</tbody>
+</table>
+<div class="note bad"><h4>Operational consequence</h4><p>Before building on this, commit or stash deliberately. A fresh clone today would silently lose the manifest loader, the adapter directory, the redaction utility, the combo policy, and the newest tests. That is a real project-risk.</p></div>
+<h3>Claims that are out of date in the README</h3>
+<ul>
+  <li><code>bun run why &lt;request-id&gt;</code>, documented, no CLI script exists. The ledger + receipt primitives exist but are unreachable from the shell.</li>
+  <li>"Adding a new provider takes zero changes to core routing", true in a narrow sense; false for accounts, OAuth, admin lists, harness catalogs, aliases and combos.</li>
+  <li>"727 automated tests", that number belongs to an earlier snapshot; the worktree has grown substantially. Treat it as a floor.</li>
+</ul>
+</section>
+<section id="architecture">
+<h2><span class="num">03</span> Architecture map</h2>
+<p class="lead">Lattice is one process, two entrypoints, and a strict split: the core owns everything that must be true for every provider; plugins own everything provider-specific.</p>
+<div class="flow">
+  <div class="node"><b>CLIENTS</b><span>Claude Code, Cursor, Windsurf, Roo-Cline, Crush, Gemini CLI, OpenCode, Kilo</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>3 DIALECTS</b><span>/v1/chat/completions · /v1/messages · /v1/responses · /v1/models</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>CORE ENGINE</b><span>normalize → affinity → resolve → breaker gate → capability gate → deadline → serialize</span></div>
+</div>
+<div class="flow">
+  <div class="node"><b>POOL LAYER</b><span>accounts, cooldowns, leases, proxies, combos, quotas, health</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>PLUGIN SEAM</b><span>ProviderPlugin + manifest + adapter + lifecycle hooks</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>UPSTREAMS</b><span>Kilo · Nous · Cline · OpenCode Zen · DeepSeek Web · arbitrary new providers</span></div>
+</div>
+<div class="flow">
+  <div class="node"><b>SIDECARS</b><span>Ed25519 passports, NDJSON ledger, receipts, pricing, admin dashboard + SSE logs</span></div>
+  <div class="arrow">↔</div>
+  <div class="node"><b>SERVER</b><span>Hono app, token auth, origin guard, CORS, body cap, nonce CSP</span></div>
+  <div class="arrow">↔</div>
+  <div class="node"><b>DISK</b><span>data/*.json, account-health.json, ledger .ndjson, data/imports/</span></div>
+</div>
+<h3>The core / plugin boundary</h3>
+<table>
+<thead><tr><th>Core owns (must be universal)</th><th>Plugin owns (provider-specific)</th><th>Where the seam is</th></tr></thead>
+<tbody>
+<tr><td>Dialect normalization + serialization; canonical event names</td><td>Upstream URL, auth, headers, body shape</td><td><span class="path">src/core/types/canonical.ts</span>, <span class="path">src/engine/dialect/</span></td></tr>
+<tr><td>Breaker gating, single-owner probes, ledger, receipts, deadlines</td><td>Error classification, retry-after parsing, cooldown reporting</td><td><span class="path">src/core/router.ts:58-81</span>, <span class="path">src/core/types/plugin.ts:89-103</span></td></tr>
+<tr><td>Account pool, leases, session affinity, passports</td><td>Account acquisition convention, pin-on-success, attribution fields</td><td><span class="path">src/pool/account-pool.ts</span>, <span class="path">src/core/session-affinity.ts</span></td></tr>
+<tr><td>Plugin discovery, enable/disable, lifecycle order</td><td><code>initialize</code>/<code>shutdown</code> bodies, health check, auth refresh</td><td><span class="path">src/plugins/registry.ts</span>, <span class="path">src/core/plugin-lifecycle.ts</span></td></tr>
+<tr><td>Combo failover policy, context-window verification</td><td>Target health signals, per-provider quirks</td><td><span class="path">src/plugins/combo.ts</span>, <span class="path">src/pool/combos.ts</span></td></tr>
+</tbody>
+</table>
+<div class="note info"><h4>Why this is the right shape for "universal"</h4><p>Everything that must remain trustworthy, protocol fidelity, failure accounting, secret handling, evidence, lives in one immutable core. Everything that changes weekly (a provider's API, headers, auth) lives in a replaceable plugin. That is exactly the seam a generator should target: generate provider-specific code, never touch the core.</p></div>
+<h3>The two entrypoints</h3>
+<pre><code>src/index.ts        source launcher: bun run start, start.ps1, start.bat
+bin/lattice.ts      compiled binary launcher: bun run build → lattice.exe
+                    extra flags: --env, --log-level
+                    both: --port/-p, --host/-h
+                    both load the SAME manifest dir and register the SAME 5 hardcoded plugins</code></pre>
+<p>The two paths are near-duplicates. Any new provider that needs account wiring must be added in both (<span class="path">src/index.ts:34-40</span>, <span class="path">bin/lattice.ts:70-76</span>), plus a third time in the admin fallback list (<span class="path">src/admin/admin-router.ts:159-179</span>). That triplication is the main structural tax on adding providers today.</p>
+</section>
+
+<section id="files">
+<h2><span class="num">04</span> Codebase atlas</h2>
+<p>~50k lines across source, tests, docs and config. The table is the map; the file references in later sections are the coordinates.</p>
+<table>
+<thead><tr><th>Area</th><th>Key files</th><th>What lives there</th></tr></thead>
+<tbody>
+<tr><td>Entrypoints</td><td><span class="path">src/index.ts</span>, <span class="path">bin/lattice.ts</span></td><td>Load store → plugins → manifests → accounts → tokens → config → lifecycle → server → Bun.serve → signal shutdown</td></tr>
+<tr><td>Core server</td><td><span class="path">src/core/server.ts</span>, <span class="path">config.ts</span>, <span class="path">auth-tokens.ts</span>, <span class="path">local-token.ts</span></td><td>Hono middleware stack, auth, CORS/origin guard, body cap, env config, token generation</td></tr>
+<tr><td>Routing</td><td><span class="path">src/core/router.ts</span>, <span class="path">breaker.ts</span>, <span class="path">safe-fetch.ts</span></td><td>Three dialect ingress handlers, provider gate, outcome recording, SSRF-safe fetch</td></tr>
+<tr><td>Dialect engine</td><td><span class="path">src/engine/dialect/normalizer.ts</span>, <span class="path">serializer.ts</span>, <span class="path">stream-adapter.ts</span>, <span class="path">xml-tool-interceptor.ts</span>, <span class="path">capabilities.ts</span>, <span class="path">forwarding.ts</span></td><td>Canonical model, protocol conversions, SSE event sequences, XML tool-call recovery, capability gate</td></tr>
+<tr><td>Types</td><td><span class="path">src/core/types/*.ts</span></td><td>Canonical/openai/anthropic/responses/plugin/plugin-manifest/errors, Zod schemas for dialects</td></tr>
+<tr><td>Plugins</td><td><span class="path">src/plugins/{kilo,nous,cline,deepseek,opencode,combo,registry,removed-aggregator}.ts</span>, <span class="path">adapters/opencode.ts</span>, <span class="path">manifests/opencode.json</span></td><td>Five upstreams + virtual combo plugin + fail-closed tombstone + first manifest migration</td></tr>
+<tr><td>Pools</td><td><span class="path">src/pool/{account-pool,combos,health-store,proxy-pool,storage}.ts</span>, <span class="path">combo-policies/fast-free.json</span></td><td>Account selection/leases/cooldowns, combo definitions, durable health, proxy rotation, atomic JSON store</td></tr>
+<tr><td>Core services</td><td><span class="path">src/core/{model-passports,passport-observation,session-affinity,credential-resolver,secret-store,account-import,request-ledger,receipt,pricing}.ts</span></td><td>Signed evidence, passive learning, hashed affinity, secret overlay, consentful import, ledger/receipts, pricing</td></tr>
+<tr><td>Admin UI</td><td><span class="path">src/admin/{admin-router,dashboard-ui,live-catalog,models-catalog,harness-manager,icons}.ts</span></td><td>~45 admin APIs, single inline-script dashboard, catalog views, 7 client harness definitions</td></tr>
+<tr><td>Utils</td><td><span class="path">src/utils/*.ts</span></td><td>Logger, redaction, model resolver, token counters, SSE parser, retry-after, deadlines, port/network errors</td></tr>
+<tr><td>Tests</td><td><span class="path">tests/unit/</span> (70+), <span class="path">tests/e2e/tier1-4/</span>, <span class="path">tests/harness/</span>, <span class="path">tests/audit/</span>, <span class="path">tests/fixtures/throwaway-provider/</span></td><td>Unit, boundary, combination, IDE-simulation, subprocess harness, adversarial re-audit, minimal example plugin</td></tr>
+<tr><td>Conformance</td><td><span class="path">src/conformance/runner.ts</span>, <span class="path">conformance/fixtures/</span>, <span class="path">scripts/run-conformance.ts</span></td><td>Network-free fixtures through real normalizers/serializers/stream adapters; deterministic results.json</td></tr>
+<tr><td>Docs</td><td><span class="path">docs/superpowers/{specs,plans}/</span>, <span class="path">TEST_INFRA.md</span>, <span class="path">SECURITY.md</span>, <span class="path">AUDIT_REVERIFICATION.md</span></td><td>Phase C spec + plans C1–C10, P1 plans, router single-owner plan, audit records</td></tr>
+</tbody>
+</table>
+<details><summary>Where to look first for each question</summary>
+<ul>
+<li><strong>How does a request get routed?</strong> <span class="path">src/core/router.ts:148-157</span> → <span class="path">src/utils/model-resolver.ts:115-179</span> → plugin.execute/executeStream.</li>
+<li><strong>How do I add a provider?</strong> <span class="path">src/core/types/plugin.ts:118-149</span>, <span class="path">src/core/types/plugin-manifest.ts:15-32</span>, <span class="path">src/plugins/registry.ts:50-79</span>, <span class="path">tests/fixtures/throwaway-provider/</span>.</li>
+<li><strong>Why did failover happen?</strong> <span class="path">src/core/receipt.ts</span>, <span class="path">src/core/request-ledger.ts</span>, <span class="path">src/core/breaker.ts</span>, <span class="path">src/pool/health-store.ts</span>.</li>
+<li><strong>What can the dashboard do?</strong> <span class="path">src/admin/admin-router.ts</span> (routes), <span class="path">src/admin/dashboard-ui.ts</span> (UI), <span class="path">src/admin/harness-manager.ts</span> (client setup).</li>
+<li><strong>What is known broken?</strong> <span class="path">AUDIT_REVERIFICATION.md:75-146</span>, <span class="path">LATTICE_GATEWAY_AUDIT_2026-11-24.html</span>, section 13 below.</li>
+</ul>
+</details>
+</section>
+
+<section id="lifecycle">
+<h2><span class="num">05</span> Request lifecycle, end to end</h2>
+<p>All three ingress dialects run the same shape of pipeline. Line numbers are given as Chat / Messages / Responses.</p>
+<table>
+<thead><tr><th>#</th><th>Step</th><th>Implementation</th><th>What can go wrong here</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>Middleware</td><td><span class="path">server.ts:45-52</span> request ID → <span class="path">:57-64</span> origin guard → <span class="path">:67-76</span> CORS → <span class="path">:82-114</span> 10 MB body cap → <span class="path">:126-158</span> token auth</td><td>Origin not allow-listed, body &gt;10 MB, missing/wrong token → fail closed</td></tr>
+<tr><td>1</td><td>Parse + normalize</td><td><span class="path">router.ts:167</span>/<span class="path">374</span>/<span class="path">580</span> → <span class="path">normalizer.ts:40</span>/<span class="path">246</span>/<span class="path">470</span></td><td>Bad JSON → 400; dialect-specific shapes become one CanonicalRequest</td></tr>
+<tr><td>2</td><td>Session key</td><td><span class="path">session-affinity.ts:30-58</span>, attached at <span class="path">router.ts:177-178</span>/<span class="path">384-385</span>/<span class="path">590-591</span></td><td>Header &gt;512 chars rejected; raw ID hashed with SHA-256, never stored</td></tr>
+<tr><td>3</td><td>Resolve provider + model</td><td><span class="path">router.ts:148-157</span> → <span class="path">model-resolver.ts:115-152</span> (60 s catalog TTL, aliases, prefix strip, retier by cost)</td><td>Unknown model → resolver error; retired <code>freellmapi/</code> prefix → 503 fail-closed</td></tr>
+<tr><td>4</td><td>Breaker gate</td><td><span class="path">router.ts:58-62</span> → <span class="path">breaker.ts:97-110</span></td><td>Open breaker → 503 <code>breaker_open</code>, plugin never called</td></tr>
+<tr><td>5</td><td>Capability gate</td><td><span class="path">capabilities.ts:19-35</span> at <span class="path">router.ts:181</span>/<span class="path">388</span>/<span class="path">594</span></td><td><code>response_format</code> or sampling fields on a plugin that did not declare them → 400 <code>unsupported_parameter</code></td></tr>
+<tr><td>6</td><td>Prompt token count</td><td><span class="path">token-counter.ts:93-133</span> at <span class="path">router.ts:185</span>/<span class="path">392</span>/<span class="path">598</span></td><td>Real BPE tokens for the prompt side</td></tr>
+<tr><td>7a</td><td>Non-stream execute</td><td><span class="path">withRequestDeadline</span> at <span class="path">router.ts:191-198</span>/<span class="path">398-405</span>/<span class="path">604-611</span></td><td>Timeout aborts upstream; error → <code>recordFailure</code>; success → <code>recordSuccess</code> + passive passport observation</td></tr>
+<tr><td>7b</td><td>Stream execute</td><td><span class="path">router.ts:249-363</span>/<span class="path">456-568</span>/<span class="path">663-774</span>: XML interceptor → idle timeout → tapped generator → SSE serializer</td><td>Only a completed stream with <code>stream_end</code> and 200 counts as success; client abort records nothing; <code>stream_error</code> records failure</td></tr>
+<tr><td>8</td><td>Account selection</td><td><strong>Inside the plugin</strong>: <span class="path">account-pool.ts:128-181</span> called by kilo/cline/nous/deepseek; combo selects virtual targets</td><td>Router does not pick accounts; plugin must set <code>req.accountId</code>/<code>servedByProviderId</code> or usage is misattributed</td></tr>
+<tr><td>9</td><td>Ledger + log + bill</td><td><span class="path">router.ts:209-238</span>/<span class="path">416-447</span>/<span class="path">622-652</span> → <span class="path">admin-router.ts:121-157</span></td><td>Usage estimated when upstream did not report or client aborted; cost null unless price is known</td></tr>
+</tbody>
+</table>
+<div class="note good"><h4>Single-owner breaker rule (newest work)</h4><p>The router is the only request-level gate and recorder. It calls <code>gateProvider()</code> but deliberately does <strong>not</strong> call <code>beginAttempt()</code> (<span class="path">router.ts:58-62</span>). The allocator that owns the probe calls <code>beginAttempt()</code> and the release closure calls <code>cancelProbe()</code> (<span class="path">account-pool.ts:167-179</span>); the combo plugin keeps its own target recording with <code>finally { cancelProbe() }</code> (<span class="path">combo.ts:266-268</span>). This prevents a half-open probe from being wedged or double-counted. Plan: <span class="path">docs/superpowers/plans/2026-11-24-router-breaker-single-owner.md</span>.</p></div>
+<h3>What counts as a provider-health failure</h3>
+<p><span class="path">breaker.ts:38-67</span>: 5xx statuses, <code>TimeoutError</code>, network codes (<code>ECONNRESET</code>, <code>ENOTFOUND</code>, <code>ETIMEDOUT</code>, …), and messages matching network/timeout patterns. Never counted: aborts (by name or code), and <strong>all 4xx including 429</strong>. Backoff: <code>min(30s, 1s · 2^(n−1))</code> + 20% jitter; after the wait, <code>allow()</code> becomes true and one probe at a time is admitted.</p>
+</section>
+<section id="dialects">
+<h2><span class="num">06</span> The dialect engine</h2>
+<p class="lead">Three client protocols in, one canonical model in the middle, three protocol-shaped outputs out. This is the part of Lattice that makes it usable by real IDE agents without changing them.</p>
+<h3>Translation matrix</h3>
+<table>
+<thead><tr><th>Client endpoint</th><th>Normalizer</th><th>Wire schema</th><th>Notable conversions</th></tr></thead>
+<tbody>
+<tr><td><code>POST /v1/chat/completions</code></td><td><span class="path">normalizer.ts:40-241</span></td><td><span class="path">types/openai.ts:134-165</span></td><td>System messages kept and concatenated; <code>reasoning_content</code> → thinking; tool calls JSON-parsed when possible; images data-URI → base64 part, URL → url part</td></tr>
+<tr><td><code>POST /v1/messages</code></td><td><span class="path">normalizer.ts:246-465</span></td><td><span class="path">types/anthropic.ts:150-177</span></td><td>Top-level <code>system</code> → systemPrompt + systemContent with <code>cache_control</code>; adjacent same-role messages merged; <code>any</code>→<code>required</code>, <code>tool</code>→function choice; thinking <code>enabled|adaptive</code> → budgetTokens</td></tr>
+<tr><td><code>POST /v1/responses</code></td><td><span class="path">normalizer.ts:470-582</span></td><td><span class="path">types/responses.ts:64-96</span></td><td><code>instructions</code> → systemPrompt; <code>function_call</code>/<code>function_call_output</code> → tool_use/tool_result; <strong><code>previous_response_id</code> is in the schema but dropped</strong></td></tr>
+</tbody>
+</table>
+<p>The canonical contract is <code>CanonicalRequest</code>/<code>CanonicalResponse</code> (<span class="path">types/canonical.ts:198-241,330-338</span>) with content parts for text, image, thinking, redacted_thinking, tool_use and tool_result; nine stream event variants (`:370-379`); nine error categories; usage with an <code>estimated?</code> flag. Every plugin consumes exactly that type.</p>
+<div class="note warn"><h4>Important asymmetry</h4><p>There is a normalizer for each <em>client</em> dialect, but <strong>no generic upstream-dialect normalizer</strong>. Every provider plugin hand-transforms its own wire payload into canonical. That is why adding a provider costs hundreds of lines of transformation code, and why a generator needs one reusable OpenAI-compatible adapter. Writing that code from scratch each time does not scale.</p></div>
+<h3>Outbound and SSE</h3>
+<ul>
+<li><strong>Non-stream serializers</strong> (<span class="path">serializer.ts</span>): Chat emits <code>reasoning_content</code>, <code>tool_calls</code>, reasoning/cached token details; Anthropic emits thinking blocks first (with signature), then text, then tool_use, with stop-map <code>tool_calls→tool_use</code>, <code>length→max_tokens</code>; Responses unshifts a message item, emits <code>function_call</code> with <code>call_id</code>, and <strong>drops thinking parts in non-stream mode</strong> (`:216-277`).</li>
+<li><strong>Chat SSE</strong> (<span class="path">stream-adapter.ts:243-253</span>): initial assistant chunk → deltas → optional usage → finish chunk → <code>[DONE]</code>. On <code>stream_error</code> it emits an error chunk, <strong>then <code>[DONE]</code></strong>, then returns, the fix that stops SDKs hanging.</li>
+<li><strong>Anthropic SSE</strong> (`:318-560`): strict <code>message_start → content_block_start/delta/stop → message_delta → message_stop</code>; thinking forced to block index 0; parallel tool calls get independent indexed blocks; all blocks force-closed at end. Errors emit <code>event: error</code> without <code>message_stop</code>.</li>
+<li><strong>Responses SSE</strong> (`:611-869`): documented event names and monotonic <code>sequence_number</code>; provider tool event ID preserved as <code>call_id</code> so SDK tool loops echo it; flush order reasoning → text → tool; abort before start still emits created+completed.</li>
+<li><strong>Stream lifecycle</strong>: XML interceptor → <code>withIdleTimeout</code> → tapped generator → dialect serializer. HTTP status stays 200 for stream errors; the error travels in-band.</li>
+</ul>
+<h3>XML tool-call interceptor, the sharpest piece of engineering here</h3>
+<p>Some models stream tool calls as plain text markup (<code>&lt;tool_call&gt;</code>, <code>&lt;invoke name=…&gt;</code>, <code>&lt;function_call&gt;</code>). Clients expect structured <code>tool_calls</code>. The old regex parser broke on chunk boundaries, heredocs, entities and oversized junk. HEAD commit <code>054059c</code> replaced it with a character scanner:</p>
+<ul>
+<li><code>tokenize()</code> (`:63-130`) emits <code>text|open|close</code> tokens, handles quoted/unquoted attributes and legacy <code>&lt;function=name&gt;</code>; a bare <code>&lt;</code> is text.</li>
+<li><code>parseCalls()</code> (`:139-259`) resolves nesting, <code>&lt;parameters&gt;</code> JSON and <code>&lt;parameter name=…&gt;</code> values, four markup shapes, JSON-or-string argument values.</li>
+<li><code>decodeEntities()</code> (`:13-54`) handles named entities and numeric decimal/hex up to <code>0x10ffff</code>, 16-char cap, single pass.</li>
+<li>Budget: <code>MAX_XML_BUFFER_BYTES = 4096</code>, measured in <strong>UTF-8 bytes</strong> with code-point-safe clipping (`:282-297`); over-budget with a closing tag emits only decoded inner payload, never markup; malformed advertised XML is dropped, never echoed (`:400-409`).</li>
+<li>Success emits <code>call_lat_&lt;12 hex&gt;</code> IDs, <code>tool_call_start/delta/stop</code> triples, and rewrites <code>stream_end.stopReason</code> from <code>stop</code> to <code>tool_calls</code>.</li>
+</ul>
+<p>Reverting that commit in an adversarial audit produced raw <code>&lt;function_call&gt;</code> leaking into content, the fix is real. Coverage: <span class="path">tests/unit/p1-7-xml-stream-parser.test.ts</span>.</p>
+<h3>Error normalization</h3>
+<p><code>GatewayError</code> (<span class="path">types/errors.ts:74-127</span>) redacts its message in the constructor, derives a category from status, and converts retry-after units. Serializers map status to dialect-specific types: 400 <code>invalid_request_error</code>, 401 <code>authentication_error</code>, 403 <code>permission_denied_error</code>/<code>permission_error</code>, 429 <code>rate_limit_error</code> with <code>retry-after</code>, 503 <code>overloaded_error</code> on Anthropic, 504 <code>gateway_timeout</code>, and a generic <code>api_error</code>/<code>internal_error</code> otherwise. Global handler picks the dialect from the path (<span class="path">server.ts:161-190</span>).</p>
+<div class="note warn"><h4>Decentralized classification</h4><p>Plugins classify upstream errors themselves and often throw <code>new GatewayError(status, String(status), 'Upstream error: …')</code>, so the wire <code>error.code</code> is frequently a numeric string and the text is provider-specific. Normalization happens at serialization. A generated plugin must implement <code>classifyError</code> itself.</p></div>
+</section>
+
+<section id="routing">
+<h2><span class="num">07</span> Routing &amp; reliability</h2>
+<h3>Model resolution</h3>
+<p><span class="path">src/utils/model-resolver.ts:115-179</span>: 60-second catalog TTL; index built from each plugin's <code>cachedModels</code> or <code>listModels()</code>; match order exact → byId → bare name → recursive prefix strip; compatibility aliases (`:10-27`); retired <code>freellmapi/</code> prefix fails closed; optional cost-based reordering. Note: manifest <code>modelPrefixes</code>/<code>models</code> are <strong>not</strong> used here, they are consumed only by <code>registry.resolvePluginForModel()</code>, which production code never calls.</p>
+<h3>Accounts, leases and rotation</h3>
+<table>
+<thead><tr><th>Mechanism</th><th>Rule</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Selection</td><td>Filter tried + breaker-open → affinity-preferred account if eligible → least in-flight → fewest requests → fewest tokens → oldest lastUsedAt. One active lease per account per provider, default TTL 60 s.</td><td><span class="path">account-pool.ts:128-181,81-94</span></td></tr>
+<tr><td>Safe rotation</td><td>Only 429 and 401/403 may switch accounts, those prove the upstream did not process the request. Network error, timeout, abort, 5xx fail fast to avoid duplicate tool calls or double charges.</td><td><span class="path">network-error.ts:5-11</span>, <span class="path">safe-rotation.test.ts</span></td></tr>
+<tr><td>Cooldowns</td><td><code>reportRateLimit</code>: status cooldown until <code>now + retryAfter</code>; ≥3600 s also sets quota exhausted + reset time. Expired cooldown auto-heals to active/halfOpen. Durable, credentials-free state at <code>data/account-health.json</code>, 250 ms debounce.</td><td><span class="path">account-pool.ts:332-359,230-247</span>, <span class="path">health-store.ts</span></td></tr>
+<tr><td>Circuit breaker</td><td>5 counted failures → open; backoff 1 s → 30 s with 20% jitter; one half-open probe at a time; 4xx (incl. 429) and aborts never count toward provider health.</td><td><span class="path">breaker.ts:14-20,84-143</span></td></tr>
+<tr><td>Session affinity</td><td>Hashed key, 30 min TTL, 10k cap, in-memory only; account pin is a hint (still must pass breaker/tried); target pin consulted by combos; no model change after content starts.</td><td><span class="path">session-affinity.ts:51-129</span>, <span class="path">combos.ts:44-58</span></td></tr>
+</tbody>
+</table>
+<h3>Virtual combos</h3>
+<p><code>LatticeComboPlugin</code> (<span class="path">src/plugins/combo.ts</span>) is a virtual plugin. It resolves virtual model IDs like <code>lattice/code-flagship</code>, consults signed passports for context windows (never guesses from model names), pre-checks quota, and tries up to <code>MAX_STREAM_TARGET_SWITCHES = 4</code> targets with per-tier failure caps. It buffers until the first <em>content</em> event before committing, <code>stream_start</code> alone does not count, so "connected then died" remains retryable. After content, a failure emits <code>stream_error</code>; the original model stays. Combos are data definitions (<span class="path">docs/combo-policies.md:3-5</span>, <span class="path">src/pool/combo-policies/fast-free.json</span>), which is the right shape for generated providers to join.</p>
+<h3>Evidence-first model passports</h3>
+<div class="grid g2">
+<div class="note"><h4>Record</h4><p>Schema v1 (<span class="path">model-passports.ts:32-46</span>): id, providerId, generatedAt, claims, availability, digest, Ed25519 signature + keyId + publicKey. Key at <code>&lt;dataDir&gt;/model-passport-key.json</code>, mode 0600. Payload is canonical stable-stringified before hashing/signing (`:77-115`).</p></div>
+<div class="note"><h4>Evidence ladder</h4><p><code>declared</code> (plugin descriptor) → <code>discovered</code> (provider catalogue) → <code>measured</code> (explicit probe or passive traffic). Catalogue refresh never downgrades a measured claim (`:251-265`). Duplicate measured observations are deduplicated so hot routes do not rewrite the file.</p></div>
+</div>
+<p>Passive learning (<span class="path">passport-observation.ts</span>) upgrades claims from real tool calls, thinking blocks, accepted streams and context-overflow errors, no extra provider call. Explicit probing is opt-in: <code>POST /api/models/probe</code> runs one token with a 30 s deadline and records <em>availability only</em>; it may consume provider quota. A signature proves record integrity. Provider claims stay unverified. Unknown values stay absent.</p>
+<h3>Cost honesty</h3>
+<p>Prompt tokens come from real BPE (<code>gpt-tokenizer</code>). Completion tokens use upstream usage only when <code>usage.estimated !== true</code>; otherwise they are counted from accumulated text and the ledger row is stamped <code>estimated:true</code>. <code>costUsd</code> returns <code>null</code> for estimated usage, free tiers and unknown prices (<span class="path">pricing.ts:35-46</span>). The price table currently has <strong>one row</strong> (<code>openai/gpt-4o</code>, <span class="path">pricing-data.json</span>), so almost every dashboard cost field is null.</p>
+</section>
+
+<section id="security">
+<h2><span class="num">08</span> Security &amp; trust boundaries</h2>
+<table>
+<thead><tr><th>Boundary</th><th>Defense</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Transport / auth</td><td>Default bind <code>127.0.0.1</code>; SHA-256 + <code>timingSafeEqual</code> constant-time token compare; generated <code>lgw_</code>/<code>ladm_</code> tokens mode 0600; only fingerprints printed; missing admin token fails closed; <code>WWW-Authenticate: Bearer</code>.</td><td><span class="path">auth-tokens.ts:11-61</span>, <span class="path">server.ts:126-158</span></td></tr>
+<tr><td>Browser origin</td><td>Every request with an <code>Origin</code> must be in the allow-list; loopback gets no implicit exemption. 10 MB body cap with draining; CORS explicit.</td><td><span class="path">server.ts:54-114</span></td></tr>
+<tr><td>Upstream fetch</td><td>Reject credentials, non-http(s), <code>.local/.internal</code>, private/link-local IP, IPv4-mapped IPv6, obfuscated IPv4; redirects disabled and each hop revalidated, max 5, no HTTPS→HTTP downgrade.</td><td><span class="path">config.ts:7-44</span>, <span class="path">safe-fetch.ts:18-52</span></td></tr>
+<tr><td>Secrets at rest</td><td>Secret overlay separate from account records; only <code>acc_import_</code> or <code>secretBacked</code> accounts resolve from the store; file fallback 0600 by default; opt-in Windows DPAPI / macOS Keychain / Linux libsecret with round-trip probe and silent fallback.</td><td><span class="path">credential-resolver.ts:5-61</span>, <span class="path">secret-store.ts</span></td></tr>
+<tr><td>Account import</td><td>Operator staging dir only; symlink-contained <code>realpath</code> check; preview returns no secrets; 60-second single-use digest-bound token; opaque random account IDs; errors redacted.</td><td><span class="path">account-import.ts:47-153</span></td></tr>
+<tr><td>Dashboard</td><td>Per-response 16-byte nonce CSP, <code>default-src 'none'</code>, nonce-only script/style, no <code>unsafe-inline</code>, <code>no-store</code>; delegated event allow-list; innerHTML sanitizer.</td><td><span class="path">admin-router.ts:37-62</span>, <span class="path">dashboard-ui.ts:2414-2518</span></td></tr>
+<tr><td>Redaction</td><td>Pattern scrub for credential headers, URL userinfo, <code>key=value</code> secrets and Bearer tokens; applied in logger, GatewayError, serializers, admin errors, probe failures.</td><td><span class="path">utils/redact.ts:4-32</span></td></tr>
+</tbody>
+</table>
+<div class="note bad"><h4>Residual gaps worth fixing before expanding trust</h4>
+<ul>
+<li>Generic 500 responses in <span class="path">server.ts:184-189</span> still bypass the new redactor.</li>
+<li>DNS names that resolve privately after URL validation are explicitly out of scope, DNS rebinding is not handled (<span class="path">config.ts:3-5</span>).</li>
+<li><code>EventSource('/api/logs/stream')</code> cannot set headers, so the live log stream returns 401 when admin auth is on; no test covers it.</li>
+<li>CI workflow triggers on <code>main</code>, but the repository branch is <code>master</code>, CI may never have run on the real branch.</li>
+<li><code>.gitignore</code> lists exact data filenames; backup and rotated ledger files can be committed by accident. <code>README.md</code> claims MIT but no <code>LICENSE</code> file exists.</li>
+<li>Hardcoded reverse-engineered constants have no config override: Cline WorkOS client ID/versions (<span class="path">cline.ts:26-35</span>), OpenCode CLI fingerprint and session algorithm (<span class="path">opencode.ts:60-196</span>), DeepSeek PoW placeholder (<span class="path">deepseek.ts:304-307</span>), Nous <code>client_id:'hermes-cli'</code>.</li>
+</ul>
+</div>
+<p><strong>Design constraint for auto-onboarding:</strong> every new trust surface you add (URL fetch, generated code, captured keys) must land inside these existing boundaries. In particular, a provider URL fetch must reuse <code>safeFetch</code> and reject redirect-to-private; generated code must not be imported in-process without isolation or review.</p>
+</section>
+
+<section id="observability">
+<h2><span class="num">09</span> Observability, conformance and tests</h2>
+<h3>Ledger → receipt → dashboard</h3>
+<p>Every request appends a compact NDJSON row (<code>requestId</code>, timestamp, method, path, provider, accountId, model, status, latency, tokens, <code>estimated?</code>). Retention 7 days; rotation at 10 MiB or 24 h; 10,000-row recent cache; O(1) dashboard queries via per-provider cumulative timelines and binary search; null-prototype maps so a provider literally named <code>__proto__</code> stays data. A 500-entry ring feeds the SSE log stream. <code>buildReceipt()</code> can render any request ID or prefix, but no CLI/route calls it yet, so <code>bun run why …</code> remains documentation only.</p>
+<h3>Dashboard inventory</h3>
+<p>Overview/KPIs, Free Models Explorer (live per enabled provider), Harness Setup (7 clients), hidden Token Telemetry, Usage analytics, Quota Tracker, Credential Pools, Virtual Combos with 3-step wizard, Provider Plugins toggle, Live Ingress Stream. Sidebar actions cover credentials, combo wizard and "simulate telemetry", the last one calls an endpoint that does not exist (<code>/api/telemetry/simulate</code>). Some static placeholders remain (<code>~118ms</code>, <code>524k in · 289k out</code>, hardcoded <code>:4000</code>, fake quota values in <span class="path">admin-router.ts:1195-1335</span>), despite the project's stated truth-in-telemetry rule.</p>
+<h3>Conformance</h3>
+<p>12 network-free fixtures, 3 dialects × 4 features (plain-text, tool-loop, error, client-abort), run real normalizers, serializers and stream adapters. Deterministic <code>conformance/results.json</code>, enforced in CI by run → copy → rerun → compare. Proves dialect shapes, ordered SSE event names, <code>[DONE]</code>, abort truncation, Responses <code>call_id</code> preservation. Does <strong>not</strong> prove HTTP routing/auth, real provider wire compatibility, XML interception, usage/ledger/breaker accounting, dashboard behavior, or real SDK parsing. Fixtures are hand-maintained; coverage is guarded by a test that checks the fixture-name list.</p>
+<h3>Tests and CI</h3>
+<div class="grid g3">
+<div class="stat"><b>923</b><span>passing tests in this worktree (live run)</span></div>
+<div class="stat"><b>16,818</b><span>expect() assertions</span></div>
+<div class="stat"><b>133 / 76 s</b><span>test files / full-suite runtime</span></div>
+</div>
+<p>Tiers: unit (~87 files), tier1 feature (19), tier2 boundary (6), tier3 combination (6), tier4 IDE-simulation (7), harness (2), audit (1), plus fixtures/plugins. Tier4 includes 52-turn long-horizon context handoff, 429 failover marathon, Cursor/Claude Code loops and Roo-Cline XML recovery. CI: Bun 1.4.2 → frozen install → typecheck → <code>verify</code> → full test → conformance → determinism check.</p>
+<div class="note warn"><h4>Weak spots</h4><p>Timing-sensitive keepalive test; bind-then-release port probe; a 503 fallback mock that can mask a missing gateway; several source-guard tests that assert literal strings; XSS tests use DOM stubs; mutation audit found two tests that survive reverting their fix; <code>bunfig.toml</code>'s 10 s timeout is ineffective on Bun 1.4.2 (pass <code>--timeout</code> via CLI). The dirty <code>conformance/results.json</code> differs from HEAD, so the CI determinism step will fail until it is committed.</p></div>
+</section>
+<section id="plugins">
+<h2><span class="num">10</span> The plugin system (the seam that matters most)</h2>
+<p class="lead">This is where your idea lives or dies. Lattice already has a plugin contract, a manifest, a loader, lifecycle hooks and one migrated plugin. What it does not have is a way to <em>produce</em> a correct plugin from documentation, or to register one without a restart.</p>
+<h3>The contract, <code>ProviderPlugin</code></h3>
+<p>Defined at <span class="path">src/core/types/plugin.ts:118-149</span>. Required members are marked; everything else is optional.</p>
+<pre><code>interface ProviderPlugin {
+  readonly id: string;                    // REQUIRED
+  readonly displayName: string;           // REQUIRED
+  readonly defaultBaseUrl: string;        // REQUIRED
+  listModels(account?: StoredAccount): Promise&lt;ModelDescriptor[]&gt;;  // REQUIRED
+  execute(req: CanonicalRequest, signal?: AbortSignal): Promise&lt;CanonicalResponse&gt;;  // REQUIRED
+  executeStream(req: CanonicalRequest, signal?: AbortSignal): Promise&lt;AsyncIterable&lt;CanonicalStreamEvent&gt;&gt;; // REQUIRED
+
+  description?, supportedAuthTypes?, capabilities?, cachedModels?
+  initialize?(ctx: { dataDir: string; logger: unknown }): Promise&lt;void&gt;
+  shutdown?(): Promise&lt;void&gt;
+  healthCheck?(account?): Promise&lt;HealthCheckResult&gt;
+  refreshAuth?(account): Promise&lt;StoredAccount&gt;
+  classifyError?(error, statusCode?, body?, account?): ErrorClassificationResult
+}</code></pre>
+<p><code>StoredAccount</code> (`:20-48`) carries <code>accessToken</code>, <code>refreshToken</code>, <code>apiKey</code>, <code>cookies</code>, <code>organizationId</code>, <code>baseUrl</code>, plus ~15 runtime fields (status, cooldown, quota, token/request counters). <code>ErrorClassificationResult</code> (`:89-103`) has 9 categories, <code>isRetryable</code>, optional <code>cooldownDurationMs</code> and a message. <code>ProviderCapabilities</code> (`:109-116`) has exactly three flags: <code>responseFormat</code>, <code>samplingFields</code>, <code>cacheControl</code>, and only the first two are enforced (<span class="path">capabilities.ts:19-35</span>). Type re-export gap: <span class="path">types/index.ts</span> does not export <code>plugin-manifest.ts</code>.</p>
+<h3>The manifest as data</h3>
+<p><span class="path">src/core/types/plugin-manifest.ts:15-32</span> (hand-written interface, <strong>no Zod validation</strong>):</p>
+<pre><code>interface PluginManifest {
+  id: string; displayName: string; description?: string; defaultBaseUrl?: string;
+  modelPrefixes?: string[];              // "kilo/" style, decorative in production
+  models?: Array&lt;string | ModelDescriptor&gt;;
+  capabilities?: ProviderCapabilities;
+  supportedAuthTypes?: AuthType[];       // oauth | cookie_pool | api_key | anonymous
+  configSchema?: Record&lt;string, PluginConfigField&gt;;  // type, required, env, default
+  adapter: string;                       // module path relative to manifest
+  factory?: string;                      // default: createPlugin
+  enabled?: boolean;
+  lifecycle?: { hooks?: Array&lt;'initialize' | 'shutdown'&gt; };
+}</code></pre>
+<p>The only production manifest, <span class="path">src/plugins/manifests/opencode.json</span>, declares id, displayName, base URL, prefixes, three models, two capabilities, two auth types, adapter <code>../adapters/opencode.ts</code> and no hooks. The adapter is a 7-line factory (<span class="path">src/plugins/adapters/opencode.ts</span>) returning <code>new OpenCodeProviderPlugin(config.baseUrl)</code>. The minimal test fixture is <span class="path">tests/fixtures/throwaway-provider/manifest.json</span>.</p>
+<h3>What the loader validates</h3>
+<p><span class="path">src/plugins/registry.ts:50-79</span>, in order: read top-level <code>*.json</code> from one directory, sorted; <code>JSON.parse</code> unguarded; check only that <code>id</code>, <code>displayName</code>, <code>adapter</code> are truthy; resolve + dynamic-import the adapter module; look up <code>factory ?? 'createPlugin'</code> and require a function; await it with env-resolved config; require the result to be truthy with matching <code>id</code>; require every declared hook to exist as a function; register with <code>enabled !== false</code>.</p>
+<div class="note bad"><h4>Validation is theatrical</h4><p>A plugin missing <code>execute()</code> registers cleanly and crashes on first request. A misspelled <code>capabilites</code> is silently ignored. A bad manifest aborts startup. <code>resolveConfig</code> coerces numbers with bare <code>Number()</code> (no NaN check) and booleans with <code>value === true || value === 'true'</code>. Discovery is one non-recursive directory scan at startup, no hot registration, no unregister, no persistence of <code>setEnabled</code>.</p></div>
+<h3>Lifecycle</h3>
+<p><span class="path">src/core/plugin-lifecycle.ts</span>: <code>initializePlugins</code> awaits hooks sequentially in registration order, gated by each manifest's declared hooks (`:16-25`); <code>shutdownPlugins</code> runs in reverse (`:28-36`). Startup call at <span class="path">src/index.ts:72</span> and <span class="path">bin/lattice.ts:93</span>; shutdown on SIGINT/SIGTERM. No try/catch: one throwing hook aborts startup or shutdown. Both loops iterate <code>getEnabled()</code>, so a plugin disabled after startup will not get <code>shutdown()</code>. "Hot reload" in this codebase means <em>accounts</em> only (<span class="path">admin-router.ts:224-240</span>), never plugin code.</p>
+<h3>Built-in plugins at a glance</h3>
+<table>
+<thead><tr><th>Plugin</th><th>Auth</th><th>Upstream / endpoint</th><th>Models &amp; special behavior</th></tr></thead>
+<tbody>
+<tr><td><strong>Kilo</strong> <span class="path">kilo.ts</span></td><td>API key or OAuth device flow</td><td><code>ai-gateway.kilo.ai/api/v1</code></td><td>19 curated descriptors; live <code>/models</code> sync in <code>probe()</code>; XML interceptor; real healthCheck; sampling forwarding; capability flags declared</td></tr>
+<tr><td><strong>Nous</strong> <span class="path">nous.ts</span></td><td>API key or portal device OAuth (<code>hermes-cli</code>)</td><td><code>inference-api.nousresearch.com/v1</code></td><td>17 curated descriptors; XML interceptor; <code>Connection: close</code>; no sampling forwarding</td></tr>
+<tr><td><strong>Cline</strong> <span class="path">cline.ts</span></td><td>WorkOS device OAuth or API key</td><td><code>api.cline.bot/api/v1</code></td><td>7 descriptors; natural-language retry-after; 18 h quota fallback; hardcoded client ID/versions; 3 failover attempts</td></tr>
+<tr><td><strong>OpenCode Zen</strong> <span class="path">opencode.ts</span></td><td>Anonymous <code>Bearer public</code> or API key</td><td><code>opencode.ai/inference/openai/v1</code></td><td>8 descriptors; injects 12 gate tools; generated descending session IDs; CLI fingerprint headers; 403 free-tier cooldown; <strong>first manifest-migrated plugin</strong></td></tr>
+<tr><td><strong>DeepSeek Web</strong> <span class="path">deepseek.ts</span></td><td>Chrome session cookies / userToken</td><td><code>chat.deepseek.com/api/v0</code></td><td>4 descriptors; non-OpenAI web body; <code>&lt;think&gt;</code> state machine across SSE chunks; challenge/verify with placeholder PoW</td></tr>
+<tr><td><strong>Lattice combos</strong> <span class="path">combo.ts</span></td><td>n/a (virtual)</td><td>delegates to other plugins</td><td>Pre-content failover, post-content fail-fast, passport-verified context windows, 4 target switches</td></tr>
+<tr><td><strong>Removed aggregator</strong> <span class="path">removed-aggregator.ts</span></td><td>n/a</td><td>n/a</td><td>Fail-closed tombstone: <code>freellmapi/</code> → 503 <code>plugin_unavailable</code></td></tr>
+</tbody>
+</table>
+<h3>Adding a provider today, the real checklist</h3>
+<ol>
+<li>Write <code>manifests/&lt;id&gt;.json</code> with id, displayName, adapter, factory, configSchema, prefixes/models, capabilities, hooks.</li>
+<li>Write <code>adapters/&lt;id&gt;.ts</code> exporting <code>createPlugin(config)</code>.</li>
+<li>Implement the six required members plus whichever hooks the manifest declares.</li>
+<li>Hand-write upstream auth, URL resolution, body/header mapping, canonical response transform, SSE event sequence, error classification, cooldown/rotation, account acquisition and <code>msg_</code> ID rewriting.</li>
+<li>Wire accounts in <strong>both</strong> entrypoints (<span class="path">index.ts:34-40</span>, <span class="path">bin/lattice.ts:70-76</span>) and add the admin fallback registration (<span class="path">admin-router.ts:159-179</span>).</li>
+<li>Add an OAuth branch in <span class="path">admin-router.ts:293-596</span> if the provider needs 1-click login (only Cline/Kilo/Nous supported today).</li>
+<li>Add harness catalog entries (<span class="path">harness-manager.ts:77-345</span>), alias/ combo/policy data, catalog metadata, icons if you want it fully visible in the UI.</li>
+<li>Add tests mirroring <span class="path">tests/unit/plugin-manifest.test.ts</span> and the F7–F11 plugin E2E tests.</li>
+</ol>
+<p>Routing itself needs no core edit. A complete integration needs five or six. Every built-in repeats the same boilerplate: account array + add/set/getActive/cooldown helpers; acquire/tried/reservations/handoff-release; <code>msg_</code> rewriting; the canonical SSE event sequence; estimated usage fallback; status-based <code>classifyError</code>; <code>safeFetch</code> + <code>parseSSEStream</code>.</p>
+<div class="note info"><h4>The harness manager</h4><p>"1-click harness setup" writes client configs for OpenCode, Kilo, Roo, Claude Code, Gemini CLI, Crush and Cursor, pointing them at <code>http://127.0.0.1:4000</code> with the effective gateway token, taking a timestamped <code>.bak</code> first (<span class="path">harness-manager.ts:45-64,347-694</span>). It is the existing answer to "how does the user  adopt the gateway", and it currently only knows those seven clients and that one URL.</p></div>
+</section>
+
+<section id="vision">
+<h2><span class="num">11</span> Your vision: Lattice as a self-extending universal gateway</h2>
+<p class="lead">Your idea, restated precisely: <strong>Lattice itself</strong> should take a provider website, docs site or GitHub repo, learn the API, ask the user the few decisions only they can make (local or online gateway, credentials, authentication style), then produce and install a <em>complete plugin</em>, so any provider launched yesterday works today.</p>
+<h3>Today vs target</h3>
+<table>
+<thead><tr><th>Capability</th><th>Today</th><th>Target</th></tr></thead>
+<tbody>
+<tr><td>Discover provider</td><td>Nothing fetches a URL. <code>safeFetch</code> exists but only plugins use it.</td><td>Onboarding endpoint fetches docs/README/OpenAPI through the same SSRF-guarded path</td></tr>
+<tr><td>Understand API</td><td>Human reads docs and hand-writes a plugin.</td><td>LLM extracts auth, endpoints, model catalogue, capabilities, streaming shape, error semantics into a structured <em>provider profile</em></td></tr>
+<tr><td>Describe provider</td><td>Manifest has 12 fields, 3 validated; no provenance.</td><td>Manifest gains <code>sourceUrl</code>, <code>sourceDigest</code>, <code>generatedBy</code>, <code>verification</code>, <code>authFlow</code>, <code>discovery</code>, Zod-validated</td></tr>
+<tr><td>Build integration</td><td>Hand-written TS adapter; no generic OpenAI-compatible adapter.</td><td>Template adapters: OpenAI-compatible, Anthropic-compatible, Responses-compatible, plus a narrow custom generator</td></tr>
+<tr><td>Capture credentials</td><td>Generic <code>POST /api/accounts</code>, OAuth only for 3 hardcoded providers.</td><td>Onboarding dialogue asks local/online, auth type and key once, then uses existing secret overlay</td></tr>
+<tr><td>Verify</td><td>Conformance, probes and passports exist but are not tied to a new plugin.</td><td>Mandatory scorecard: schema validation → mock conformance → live one-token probe → passport evidence → user confirm</td></tr>
+<tr><td>Install / undo</td><td>Startup-only discovery; no unregister; no rollback.</td><td>Hot registration with atomic write, versioned manifest, one-call rollback</td></tr>
+<tr><td>Wire clients</td><td>7 hardcoded harness targets, one hardcoded URL.</td><td>Harness target becomes <code>gateway.url + token</code>, chosen in the dialogue (local vs online)</td></tr>
+</tbody>
+</table>
+<h3>The onboarding conversation you described, made concrete</h3>
+<div class="flow">
+<div class="node"><b>1 · INPUT</b><span>User drops a URL: provider docs, website, or GitHub repo</span></div>
+<div class="arrow">→</div>
+<div class="node"><b>2 · QUESTIONS</b><span>"Local or online gateway?" · "Which auth: API key, OAuth, cookie, anonymous?" · "Which models?" · key capture</span></div>
+<div class="arrow">→</div>
+<div class="node"><b>3 · PROFILE</b><span>LLM extracts endpoints, headers, envelopes, SSE format, limits, errors → structured JSON</span></div>
+</div>
+<div class="flow">
+<div class="node"><b>4 · GENERATE</b><span>Validate manifest + choose/patch an adapter template; never emit arbitrary core edits</span></div>
+<div class="arrow">→</div>
+<div class="node"><b>5 · VERIFY</b><span>Offline conformance + mock upstream, then an explicit one-token live probe; record evidence</span></div>
+<div class="arrow">→</div>
+<div class="node"><b>6 · INSTALL</b><span>Write manifest + secrets, hot-register, show scorecard, wire harness, one-call rollback</span></div>
+</div>
+<h3>Why Lattice should own onboarding</h3>
+<ul>
+<li><strong>It already owns the trust primitives.</strong> Secret store, redaction, SSRF guard, nonce CSP, token auth, consentful import, audit ledger, an external agent has to reinvent or bypass all of them.</li>
+<li><strong>It already owns the verification primitives.</strong> Conformance runner, passports with evidence levels, explicit probes, breakers, receipts, the generated plugin can be scored before it is trusted.</li>
+<li><strong>It already owns the integration surface.</strong> Manifest loader, adapter factory, lifecycle hooks, combo-as-data, harness manager. The seam exists; only the producer is missing.</li>
+<li><strong>Feedback loop is local and cheap.</strong> A gateway can send a test request through its own dialect stack and compare canonical events to the conformance expectations. An outside agent cannot see that without reimplementing the gateway.</li>
+</ul>
+<div class="note good"><h4>Design rule to hold onto</h4><p>Generate <strong>data first, code last</strong>. Most new providers are OpenAI-compatible. A manifest with endpoint, auth, headers, model mapping and capability flags should be enough, no generated TypeScript at all. Only fall back to a narrow, reviewed adapter template when the wire shape truly differs. This keeps the core immutable and makes the generated artifact auditable.</p></div>
+</section>
+<section id="blueprint">
+<h2><span class="num">12</span> Build blueprint: the auto-plugin pipeline</h2>
+<p class="lead">This is a concrete design derived from the existing code. Each component names the file it extends or the file it creates.</p>
+<h3>A. Extend the manifest as the generated artifact</h3>
+<p>Target: <span class="path">src/core/types/plugin-manifest.ts</span>. Add provenance and wiring fields, then validate the whole thing with Zod (already a dependency) in place of three truthy checks.</p>
+<pre><code>sourceUrl?: string            // where the profile came from
+sourceDigest?: string         // sha256 of fetched docs, for drift detection
+generatedBy?: 'lattice-onboard' | 'human'
+verification?: {
+  schema: 'passed'|'failed'; conformance: 'passed'|'failed';
+  probe?: { model: string; available: boolean; at: number };
+  status: 'unverified'|'verified'|'failed'
+}
+authFlow?: { type: AuthType; fields: string[]; oauth?: { authorizeUrl, tokenUrl, clientId? } }
+discovery?: { modelsUrl?: string; openApiUrl?: string; modelPath?: string; freePredicate?: string }
+wire?: { protocol: 'openai-chat'|'anthropic-messages'|'responses'|'custom';
+         headers?: Record&lt;string,string&gt;; modelPrefixStrip?: string;
+         bodyOverrides?: Record&lt;string,unknown&gt; }
+rollback?: { previousVersion: string }</code></pre>
+<p><strong>Alias wiring at generation time:</strong> when a generated plugin declares prefixes/models, register them in the resolver's index (<span class="path">model-resolver.ts:132-146</span>) so <code>modelPrefixes</code> stops being decorative. Do not add new literals to <code>MODEL_ALIASES</code> (`:10-27`).</p>
+<h3>B. Add the onboarding service and routes</h3>
+<p>New file <span class="path">src/core/plugin-generator.ts</span>; tests <span class="path">tests/unit/plugin-generator.test.ts</span>. Routes next to the plugin block in <span class="path">src/admin/admin-router.ts:808-835</span>:</p>
+<table>
+<thead><tr><th>Route</th><th>Behavior</th><th>Reuses</th></tr></thead>
+<tbody>
+<tr><td><code>POST /api/plugins/onboard/preview</code> <code>{url, mode, authType}</code></td><td>Fetch docs via guarded fetch; reject private/link-local redirects; hash content; ask LLM for a provider profile + questions to confirm; returns redacted preview, <strong>writes nothing</strong></td><td><span class="path">safe-fetch.ts</span>, <span class="path">redact.ts</span>, short-lived token pattern from <span class="path">account-import.ts:92-116</span></td></tr>
+<tr><td><code>POST /api/plugins/onboard/confirm</code> <code>{token, answers, credentials}</code></td><td>Recheck digest, write manifest via atomic temp+rename, move secrets into overlay, register plugin, run verification gate</td><td><span class="path">storage.ts:100-114</span>, <span class="path">credential-resolver.ts:46-61</span></td></tr>
+<tr><td><code>GET /api/plugins/onboard/status</code> <code>?id=</code></td><td>Scorecard: schema / conformance / probe / passport / rollback availability</td><td>conformance runner, probe, passports</td></tr>
+<tr><td><code>POST /api/plugins/:id/rollback</code></td><td>Restore previous manifest version, unregister, revoke captured secrets</td><td>new registry reload + versioned manifest</td></tr>
+</tbody>
+</table>
+<p><strong>The key-capture contract</strong> is <code>configSchema</code>: it already names env vars, requiredness, types and defaults (<span class="path">registry.ts:12-30</span>). Extend the dashboard so a confirm step stores the value through <code>moveSecretsToStore</code>, keeping it out of the manifest. Never persist a provider key in a manifest or account JSON.</p>
+<h3>C. Hot registration with rollback</h3>
+<p>Extend <span class="path">src/plugins/registry.ts:50-79</span> with <code>reloadManifests()</code> that: (1) parses into a fresh temporary map; (2) imports/factories each adapter; (3) validates the returned object shape, required members, hook presence, id match; (4) only then swaps the live maps; (5) on failure restores the previous map and returns a structured error. Never import a generated module until steps 1–3 pass. Keep startup discovery unchanged so a broken generated manifest cannot brick the gateway on restart, quarantine it instead.</p>
+<h3>D. Adapter templates over generated code</h3>
+<div class="grid g2">
+<div class="note"><h4>Tier 1, declarative (preferred)</h4><p>One generic <span class="path">adapters/openai-compatible.ts</span> driven by <code>wire.protocol</code>, <code>defaultBaseUrl</code>, headers, prefix strip, model map and capability flags. Covers most new providers with <strong>zero generated TypeScript</strong>. Implement once; reuse forever.</p></div>
+<div class="note"><h4>Tier 2, templated custom</h4><p>A narrow <span class="path">adapters/generated-template.ts</span> with fixed slots for auth, URL, request transform, response transform and SSE mapping. The generator fills slots from the provider profile. Output is deterministic, diffable and reviewable, never arbitrary code.</p></div>
+</div>
+<p>Process isolation (<span class="path">LATTICE_GATEWAY_INDEPENDENT_ENGINEERING_AUDIT.html</span> §20.3) is only needed if you ever allow genuinely untrusted adapter code. Tier 1/2 avoid that class of risk entirely. If isolation is added later, keep the in-process path for first-party plugins.</p>
+<h3>E. Verification gate, no plugin is enabled without proof</h3>
+<ol>
+<li><strong>Schema</strong>: Zod-validate manifest and profile; reject unknown capability claims; fail if required config is absent.</li>
+<li><strong>Offline conformance</strong>: run the generated adapter through <span class="path">src/conformance/runner.ts</span> with a mock upstream that returns the shapes extracted from docs; require canonical event parity for text, tools, thinking, error and abort.</li>
+<li><strong>Live probe</strong>: explicit, user-triggered one-token request (<span class="path">admin-router.ts:880-895</span>) with a 30 s deadline; record availability and latency only.</li>
+<li><strong>Passport</strong>: observe descriptor claims as <code>declared</code>/<code>discovered</code>; let real traffic upgrade to <code>measured</code>; never invent context windows or costs.</li>
+<li><strong>Confirm</strong>: show the scorecard in the dashboard, require an explicit user click to enable. Log the decision to the ledger with the source digest.</li>
+</ol>
+<p>Surface a single "Verification" panel in <span class="path">dashboard-ui.ts</span> next to the Provider Plugins table (`:2078-2149`), including source URL, digest, each check's result, and a rollback button.</p>
+<h3>F. Local vs online gateway choice</h3>
+<p>Extend <span class="path">src/admin/harness-manager.ts:6-17,347-694</span>: <code>HarnessInfo</code> gains a gateway target, and snippets are built from <code>{gateway.url, gateway.token}</code>; the loopback URL stays the default. The onboarding dialogue's first question sets it. Default remains <code>http://127.0.0.1:4000</code>; an online target must pass <code>isSafeUpstreamBaseUrl</code> and be stored as data, outside the snippets. Reuse <code>effectiveGatewayToken()</code> (<span class="path">local-token.ts:12-14</span>).</p>
+<h3>G. Ordered implementation phases</h3>
+<table>
+<thead><tr><th>Phase</th><th>Deliverable</th><th>Files</th><th>Done when</th></tr></thead>
+<tbody>
+<tr><td><span class="badge b-ok">0 · Foundation</span></td><td>Commit the worktree, fix CI branch, LICENSE, gitignore patterns, ledger prune caller, <code>why</code> CLI, close redaction/origin gaps</td><td>git, <span class="path">ci.yml</span>, <span class="path">server.ts</span>, <span class="path">request-ledger.ts</span>, <span class="path">package.json</span>, <span class="path">bin/</span></td><td>CI green on <code>master</code>; clean clone matches what you are developing</td></tr>
+<tr><td><span class="badge b-info">1 · Declarative</span></td><td>Zod manifest + provenance fields + generic OpenAI-compatible adapter + resolver registration from manifest</td><td><span class="path">plugin-manifest.ts</span>, <span class="path">registry.ts</span>, <span class="path">adapters/openai-compatible.ts</span>, <span class="path">model-resolver.ts</span></td><td>A new OpenAI-compatible provider works from a manifest with zero generated TS</td></tr>
+<tr><td><span class="badge b-info">2 · Hot install</span></td><td>Reload, rollback, quota/cooldown/alias/harness wiring driven by registry events</td><td><span class="path">registry.ts</span>, <span class="path">admin-router.ts</span>, <span class="path">combos.ts</span>, <span class="path">harness-manager.ts</span></td><td>Add and remove a provider with no restart and no core edit</td></tr>
+<tr><td><span class="badge b-warn">3 · Onboarding</span></td><td>URL ingestion, LLM profile extraction, preview/confirm tokens, key capture, scorecard UI</td><td><span class="path">plugin-generator.ts</span>, <span class="path">admin-router.ts</span>, <span class="path">dashboard-ui.ts</span></td><td>Paste a docs URL for a provider launched yesterday → complete, verified plugin</td></tr>
+<tr><td><span class="badge b-warn">4 · Hardening</span></td><td>Dialect registry refactor, source-digest drift checks, process isolation if custom code is allowed, multi-gateway state</td><td><span class="path">router.ts</span>, <span class="path">serializer.ts</span>, <span class="path">stream-adapter.ts</span>, <span class="path">server.ts</span></td><td>Adding a client dialect no longer means copying three 200-line handlers</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="risks">
+<h2><span class="num">13</span> Risks, anti-goals and failure modes</h2>
+<div class="note bad"><h4>The risk that dominates all others: trusting generated code</h4><p>A generated plugin runs in-process with access to the secret store, filesystem and network. An LLM reading a provider's docs is reading <em>untrusted input</em>: a malicious or compromised docs page can inject instructions ("also send every key to …"). Mitigations: never execute arbitrary generated code; prefer declarative adapters; treat fetched docs as data, never as instructions; hash and show the source digest; require explicit user confirmation; keep all outbound fetch through the SSRF guard; run verification on a mock upstream before any live request; log everything to the ledger.</p></div>
+<table>
+<thead><tr><th>Failure mode</th><th>Why it matters</th><th>Guard</th></tr></thead>
+<tbody>
+<tr><td>Capability lie</td><td>Generator declares <code>responseFormat: true</code> but does not forward it; clients silently lose constraints. Or omits it and every such request 400s.</td><td>Capability assertions + conformance fixtures that assert forwarded fields; declare only what a verified probe observed</td></tr>
+<tr><td>Unattributed usage</td><td>Generic adapter forgets to set <code>req.accountId</code>/<code>servedByProviderId</code>; ledger and receipts blame the wrong account.</td><td>Template sets attribution fields; test with two accounts and assert receipt attribution</td></tr>
+<tr><td>Fake models / phantom context</td><td>Docs advertise models that do not exist or context windows the provider never confirmed.</td><td>Passport evidence ladder, declared/discovered/measured; no inference from model names; explicit probe</td></tr>
+<tr><td>Secret exfiltration</td><td>Generated adapter logs headers or forwards the key to an unexpected host.</td><td>Allow-listed base URL, safeFetch redirect revalidation, redactor in all error/log paths, secret overlay never exposed in account JSON</td></tr>
+<tr><td>Unbounded verification cost</td><td>Probing every model of every generated provider consumes real quota.</td><td>One-token, user-triggered, 30 s deadline; never automatic; deduplicate observations</td></tr>
+<tr><td>DNS rebinding</td><td>Host passes string validation then resolves to a private IP.</td><td>Resolve-and-pin DNS before fetch; keep the existing string checks as first stage</td></tr>
+<tr><td>Drift</td><td>Provider changes API; generated profile goes stale silently.</td><td>Source digest + periodic re-fetch preview; do not auto-update without re-verification</td></tr>
+<tr><td>Multi-instance inconsistency</td><td>Breakers, leases, affinity and log ring are in-memory; two processes diverge.</td><td>Keep single-process scope explicit; do not promise distributed guarantees</td></tr>
+<tr><td>License / ToS</td><td>Some upstreams prohibit programmatic access; reverse-engineered constants carry legal risk.</td><td>Record source + timestamp in profile; keep hardcoded constants configurable; leave the choice to the operator</td></tr>
+</tbody>
+</table>
+<h3>Explicit anti-goals from the project's own spec</h3>
+<ul>
+<li>No signed lies: a valid signature must never be presented as proof a provider's claim is true.</li>
+<li>No hidden account harvesting: imports and credential capture are consentful, previewed, redacted and single-use.</li>
+<li>No affinity trapping a request on a dead account; no handoff after content has been emitted.</li>
+<li>No startup calls or test-time provider calls; no simulated telemetry or decorative metrics.</li>
+<li>No "hundreds of decorative providers", no model switching per message, no claiming a conformance badge without an executable runner, no committing binaries or credential stores.</li>
+<li>No remote centrally signed catalogue, that would transfer trust and add a remote dependency.</li>
+</ul>
+<p><strong>Adoption rule:</strong> treat every generated plugin as untrusted until it passes the verification gate, and re-verify on source digest change. The gateway's credibility rests on its honesty machinery; an auto-onboarding feature that skips it would undo months of deliberate work.</p>
+</section>
+<section id="actions">
+<h2><span class="num">14</span> What to move, in order</h2>
+<p class="lead">"Where do I have to move?", three kinds of movement: get the code you  use into a safe state, remove the structural tax on new providers, then build the generator.</p>
+<h3>Move 1, Make the latest code real (do this first)</h3>
+<ol>
+<li><strong>Commit or stash the worktree.</strong> ~39 modified + ~26 untracked path groups include the manifest loader, adapter, redaction, combo policy and newest tests. A fresh clone today loses them.</li>
+<li><strong>Fix CI trigger</strong> from <code>main</code> to <code>master</code> (or both) in <span class="path">.github/workflows/ci.yml:6</span>; commit the deterministic <span class="path">conformance/results.json</span>.</li>
+<li><strong>Add <code>LICENSE</code></strong> to back the README's MIT claim; rotate any tokens that may have been committed (<span class="path">SECURITY.md:3-20</span>); change <span class="path">.gitignore</span> to family patterns like <code>data/lattice-store.json*</code>.</li>
+<li><strong>Route generic 500s through <code>redactSecrets</code></strong> (<span class="path">server.ts:184-189</span>) and resolve/pin DNS for upstream fetch.</li>
+<li><strong>Add the <code>why</code> CLI</strong> so the ledger/receipt work is usable: <code>bin/why.ts</code> calling <code>findLedgerEvent</code> + <code>buildReceipt</code>, plus a <code>package.json</code> script. Give <code>prune()</code> a production caller and cap rotated ledger files.</li>
+</ol>
+<h3>Move 2, Turn hard-coded lists into data</h3>
+<ol>
+<li>Replace the three provider lists, <span class="path">index.ts:34-40</span>, <span class="path">bin/lattice.ts:70-76</span>, <span class="path">admin-router.ts:159-179</span>, with one registry-driven account wiring loop. Delete the source-guard test that asserts those literal strings (<span class="path">plugin-manifest.test.ts:114-121</span>).</li>
+<li>Make <code>modelPrefixes</code>/<code>models</code> live: have the resolver consume manifest declarations, or delete them from the schema so they stop lying.</li>
+<li>Add a generic OpenAI-compatible adapter so "new provider" defaults to a manifest.</li>
+<li>Stop hand-maintaining harness catalogs: derive model lists from <code>listModels()</code> in place of <span class="path">harness-manager.ts:77-345</span>; make gateway URL/token data.</li>
+<li>Mark <code>MODEL_ALIASES</code> explicitly as compatibility data, or generate it from policies; move reverse-engineered provider constants into config.</li>
+</ol>
+<h3>Move 3, Build the onboarding loop</h3>
+<ol>
+<li>Extend the manifest with provenance + verification fields; validate with Zod.</li>
+<li>Add <code>reloadManifests()</code> with atomic swap and rollback.</li>
+<li>Add the three onboarding routes with preview/confirm tokens, guarded fetch and key capture through the secret overlay.</li>
+<li>Wire the verification gate (conformance → probe → passport → explicit confirm) and the dashboard scorecard.</li>
+<li>Add the local/online gateway choice to the onboarding dialogue and harness snippets.</li>
+</ol>
+<h3>Decisions only you can make</h3>
+<ul>
+<li>Default onboarding target: local-only, or allow an online gateway endpoint?</li>
+<li>Do you allow <em>custom generated code</em> (needs isolation), or declare OpenAI/Anthropic compatibility only?</li>
+<li>Is this a personal tool, a shared plugin ecosystem, or a product? That determines how much trust and multi-tenancy work is required.</li>
+</ul>
+</section>
+
+<section id="appendix">
+<h2><span class="num">15</span> Appendix</h2>
+<h3>Environment variables</h3>
+<table>
+<thead><tr><th>Variable</th><th>Default</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>PORT</code> / <code>HOST</code></td><td>4000 / 127.0.0.1</td><td>Bind address; <code>0.0.0.0</code> only by explicit choice</td></tr>
+<tr><td><code>NODE_ENV</code> / <code>LOG_LEVEL</code></td><td>development / info</td><td>Environment and logger verbosity</td></tr>
+<tr><td><code>KEEPALIVE_MS</code></td><td>15000</td><td>SSE keepalive ping interval</td></tr>
+<tr><td><code>REQUEST_TIMEOUT_MS</code></td><td>1800000</td><td>Non-stream deadline + max stream lifetime</td></tr>
+<tr><td><code>IDLE_TIMEOUT_MS</code></td><td>120000</td><td>Max gap between stream events</td></tr>
+<tr><td><code>CORS_ORIGINS</code></td><td>127.0.0.1:4000, localhost:4000</td><td>Origin allow-list; <code>*</code> disables the origin guard</td></tr>
+<tr><td><code>LATTICE_GATEWAY_TOKEN</code> / <code>LATTICE_ADMIN_TOKEN</code></td><td>generated <code>lgw_</code>/<code>ladm_</code></td><td>Override generated tokens; env wins</td></tr>
+<tr><td><code>MAX_BODY_BYTES</code></td><td>10,000,000</td><td>Request body cap (413 over)</td></tr>
+<tr><td><code>DATA_DIR</code></td><td>unset → <code>data</code></td><td>Store, secrets, health, ledger, imports, passports</td></tr>
+<tr><td><code>LATTICE_SECRET_BACKEND</code></td><td>file fallback</td><td><code>keychain</code> opts into OS backend with probe + fallback</td></tr>
+<tr><td><code>LATTICE_IMPORT_DIR</code></td><td><code>data/imports</code></td><td>Staging directory for consentful import</td></tr>
+<tr><td><code>LATTICE_LEDGER_PATH</code></td><td><code>data/request-ledger.ndjson</code></td><td>Ledger location</td></tr>
+<tr><td><code>ZEN_GATE_TOOLS_PATH</code></td><td>built-in</td><td>Custom 12-tool spec file for OpenCode Zen</td></tr>
+<tr><td>manifest <code>configSchema[].env</code></td><td>per manifest</td><td>Config injected into the adapter factory; required fields throw at startup</td></tr>
+</tbody>
+</table>
+<p class="small"><code>DB_PATH</code> and <code>UPSTREAM_URL</code> are declared in <span class="path">config.ts:99-100</span> but have no consumer.</p>
+<h3>Command reference</h3>
+<pre><code>bun run start          # source launcher (also start.bat / start.ps1)
+bun run dev            # watch mode
+bun run build          # compile standalone lattice.exe
+bun test               # full suite
+bun run verify         # typecheck + dashboard parse guard + unit tests
+bun run conformance    # regenerate conformance/results.json
+bun run typecheck      # tsc --noEmit
+bun run check:dashboard
+bun run why &lt;id&gt;       # DOCUMENTED BUT NOT IMPLEMENTED</code></pre>
+<h3>API surface (condensed)</h3>
+<p><strong>Public, auth-free:</strong> <code>/healthz</code>, <code>/health</code>, <code>/api/health</code>, <code>/status</code>, <code>/api/status</code>, <code>/admin/api/status</code>, <code>/v1/health</code>, <code>/live</code>.</p>
+<p><strong>Gateway token:</strong> <code>GET /v1/models</code>, <code>POST /v1/chat/completions</code>, <code>POST /v1/messages</code>, <code>POST /v1/responses</code>.</p>
+<p><strong>Admin token:</strong> accounts (list/add/delete/test), OAuth start/status, consentful import preview/confirm, secrets availability, combos CRUD/health, plugins list/toggle, models live/static, passports list/refresh/get, session affinity, model probe/test, harness status/setup/setup-all, log stream, telemetry/usage/quota/stats, cooldown + breaker reset, provider test-all, dashboard HTML.</p>
+<h3>Glossary</h3>
+<dl>
+<dt><strong>Canonical request/response</strong></dt><dd>Internal protocol-neutral shape. All three client dialects normalize into it and all plugins consume it.</dd>
+<dt><strong>Plugin</strong></dt><dd>Provider-specific implementation of <code>ProviderPlugin</code>. Combos are a plugin that delegates to other plugins.</dd>
+<dt><strong>Adapter</strong></dt><dd>Thin factory module that a manifest imports to construct a plugin from config.</dd>
+<dt><strong>Combo</strong></dt><dd>Virtual model with ordered failover targets; a data definition.</dd>
+<dt><strong>Passport</strong></dt><dd>Ed25519-signed, evidence-graded record of model claims. A signature proves integrity. It says nothing about truth.</dd>
+<dt><strong>Breaker</strong></dt><dd>Provider health gate: closed → open → half-open with one probe at a time.</dd>
+<dt><strong>Affinity</strong></dt><dd>Hashed session key pinning a conversation to a target/account in memory only.</dd>
+<dt><strong>Harness</strong></dt><dd>A coding client (Claude Code, Cursor, etc.) plus the config that points it at Lattice.</dd>
+<dt><strong>Safe rotation</strong></dt><dd>Switching accounts only on provably unprocessed requests (429/401/403); fail fast otherwise.</dd>
+</dl>
+<h3>Source index for further reading</h3>
+<ul>
+<li>Contract: <span class="path">src/core/types/plugin.ts:118-149</span>, <span class="path">src/core/types/plugin-manifest.ts</span></li>
+<li>Loader/lifecycle: <span class="path">src/plugins/registry.ts:49-172</span>, <span class="path">src/core/plugin-lifecycle.ts</span></li>
+<li>Worked seed: <span class="path">src/plugins/manifests/opencode.json</span>, <span class="path">src/plugins/adapters/opencode.ts</span>, <span class="path">tests/fixtures/throwaway-provider/</span></li>
+<li>Design spec: <span class="path">docs/superpowers/specs/2026-11-18-lattice-phase-c-design.md</span></li>
+<li>Plans: <span class="path">docs/superpowers/plans/2026-11-18-lattice-*.md</span>, <span class="path">2026-11-24-router-breaker-single-owner.md</span></li>
+<li>Combos as data: <span class="path">docs/combo-policies.md</span></li>
+<li>Audits: <span class="path">AUDIT_REVERIFICATION.md</span>, <span class="path">LATTICE_GATEWAY_AUDIT_2026-11-24.html</span>, <span class="path">LATTICE_GATEWAY_INDEPENDENT_ENGINEERING_AUDIT.html</span></li>
+<li>Security: <span class="path">SECURITY.md</span>, <span class="path">TEST_INFRA.md</span>, <span class="path">crush_model_report.md</span></li>
+</ul>
+<div class="note good"><h4>Bottom line</h4><p>Lattice is already the right <em>shape</em> for a universal gateway: immutable core, plugin seam, evidence, honesty, verification. The distance to your idea is not a rewrite, it is a generator plus a verification gate plus the removal of five hard-coded lists. Do those, and a provider launched yesterday becomes a working plugin from a URL, without another agent and without touching the core.</p></div>
+</section>
+</main>
+</div>
+<footer>Lattice Gateway research note · 25 November 2026 · Source of truth: local working tree at C:\Users\adity\lattice-gateway</footer>
+</body>
+</html>

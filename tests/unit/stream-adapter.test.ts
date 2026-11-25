@@ -295,4 +295,19 @@ describe('SSE Stream Adapters', () => {
 
     expect(chunks).toContain(': ping\n\n');
   });
+
+  it('P0-3b: an error frame is followed by [DONE] so Chat clients do not hang', async () => {
+    async function* failing(): AsyncIterable<CanonicalStreamEvent> {
+      yield { type: 'stream_start', id: 'chat_error', model: 'gpt-4', created: 1731693600 };
+      yield { type: 'text_delta', delta: 'partial ' };
+      yield {
+        type: 'stream_error',
+        error: { message: 'upstream reset', type: 'upstream_error', code: 'reset', status: 502 },
+      };
+    }
+
+    const frames = (await streamToText(createOpenAISSEStream(failing()))).trim().split('\n\n');
+    expect(frames.some((f) => f.includes('"message":"upstream reset"'))).toBe(true);
+    expect(frames[frames.length - 1]).toBe('data: [DONE]');
+  });
 });

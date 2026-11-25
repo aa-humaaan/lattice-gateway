@@ -26,7 +26,7 @@ export interface PoolAccount extends StoredAccount {
   weight?: number;
 }
 
-export class AccountPoolManager {
+export class StubAccountPoolManager {
   private accounts: PoolAccount[] = [];
   private rrIndex = 0;
   public strategy: LoadBalancingStrategy = 'round-robin';
@@ -114,9 +114,9 @@ class PooledProviderPlugin implements ProviderPlugin {
   readonly id = 'pooled';
   readonly displayName = 'Pooled Multi-Account Provider';
   readonly defaultBaseUrl: string;
-  public pool: AccountPoolManager;
+  public pool: StubAccountPoolManager;
 
-  constructor(upstreamBaseUrl: string, pool: AccountPoolManager) {
+  constructor(upstreamBaseUrl: string, pool: StubAccountPoolManager) {
     this.defaultBaseUrl = upstreamBaseUrl;
     this.pool = pool;
   }
@@ -182,14 +182,14 @@ class PooledProviderPlugin implements ProviderPlugin {
 
 describe('Feature F12: Multi-Account Pool & Routing', () => {
   let mockServer: MockUpstreamServer;
-  let poolManager: AccountPoolManager;
+  let poolManager: StubAccountPoolManager;
   let plugin: PooledProviderPlugin;
   let gatewayServer: any;
   let client: TestClient;
 
   beforeAll(async () => {
     mockServer = await createMockUpstream();
-    poolManager = new AccountPoolManager([
+    poolManager = new StubAccountPoolManager([
       {
         id: 'pool_acc_1',
         providerId: 'pooled',

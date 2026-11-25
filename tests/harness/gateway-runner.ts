@@ -174,7 +174,9 @@ export async function startGateway(options: GatewayRunnerOptions = {}): Promise<
       ...(options.env ?? {}),
     };
 
-    const proc = Bun.spawn(['bun', 'run', entrypoint], {
+    // Spawn bun.exe directly. On Windows the `bun` shim exits on kill while
+    // its child server keeps listening, leaking ports and burning CPU.
+    const proc = Bun.spawn([process.execPath, entrypoint], {
       env,
       cwd: projectRoot,
       stdout: options.logLevel === 'debug' ? 'inherit' : 'pipe',

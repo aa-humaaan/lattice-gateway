@@ -48,7 +48,10 @@ export function isProviderHealthFailure(error: unknown): boolean {
 
   const name = err.name ?? '';
   const code = err.code ?? '';
-  if (name === 'AbortError' || code === 'ABORT_ERR' || /aborted/i.test(err.message ?? '')) {
+  // Aborts are identified by type/code only. Status and error type take
+  // precedence over message text: a 500 saying "aborted upstream" is a
+  // provider failure, not a caller abort.
+  if (name === 'AbortError' || code === 'ABORT_ERR') {
     return false;
   }
 
@@ -111,6 +114,11 @@ export class ProviderBreaker {
     this.probeInFlight = false;
   }
 
+  /** Observable probe state for tests and admin diagnostics. */
+  get isProbeInFlight(): boolean {
+    return this.probeInFlight;
+  }
+
   recordSuccess(): void {
     this.cancelProbe();
     this.failures = 0;
@@ -163,6 +171,13 @@ export class BreakerRegistry {
   configure(providerId: string, patch: Partial<BreakerConfig>): ProviderBreaker {
     const breaker = this.get(providerId);
     breaker.configure(patch);
+    return breaker;
+  }
+
+  /** Clear one provider's breaker, including a probe wedged by a leaked attempt. */
+  resetProvider(providerId: string): ProviderBreaker {
+    const breaker = this.get(providerId);
+    breaker.reset();
     return breaker;
   }
 

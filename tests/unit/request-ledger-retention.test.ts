@@ -110,5 +110,5 @@ describe('P1-6 request ledger', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });

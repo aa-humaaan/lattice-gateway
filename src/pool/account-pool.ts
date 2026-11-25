@@ -180,15 +180,6 @@ export class AccountPoolManager {
     return { account: chosen, release };
   }
 
-  /** Report a provider outcome to the shared breaker (health failures only). */
-  reportProviderFailure(providerId: string, error: unknown): boolean {
-    return this.breakers.get(providerId).recordFailure(error);
-  }
-
-  reportProviderSuccess(providerId: string): void {
-    this.breakers.get(providerId).recordSuccess();
-  }
-
   recordUsageForAccount(accountId: string, promptTokens: number, completionTokens: number): void {
     const acc = this.accounts.get(accountId);
     if (!acc) return;

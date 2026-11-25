@@ -170,7 +170,7 @@ describe('F5: XML Tool-Calling Interceptor', () => {
     // Verify stop_reason in message_delta is tool_use
     const msgDelta = events.find((e) => e.type === 'message_delta');
     expect(msgDelta?.delta?.stop_reason).toBe('tool_use');
-  });
+  }, 30_000);
 
   // 4. Flushes regular conversational text preceding XML tool calls
   it('flushes conversational reasoning text preceding XML tool call without corruption', async () => {

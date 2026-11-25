@@ -29,8 +29,16 @@ jobs:
       - name: Full test suite
         run: bun test
 
-      - name: Conformance
+      - name: Conformance (ordered event-sequence fixtures)
         run: bun run conformance
+
+      - name: Conformance results are deterministic and leave no diff
+        run: |
+          cp conformance/results.json conformance/results.before.json
+          bun run conformance
+          cmp conformance/results.json conformance/results.before.json
+          rm conformance/results.before.json
+          git diff --exit-code -- conformance/results.json
 
       - name: Keep working tree clean after conformance
         run: |

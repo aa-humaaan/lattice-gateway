@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'fs';
 
+// SOURCE GUARD: the connect UI is inline script text in dashboard-ui.ts with
+// no exported component to mount in a test, so text assertions are required.
 const src = readFileSync('src/admin/dashboard-ui.ts', 'utf8');
 
-describe('OpenCode connect UI', () => {
+describe('SOURCE GUARD: OpenCode connect UI', () => {
   test('OpenCode has a Connect button like other providers', () => {
     expect(src).not.toMatch(/p\.id !== 'opencode'/);
     expect(src).toMatch(/openCredentialsModal\([^)]*p\.id/);

@@ -92,8 +92,8 @@ Sleek dark-mode dashboard at `http://127.0.0.1:4000/admin`:
 * Interactive plugin toggle and combo management.
 
 ### 7. Consentful Account Import
-Lattice never reads a hardcoded local path. To bring accounts in from an export:
-1. `POST /api/accounts/import/preview` with `{ "source": "jsonAccounts", "path": "<your file>" }`. The response contains only the provider list, account count, and a short-lived token—no tokens, emails, or raw account IDs.
+Lattice never reads a hardcoded local path. Place an export in the staging directory (`data/imports/`, override with `LATTICE_IMPORT_DIR`); absolute paths outside it are rejected:
+1. `POST /api/accounts/import/preview` with `{ "source": "jsonAccounts", "path": "<file inside the staging directory>" }`. The response contains only the provider list, account count, and a short-lived token—no tokens, emails, or raw account IDs.
 2. `POST /api/accounts/import/confirm` with `{ "token": "..." }`. Imported accounts receive opaque random IDs, and their secrets live separately in `data/lattice-secrets.json` (0600).
 3. `GET /api/secrets/availability` reports the real storage backend. The default is `file-fallback`; no keychain claim is made without a working OS backend.
 

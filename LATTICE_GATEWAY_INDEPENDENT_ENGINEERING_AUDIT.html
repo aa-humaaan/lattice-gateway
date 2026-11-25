@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lattice Gateway — Independent Engineering Audit</title>
+<style>
+:root{
+  --paper:#141312;
+  --paper-2:#201e1b;
+  --paper-3:#272420;
+  --ink:#ece7dc;
+  --ink-2:#c6c0b4;
+  --muted:#948e83;
+  --line:#35322d;
+  --line-strong:#9a9489;
+  --rust:#d1745a;
+  --clay:#c89156;
+  --olive:#93a07a;
+  --slate:#98a09b;
+  --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.65 var(--sans);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none;border-bottom:1px solid var(--line)}
+a:hover{border-color:var(--ink)}
+
+/* ---------- cover ---------- */
+.cover{max-width:1240px;margin:0 auto;padding:92px 44px 64px;border-bottom:1px solid var(--line)}
+.kicker{font:600 10.5px/1.4 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:34px}
+.kicker span{color:var(--rust)}
+.cover h1{
+  font:400 clamp(52px,8.5vw,104px)/.98 var(--serif);
+  letter-spacing:-.035em;margin:0 0 14px
+}
+.cover .dek{
+  font:400 clamp(19px,2.3vw,27px)/1.4 var(--serif);
+  color:var(--ink-2);max-width:38ch;margin:0 0 44px
+}
+.cover-rule{width:64px;height:2px;background:var(--rust);margin:0 0 38px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0;border-top:1px solid var(--line)}
+.meta div{padding:14px 22px 16px 0;border-bottom:1px solid var(--line)}
+.meta dt{font:600 9.5px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 5px}
+.meta dd{margin:0;font:13px/1.5 var(--sans);color:var(--ink)}
+.verdict{
+  margin:46px 0 0;padding:22px 0 0 26px;border-left:2px solid var(--rust);
+  font:400 21px/1.5 var(--serif);color:var(--ink);max-width:70ch
+}
+.verdict small{display:block;font:600 10px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+
+/* ---------- shell / toc ---------- */
+.shell{display:grid;grid-template-columns:222px minmax(0,1fr);gap:58px;max-width:1240px;margin:0 auto;padding:0 44px}
+.toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:52px 0 60px;border-right:1px solid var(--line)}
+.toc-title{font:600 10px/1.4 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
+.toc ol{list-style:none;margin:0;padding:0;counter-reset:toc}
+.toc li{counter-increment:toc;margin:0 0 1px}
+.toc a{display:block;border:0;padding:4px 8px 4px 0;font:12.5px/1.35 var(--sans);color:var(--muted)}
+.toc a::before{content:counter(toc,decimal-leading-zero);font:10px var(--mono);color:var(--line);margin-right:9px}
+.toc a:hover{color:var(--ink);background:var(--paper-2)}
+main{min-width:0;padding:52px 0 140px}
+
+/* ---------- sections ---------- */
+section{scroll-margin-top:26px;margin:0 0 76px}
+.sec-head{display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--line-strong);padding-bottom:12px;margin:0 0 26px}
+.sec-num{font:600 11px/1 var(--mono);letter-spacing:.1em;color:var(--rust);flex:none;padding-top:6px}
+h2{font:400 34px/1.12 var(--serif);letter-spacing:-.015em;margin:0}
+h3{font:600 17px/1.35 var(--sans);letter-spacing:-.005em;margin:34px 0 12px;color:var(--ink)}
+h4{font:600 12px/1.4 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:24px 0 10px}
+p{margin:0 0 17px;max-width:76ch;color:var(--ink-2)}
+p.lead{font:400 19px/1.55 var(--serif);color:var(--ink);max-width:68ch;margin-bottom:22px}
+ul,ol{max-width:76ch;color:var(--ink-2);padding-left:22px;margin:0 0 18px}
+li{margin:0 0 8px}
+strong{color:var(--ink);font-weight:650}
+em{color:var(--ink)}
+code{font:12px/1.4 var(--mono);background:var(--paper-2);border:1px solid var(--line);padding:1px 5px;color:var(--ink);white-space:nowrap}
+.ref{font:11.5px var(--mono);background:var(--paper-2);border:1px solid var(--line);padding:1px 5px;color:var(--ink-2)}
+.hr{height:1px;background:var(--line);margin:38px 0}
+
+/* ---------- tables ---------- */
+.table-wrap{overflow-x:auto;margin:22px 0 30px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+caption{text-align:left;font:600 10px/1.5 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 0 9px}
+th{
+  text-align:left;font:650 10px/1.4 var(--sans);text-transform:uppercase;letter-spacing:.075em;
+  color:var(--muted);border-bottom:1px solid var(--line-strong);padding:9px 12px 9px 0;vertical-align:bottom
+}
+td{border-bottom:1px solid var(--line);padding:11px 12px 11px 0;vertical-align:top;color:var(--ink-2)}
+tbody tr:last-child td{border-bottom:1px solid var(--line-strong)}
+td.narrow{white-space:nowrap}
+table.compact td{padding:8px 10px 8px 0;font-size:12.5px}
+
+/* ---------- marks ---------- */
+.sev{display:inline-flex;align-items:center;gap:6px;font:650 9.5px/1.4 var(--sans);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
+.sev::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.sev.crit{color:var(--rust)}
+.sev.high{color:var(--clay)}
+.sev.med{color:var(--olive)}
+.sev.low,.sev.info{color:var(--slate)}
+.sev.good{color:var(--olive)}
+.chip{display:inline-block;font:600 9.5px/1.3 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.ok{border-color:var(--olive);color:var(--olive)}
+.chip.partial{border-color:var(--clay);color:var(--clay)}
+.chip.no{border-color:var(--rust);color:var(--rust)}
+.sq{display:inline-block;width:8px;height:8px;border:1px solid var(--muted);margin-right:6px;vertical-align:middle}
+.sq.ok{background:var(--olive);border-color:var(--olive)}
+.sq.partial{background:linear-gradient(90deg,var(--clay) 50%,transparent 50%);border-color:var(--clay)}
+.sq.no{border-color:var(--rust);background:transparent}
+
+.note{border-left:2px solid var(--rust);padding:2px 0 2px 20px;margin:24px 0;color:var(--ink-2)}
+.note.neutral{border-color:var(--line-strong)}
+.note .label{display:block;font:650 9.5px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--rust);margin-bottom:7px}
+.note.neutral .label{color:var(--muted)}
+.note p{max-width:72ch;margin:0 0 8px}
+.note p:last-child{margin-bottom:0}
+
+/* ---------- figures ---------- */
+figure{margin:30px 0 34px}
+figure svg{display:block;width:100%;height:auto;border:1px solid var(--line);background:#191816}
+figcaption{font:11px/1.5 var(--mono);color:var(--muted);margin-top:9px;letter-spacing:.01em}
+.svg-t{font:600 12px var(--sans);fill:var(--ink)}
+.svg-s{font:11px var(--mono);fill:var(--muted)}
+.svg-l{font:10px var(--mono);fill:var(--muted);letter-spacing:.06em}
+
+/* ---------- misc ---------- */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:26px;margin:24px 0}
+.card{border-top:1px solid var(--line-strong);padding-top:14px}
+.card h4{margin:0 0 8px}
+.card p{margin:0;font-size:14px}
+.roadmap-band{display:grid;grid-template-columns:88px 1fr;gap:18px;border-top:1px solid var(--line);padding:15px 0}
+.roadmap-band:last-child{border-bottom:1px solid var(--line)}
+.roadmap-band .p{font:650 11px var(--mono);letter-spacing:.1em;color:var(--rust);padding-top:2px}
+.roadmap-band .p.p1{color:var(--clay)}
+.roadmap-band .p.p2{color:var(--olive)}
+.roadmap-band .p.p3{color:var(--slate)}
+.footer-note{border-top:1px solid var(--line);padding-top:18px;margin-top:60px;font:12px/1.6 var(--mono);color:var(--muted)}
+
+/* ---------- responsive ---------- */
+@media (max-width:920px){
+  .shell{display:block;padding:0 24px}
+  .toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:26px 0 24px;margin-bottom:8px}
+  .toc ol{columns:2;column-gap:24px}
+  main{padding:34px 0 100px}
+  .cover{padding:64px 24px 48px}
+}
+@media (max-width:600px){
+  .cover h1{font-size:46px}
+  .toc ol{columns:1}
+  h2{font-size:28px}
+  p.lead{font-size:17px}
+  .verdict{font-size:18px;padding-left:18px}
+}
+
+/* ---------- print ---------- */
+@media print{
+  html{scroll-behavior:auto}
+  body{background:#fff;color:#000;font:10pt/1.45 var(--sans)}
+  .toc{display:none}
+  .shell{display:block;max-width:none;padding:0}
+  .cover{max-width:none;padding:0 0 20pt;border-bottom:1px solid #000}
+  .cover h1{font-size:46pt}
+  .cover .dek{font-size:15pt}
+  main{padding:0}
+  section{margin:0 0 22pt}
+  .sec-head{border-color:#000;padding-bottom:5pt;margin-bottom:10pt}
+  h2{font-size:20pt;break-after:avoid}
+  h3{font-size:12pt;break-after:avoid}
+  p,li,td{color:#000}
+  table{font-size:8.5pt;min-width:0}
+  th,td{padding:4pt 6pt 4pt 0}
+  tr{break-inside:avoid}
+  figure{break-inside:avoid}
+  figure svg{border:1px solid #999;background:#fff !important}
+  figure svg rect{fill:#fff !important;stroke:#666 !important}
+  figure svg line{stroke:#666 !important}
+  figure svg marker path{fill:#666 !important}
+  .svg-t,.svg-s,.svg-l{fill:#000 !important}
+  .note{border-color:#000}
+  .sev,.chip,.sq{color:#000 !important;border-color:#666 !important}
+  a{border:0}
+  .verdict{border-color:#000;font-size:13pt}
+}
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="kicker">Independent engineering audit <span>/</span> source-level review</div>
+  <h1>Lattice Gateway</h1>
+  <p class="dek">What the code actually does, how well it holds together, and what would make it a genuinely good LLM gateway.</p>
+  <div class="cover-rule"></div>
+  <dl class="meta">
+    <div><dt>Repository</dt><dd>github.com/aa-humaaan/lattice-gateway</dd></div>
+    <div><dt>Commit audited</dt><dd>b094a190bb2f3fcf25339205c5dcb9cc78284b1b</dd></div>
+    <div><dt>Audit date</dt><dd>18 November 2026</dd></div>
+    <div><dt>Runtime / tree</dt><dd>Bun 1.4.2 · TypeScript · 174 tracked files</dd></div>
+    <div><dt>Method</dt><dd>Independent source reading, execution, adversarial inspection</dd></div>
+    <div><dt>Scope</dt><dd>Core, dialects, plugins, pools, admin, tests, security</dd></div>
+  </dl>
+  <p class="verdict"><small>Assessment in one sentence</small>A capable local-first gateway with real architectural substance — canonical dialect translation, genuine failover semantics, and unusually honest telemetry — held back by static routing, fragile persistence, API-compatibility gaps, and the absence of production guardrails.</p>
+</header>
+
+<div class="shell">
+<nav class="toc" aria-label="Table of contents">
+  <div class="toc-title">Contents</div>
+  <ol>
+    <li><a href="#s1">Executive assessment</a></li>
+    <li><a href="#s2">Project identity and purpose</a></li>
+    <li><a href="#s3">Current implementation status</a></li>
+    <li><a href="#s4">Architecture overview</a></li>
+    <li><a href="#s5">End-to-end request lifecycle</a></li>
+    <li><a href="#s6">Component-by-component analysis</a></li>
+    <li><a href="#s7">Provider and plugin ecosystem</a></li>
+    <li><a href="#s8">Routing and virtual combos</a></li>
+    <li><a href="#s9">Accounts, quotas, credentials</a></li>
+    <li><a href="#s10">API compatibility</a></li>
+    <li><a href="#s11">Streaming and reliability</a></li>
+    <li><a href="#s12">Security assessment</a></li>
+    <li><a href="#s13">Performance and scalability</a></li>
+    <li><a href="#s14">Persistence and data integrity</a></li>
+    <li><a href="#s15">Testing and CI</a></li>
+    <li><a href="#s16">Genuine engineering strengths</a></li>
+    <li><a href="#s17">Confirmed weaknesses and debt</a></li>
+    <li><a href="#s18">Competitive landscape</a></li>
+    <li><a href="#s19">Missing capabilities</a></li>
+    <li><a href="#s20">Recommended target architecture</a></li>
+    <li><a href="#s21">Prioritized engineering roadmap</a></li>
+    <li><a href="#s22">Production-readiness assessment</a></li>
+    <li><a href="#s23">Final engineering verdict</a></li>
+    <li><a href="#appendix">Appendix: evidence and method</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="s1">
+  <div class="sec-head"><span class="sec-num">01</span><h2>Executive assessment</h2></div>
+  <p class="lead">Lattice Gateway is a serious piece of engineering that solves a real, narrow problem well: it gives one operator a single local endpoint that speaks the three dialects coding agents use, and spreads their requests across many free or keyless upstream accounts. It is not, yet, a production-grade general-purpose LLM gateway.</p>
+
+  <p>The strongest parts are not the ones the README leads with. They are the canonical dialect layer, which is a genuine internal representation rather than a pile of conditional translations; the failover engine's decision to switch targets only before content reaches the client, which avoids duplicated tool calls; and a deliberate, tested refusal to fabricate telemetry. The model-passport system separates declared, discovered and measured claims and signs records with Ed25519, while being explicit that a signature proves integrity, not truth. That is unusually mature thinking for a project of this size.</p>
+
+  <p>The gaps are structural, not cosmetic. Routing is not intelligent in any adaptive sense: account selection is effectively "first active account", a real round-robin implementation exists but has no callers, and the passport system's health and latency observations are never consumed by any selection path. Persistence writes the primary state file non-atomically and silently discards corrupt data on load, while all runtime quota and cooldown state lives only in memory. The OpenAI Responses stream emits event names and delta shapes that do not match the documented protocol, discards provider tool-call IDs, and drops reasoning content. Errors are frequently surfaced as successful completions with HTTP 200. There is no CI configuration at all.</p>
+
+  <p>None of this makes the project unserious. It makes it a strong prototype with a clear identity and a set of well-understood engineering debts. The audit found confirmed defects in credential handling, registry wiring, persistence, cancellation, and dialect fidelity; it also found hardening work that is recent, deliberate, and in several places better than what comparable small gateways ship.</p>
+
+  <div class="grid2">
+    <div class="card"><h4>What is real</h4><p>Canonical dialect conversion, real HTTP test harness, 676 passing tests, Ed25519 passports with evidence classes, consentful two-step import, bounded hashed session affinity, pre-content failover, honest-usage guardrails.</p></div>
+    <div class="card"><h4>What is claimed but thin</h4><p>"Everything is a plugin" (routing hardcodes prefixes), "intelligent routing" (static ordered lists), "capability verification" (only context window is read), "unified cost telemetry" (one illustrative constant).</p></div>
+    <div class="card"><h4>What is missing</h4><p>Circuit breakers, backoff, idempotency, migrations, backup, retention, per-model pricing, CI, multi-tenancy, distributed state, deep conformance, structured-output and multimodal fidelity.</p></div>
+    <div class="card"><h4>What would change its class</h4><p>Atomic versioned persistence, a single routing decision engine fed by health and cost signals, protocol-accurate streaming, cancellation that actually aborts upstream work, and enforced security boundaries with CI.</p></div>
+  </div>
+
+  <div class="note neutral"><div class="label">Evidence boundary</div><p>Every conclusion in this report is tied to a file and line number in commit <code>b094a19</code>, to an executed command, or to an external source named in the appendix. Findings are labelled <strong>confirmed</strong> (reproducible from source or execution), <strong>limitation</strong> (real but by design or bounded), <strong>risk</strong> (plausible failure path not reproduced), or <strong>missing</strong> (no implementation exists). Nothing here is inferred from the pre-existing report files in the repository; they were not opened.</p></div>
+</section>
+
+<section id="s2">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Project identity and purpose</h2></div>
+  <p>Lattice Gateway is a single-process, loopback-oriented HTTP service written in TypeScript and run on Bun. It presents OpenAI Chat Completions, Anthropic Messages and OpenAI Responses endpoints on one port, translates all three into an internal canonical shape, and forwards each request to one of six upstream adapters or a virtual "combo" pipeline. Its operator audience is a single developer running coding agents locally against accounts they already own — frequently free-tier, keyless, or session-based accounts that were previously exposed through separate daemons on different ports.</p>
+
+  <p>The stated philosophy is "everything is a plugin": an immutable core plus self-contained provider adapters. The code supports part of that claim. <code>ProviderPlugin</code> defines a real seam — <code>listModels</code>, <code>execute</code>, <code>executeStream</code> are implemented by every adapter, with optional lifecycle hooks that nobody implements (<span class="ref">src/core/types/plugin.ts:109–137</span>). Registration is a registry with enable/disable state (<span class="ref">src/plugins/registry.ts:4–45</span>). But provider selection does not flow through the registry alone. Two independent resolvers exist, and both hardcode provider identity: <code>resolveTargetProviderId</code> lists <code>freellmapi/</code>, <code>kilo/</code>, <code>cline/</code>, <code>nous/</code>, <code>deepseek/</code>, <code>opencode/</code> and <code>lattice/</code> as literal prefixes plus substring heuristics (<span class="ref">src/utils/model-resolver.ts:5–48</span>), while the router repeats a different prefix/catalog resolution algorithm (<span class="ref">src/core/router.ts:177–242</span>). Adding a provider means editing the resolver, the two entrypoints, and likely the admin catalogue. The plugin boundary is a genuine abstraction for <em>execution</em>; it is not yet an abstraction for <em>discovery</em>.</p>
+
+  <p>The product's real differentiator is therefore not extensibility but aggregation: it turns a messy set of upstream account types — OAuth, WorkOS, cookies, anonymous keyless access — into one stable dialect surface with cooldown handling and ordered fallback. That is a useful thing to build, and the codebase takes it seriously rather than treating it as a thin proxy.</p>
+
+  <p>There is a visible self-correction culture. <span class="ref">tests/unit/honesty-guard.test.ts</span> asserts that seeded counters, multipliers, fabricated log rows and claims of proxy rotation or uTLS are absent from the source and README. A design specification (<span class="ref">docs/superpowers/specs/2026-11-18-lattice-phase-c-design.md</span>) explicitly names "a signed lie" as an anti-goal and states that signatures prove record integrity, not model truth. These are not generic quality statements; they are responses to specific failure modes the project has already had, and they are encoded as tests.</p>
+</section>
+
+<section id="s3">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Current implementation status</h2></div>
+  <p>The table below is the audit's independent classification. "Verified" means code exists and is exercised by tests that hit real behavior. "Partial" means the code exists but is limited, defective, or not connected to the path it claims to serve. "Missing" means no implementation was found.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Capability status by subsystem</caption>
+    <thead><tr><th>Capability</th><th>Status</th><th>Evidence</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Hono ingress, request IDs, CORS, origin guard, body limit</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/core/server.ts:55–128</span></td><td>Ordering is correct: guards run before routing and auth.</td></tr>
+      <tr><td>Bearer auth, gateway/admin token separation</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/core/server.ts:133–164</span></td><td>Tokens are random, persisted 0600; printed to console at startup.</td></tr>
+      <tr><td>OpenAI Chat normalization and serialization</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/engine/dialect/normalizer.ts:40–220</span></td><td>Tools and SSE covered; several request fields dropped.</td></tr>
+      <tr><td>Anthropic Messages normalization and serialization</td><td><span class="chip ok">Verified</span></td><td><span class="ref">normalizer.ts:225–437</span></td><td>Thinking and tool blocks handled; cache metadata dropped.</td></tr>
+      <tr><td>OpenAI Responses normalization and serialization</td><td><span class="chip partial">Partial</span></td><td><span class="ref">serializer.ts:214–272</span></td><td>JSON path works; reasoning ignored, status handling incomplete.</td></tr>
+      <tr><td>Three SSE dialect adapters</td><td><span class="chip partial">Partial</span></td><td><span class="ref">src/engine/dialect/stream-adapter.ts</span></td><td>Chat path credible; Responses delta events non-standard.</td></tr>
+      <tr><td>XML tool-call interception</td><td><span class="chip partial">Partial</span></td><td><span class="ref">xml-tool-interceptor.ts:17–339</span></td><td>Regex-only; two advertised prefixes have no parser.</td></tr>
+      <tr><td>Provider adapters (6) and combo engine</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/plugins/*.ts</span></td><td>Execution real; maturity uneven across adapters.</td></tr>
+      <tr><td>Account pooling, cooldown, quota fields</td><td><span class="chip partial">Partial</span></td><td><span class="ref">src/pool/account-pool.ts:46–399</span></td><td>Rules correct; selection static, no concurrency control.</td></tr>
+      <tr><td>Account import, preview/confirm, secret store</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/core/account-import.ts:63–130</span></td><td>Redacted preview, 60s single-use token.</td></tr>
+      <tr><td>OS keychain / DPAPI backends</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/core/secret-store.ts:82–230</span></td><td>Probe-gated, honest fallback, no shell interpolation.</td></tr>
+      <tr><td>Ed25519 model passports, evidence classes</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/core/model-passports.ts:77–241</span></td><td>Tamper and foreign-key rejection tested.</td></tr>
+      <tr><td>Passive capability learning</td><td><span class="chip partial">Partial</span></td><td><span class="ref">src/core/passport-observation.ts:20–86</span></td><td>Writes measured claims; availability wiped by later refresh.</td></tr>
+      <tr><td>Explicit model probe</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/admin/models-catalog.ts:1295–1397</span></td><td>1-token output, 30s deadline, never automatic.</td></tr>
+      <tr><td>Session affinity</td><td><span class="chip ok">Verified</span></td><td><span class="ref">src/core/session-affinity.ts:51–132</span></td><td>Hashed, TTL, capped, in-memory only.</td></tr>
+      <tr><td>Request ledger and telemetry APIs</td><td><span class="chip partial">Partial</span></td><td><span class="ref">src/core/request-ledger.ts:41–80</span></td><td>No fabricated data; unbounded file, O(n) reads.</td></tr>
+      <tr><td>Persistence of accounts/combos/proxies</td><td><span class="chip partial">Partial</span></td><td><span class="ref">src/pool/storage.ts:32–75</span></td><td>Non-atomic write, no versioning, corrupt file ignored.</td></tr>
+      <tr><td>Runtime quota/cooldown persistence</td><td><span class="chip no">Missing</span></td><td>Only admin mutations call <code>save()</code></td><td>State lost on every restart.</td></tr>
+      <tr><td>Per-model pricing / cost calculation</td><td><span class="chip no">Missing</span></td><td><span class="ref">src/core/pricing.ts:1–3</span></td><td>One illustrative constant; dashboard "savings" are not real.</td></tr>
+      <tr><td>Circuit breaker, backoff, jitter, bulkhead</td><td><span class="chip no">Missing</span></td><td>Repository-wide search found none</td><td>Retry loops fire immediately and without delay.</td></tr>
+      <tr><td>Upstream abort on deadline</td><td><span class="chip no">Missing</span></td><td><span class="ref">src/utils/request-deadline.ts:4–16</span></td><td><code>Promise.race</code> rejects but leaves work running.</td></tr>
+      <tr><td>Continuous integration</td><td><span class="chip no">Missing</span></td><td>No <code>.github/</code> or workflow files</td><td><code>bun run verify</code> is opt-in only.</td></tr>
+      <tr><td>Test suite and in-process HTTP harness</td><td><span class="chip ok">Verified</span></td><td>676 tests / 82 files, executed</td><td>Real gateway + real HTTP mock upstream.</td></tr>
+      <tr><td>Protocol conformance fixtures</td><td><span class="chip partial">Partial</span></td><td><span class="ref">src/conformance/runner.ts:29–71</span></td><td>3 fixtures; dot-path and substring checks only.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="s4">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Architecture overview</h2></div>
+  <p>A request enters through a Hono application created by <code>createServer</code>. Four middleware layers run before any route: request ID propagation, a browser-origin guard, CORS, a body-size limiter, and bearer authentication. The router then normalizes the request into <code>CanonicalRequest</code>, resolves a model string to a plugin, measures prompt tokens locally, and calls either <code>execute</code> or <code>executeStream</code>. Provider adapters own account selection and upstream HTTP; the combo plugin owns multi-target failover. Responses are serialized back into the client's dialect, and streaming responses pass through an XML tool interceptor and timeout wrapper before an SSE adapter writes wire events.</p>
+
+  <figure>
+  <svg viewBox="0 0 920 606" role="img" aria-label="Architecture diagram of Lattice Gateway showing clients, middleware, core engine, plugins, upstreams and cross-cutting state">
+    <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#948e83"/></marker></defs>
+    <text class="svg-l" x="40" y="22">INGRESS</text>
+    <rect x="40" y="32" width="250" height="48" fill="#1c1a18" stroke="#514c44"/><text class="svg-t" x="56" y="61">Coding agents / CLIs</text>
+    <rect x="310" y="32" width="250" height="48" fill="#1c1a18" stroke="#514c44"/><text class="svg-t" x="326" y="61">OpenAI / Responses SDKs</text>
+    <rect x="580" y="32" width="280" height="48" fill="#1c1a18" stroke="#514c44"/><text class="svg-t" x="596" y="61">Admin dashboard browser</text>
+    <line x1="165" y1="80" x2="165" y2="116" stroke="#948e83" marker-end="url(#a)"/>
+    <line x1="435" y1="80" x2="435" y2="116" stroke="#948e83" marker-end="url(#a)"/>
+    <line x1="720" y1="80" x2="720" y2="116" stroke="#948e83" marker-end="url(#a)"/>
+
+    <text class="svg-l" x="40" y="108">MIDDLEWARE CHAIN · src/core/server.ts</text>
+    <rect x="40" y="118" width="820" height="72" fill="#141312" stroke="#9a9489"/>
+    <line x1="204" y1="118" x2="204" y2="190" stroke="#35322d"/><line x1="368" y1="118" x2="368" y2="190" stroke="#35322d"/>
+    <line x1="532" y1="118" x2="532" y2="190" stroke="#35322d"/><line x1="696" y1="118" x2="696" y2="190" stroke="#35322d"/>
+    <text class="svg-s" x="52" y="149">request id</text><text class="svg-s" x="52" y="170">origin guard</text>
+    <text class="svg-s" x="216" y="149">CORS</text><text class="svg-s" x="216" y="170">body limit</text>
+    <text class="svg-s" x="380" y="149">bearer auth</text><text class="svg-s" x="380" y="170">error mapping</text>
+    <text class="svg-s" x="544" y="149">route mount</text><text class="svg-s" x="544" y="170">/v1 + /api</text>
+    <text class="svg-s" x="708" y="149">onError</text><text class="svg-s" x="708" y="170">notFound</text>
+    <line x1="460" y1="190" x2="460" y2="226" stroke="#948e83" marker-end="url(#a)"/>
+
+    <text class="svg-l" x="40" y="218">CORE ENGINE · src/core/router.ts + src/engine/dialect</text>
+    <rect x="40" y="228" width="250" height="92" fill="#1c1a18" stroke="#514c44"/><text class="svg-t" x="56" y="254">Dialect layer</text><text class="svg-s" x="56" y="275">normalize / serialize</text><text class="svg-s" x="56" y="294">canonical model</text><text class="svg-s" x="56" y="311">XML interceptor</text>
+    <rect x="310" y="228" width="250" height="92" fill="#1c1a18" stroke="#514c44"/><text class="svg-t" x="326" y="254">Router</text><text class="svg-s" x="326" y="275">aliases → model → plugin</text><text class="svg-s" x="326" y="294">token counting</text><text class="svg-s" x="326" y="311">usage + log emission</text>
+    <rect x="580" y="228" width="280" height="92" fill="#1c1a18" stroke="#514c44"/><text class="svg-t" x="596" y="254">Reliability wrapper</text><text class="svg-s" x="596" y="275">idle / request deadlines</text><text class="svg-s" x="596" y="294">SSE adapters per dialect</text><text class="svg-s" x="596" y="311">in-band stream errors</text>
+    <line x1="165" y1="320" x2="165" y2="356" stroke="#948e83" marker-end="url(#a)"/>
+    <line x1="435" y1="320" x2="435" y2="356" stroke="#948e83" marker-end="url(#a)"/>
+    <line x1="720" y1="320" x2="720" y2="356" stroke="#948e83" marker-end="url(#a)"/>
+
+    <text class="svg-l" x="40" y="348">PLUGIN SEAM · ProviderPlugin (execute / executeStream / listModels)</text>
+    <rect x="40" y="358" width="110" height="60" fill="#191816" stroke="#514c44"/><text class="svg-s" x="52" y="382">kilo</text><text class="svg-s" x="52" y="400">OAuth/key</text>
+    <rect x="162" y="358" width="110" height="60" fill="#191816" stroke="#514c44"/><text class="svg-s" x="174" y="382">nous</text><text class="svg-s" x="174" y="400">portal</text>
+    <rect x="284" y="358" width="110" height="60" fill="#191816" stroke="#514c44"/><text class="svg-s" x="296" y="382">cline</text><text class="svg-s" x="296" y="400">WorkOS</text>
+    <rect x="406" y="358" width="110" height="60" fill="#191816" stroke="#514c44"/><text class="svg-s" x="418" y="382">opencode</text><text class="svg-s" x="418" y="400">keyless</text>
+    <rect x="528" y="358" width="110" height="60" fill="#191816" stroke="#514c44"/><text class="svg-s" x="540" y="382">deepseek</text><text class="svg-s" x="540" y="400">cookies</text>
+    <rect x="650" y="358" width="110" height="60" fill="#191816" stroke="#514c44"/><text class="svg-s" x="662" y="382">freellm</text><text class="svg-s" x="662" y="400">local key</text>
+    <rect x="772" y="358" width="88" height="60" fill="#1c1a18" stroke="#93a07a"/><text class="svg-s" x="782" y="382">lattice</text><text class="svg-s" x="782" y="400">combos</text>
+    <line x1="460" y1="418" x2="460" y2="454" stroke="#948e83" marker-end="url(#a)"/>
+
+    <text class="svg-l" x="40" y="446">UPSTREAMS</text>
+    <rect x="40" y="456" width="820" height="52" fill="#141312" stroke="#9a9489"/>
+    <text class="svg-s" x="56" y="476">vendor chat completions</text><text class="svg-s" x="280" y="476">OAuth portals / device flows</text><text class="svg-s" x="560" y="476">web session endpoints</text>
+    <text class="svg-s" x="56" y="494">per-account credentials resolved from secret store</text><text class="svg-s" x="560" y="494">account pool state in memory</text>
+
+    <line x1="460" y1="508" x2="460" y2="538" stroke="#948e83" marker-end="url(#a)"/>
+    <text class="svg-l" x="40" y="532">CROSS-CUTTING STATE</text>
+    <rect x="40" y="542" width="820" height="48" fill="#201e1b" stroke="#514c44"/>
+    <text class="svg-s" x="56" y="562">lattice-store.json</text><text class="svg-s" x="220" y="562">lattice-secrets.json</text><text class="svg-s" x="420" y="562">request-ledger.ndjson</text><text class="svg-s" x="650" y="562">model-passports + key</text>
+    <text class="svg-s" x="56" y="580">accounts / combos / proxies</text><text class="svg-s" x="220" y="580">file or OS secret backend</text><text class="svg-s" x="420" y="580">append-only telemetry</text><text class="svg-s" x="650" y="580">signed, evidence-classed claims</text>
+  </svg>
+  <figcaption>Fig. 1 — Layered architecture as implemented. Arrows show the primary request path; cross-cutting state is written by the router, plugins and admin APIs.</figcaption>
+  </figure>
+
+  <p>Two architectural properties are worth stating plainly. First, <strong>the router never chooses an account and never expands a combo</strong>; it resolves a model string to a plugin and delegates. Account selection lives inside each adapter, and failover logic lives in the combo adapter. This keeps the router small but duplicates account-selection logic across four large plugins. Second, <strong>dialect detection is purely path-based</strong>: <code>/v1/messages</code> means Anthropic, <code>/v1/responses</code> means Responses, everything else means OpenAI. There is no content sniffing, which is correct for a gateway but means error shapes depend on the URL the client happened to use (<span class="ref">src/core/server.ts:167–196</span>).</p>
+
+  <p>The admin surface is mounted into the same Hono application and shares the middleware chain, with a stricter token class for <code>/api/*</code> and <code>/admin/*</code>. The dashboard shell at <code>/admin</code> is intentionally public; its data APIs are not. That separation is sound, though the dashboard's token entry is manual and stored in <code>sessionStorage</code>, which is an appropriate choice for a local tool (<span class="ref">src/admin/dashboard-ui.ts:2388–2398</span>).</p>
+</section>
+
+<section id="s5">
+  <div class="sec-head"><span class="sec-num">05</span><h2>End-to-end request lifecycle</h2></div>
+  <p>The same eleven steps run for all three dialects; only the normalizer, serializer and SSE adapter differ. The sequence below follows a successful streaming request through the system, because streaming is where the interesting behavior lives.</p>
+
+  <figure>
+  <svg viewBox="0 0 920 500" role="img" aria-label="Request lifecycle sequence diagram from client through middleware, router, plugin, upstream and response serialization">
+    <defs><marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#948e83"/></marker></defs>
+    <line x1="90" y1="44" x2="90" y2="470" stroke="#35322d" stroke-dasharray="3 4"/>
+    <line x1="250" y1="44" x2="250" y2="470" stroke="#35322d" stroke-dasharray="3 4"/>
+    <line x1="410" y1="44" x2="410" y2="470" stroke="#35322d" stroke-dasharray="3 4"/>
+    <line x1="570" y1="44" x2="570" y2="470" stroke="#35322d" stroke-dasharray="3 4"/>
+    <line x1="730" y1="44" x2="730" y2="470" stroke="#35322d" stroke-dasharray="3 4"/>
+    <line x1="880" y1="44" x2="880" y2="470" stroke="#35322d" stroke-dasharray="3 4"/>
+    <text class="svg-t" x="40" y="30">Client</text><text class="svg-t" x="198" y="30">Middleware</text>
+    <text class="svg-t" x="358" y="30">Router</text><text class="svg-t" x="518" y="30">Plugin + pool</text>
+    <text class="svg-t" x="678" y="30">Upstream</text><text class="svg-t" x="838" y="30">SSE adapter</text>
+
+    <line x1="90" y1="68" x2="246" y2="68" stroke="#948e83" marker-end="url(#b)"/><text class="svg-s" x="118" y="60">POST /v1/… + Bearer</text>
+    <line x1="250" y1="104" x2="406" y2="104" stroke="#948e83" marker-end="url(#b)"/><text class="svg-s" x="262" y="96">id · origin · CORS · size · auth</text>
+    <line x1="410" y1="140" x2="410" y2="140" stroke="#948e83"/><text class="svg-s" x="322" y="132">normalize → canonical</text>
+    <line x1="410" y1="176" x2="410" y2="176" stroke="#948e83"/><text class="svg-s" x="300" y="168">alias → plugin · count tokens</text>
+    <line x1="410" y1="212" x2="566" y2="212" stroke="#948e83" marker-end="url(#b)"/><text class="svg-s" x="424" y="204">executeStream(req, signal)</text>
+    <line x1="570" y1="248" x2="570" y2="248" stroke="#948e83"/><text class="svg-s" x="486" y="240">pick active account</text>
+    <line x1="570" y1="284" x2="726" y2="284" stroke="#948e83" marker-end="url(#b)"/><text class="svg-s" x="584" y="276">HTTP + credentials</text>
+    <line x1="730" y1="320" x2="572" y2="320" stroke="#948e83" marker-end="url(#b)"/><text class="svg-s" x="600" y="312">SSE chunks</text>
+    <line x1="570" y1="356" x2="408" y2="356" stroke="#948e83" marker-end="url(#b)"/><text class="svg-s" x="430" y="348">canonical events</text>
+    <line x1="410" y1="392" x2="876" y2="392" stroke="#948e83" marker-end="url(#b)"/><text class="svg-s" x="560" y="384">XML interceptor → idle timeout → dialect SSE</text>
+    <line x1="880" y1="428" x2="92" y2="428" stroke="#948e83" marker-end="url(#b)"/><text class="svg-s" x="430" y="420">text/event-stream (HTTP 200)</text>
+    <line x1="410" y1="464" x2="410" y2="464" stroke="#948e83"/><text class="svg-s" x="300" y="456">ledger + usage on completion</text>
+  </svg>
+  <figcaption>Fig. 2 — Request lifecycle. Error paths diverge at the plugin boundary: a pre-content failure may rotate account or combo target; after content, the stream terminates with an in-band error event.</figcaption>
+  </figure>
+
+  <ol>
+    <li><strong>Transport guards.</strong> A request ID is assigned or accepted from <code>x-request-id</code>; a foreign <code>Origin</code> is rejected unless explicitly allowlisted or loopback; CORS headers are applied; bodies are limited to 10 MB by declared length or by draining and reattaching a chunked stream; a bearer token is required except on a small public-path set (<span class="ref">src/core/server.ts:55–164</span>).</li>
+    <li><strong>Parsing.</strong> The handler calls <code>c.req.json()</code>; invalid JSON becomes a 400 in the client's dialect. There is no JSON Schema validation of the request beyond per-dialect Zod schemas inside the normalizers.</li>
+    <li><strong>Normalization.</strong> The dialect-specific normalizer produces a <code>CanonicalRequest</code>. Session identity is derived separately from the <code>x-lattice-session</code> header or metadata keys, hashed to <code>ses_…</code>, and attached as an affinity hint.</li>
+    <li><strong>Model resolution.</strong> Aliases such as <code>claude-sonnet-4-6</code> map to <code>lattice/code-flagship</code>. The router then checks provider prefix, plugin ID, and a 60-second catalog cache. Unknown models return 404. A special case routes every model to the only plugin when exactly one is registered, without validation (<span class="ref">src/core/router.ts:189–193</span>).</li>
+    <li><strong>Edge token counting.</strong> <code>countPromptTokens</code> uses the <code>gpt-tokenizer</code> BPE synchronously on every request, including images at a flat 1,000 tokens each. This value is the fallback usage when the upstream does not report it.</li>
+    <li><strong>Execution.</strong> Non-streaming calls are wrapped in <code>withRequestDeadline</code> (30 minutes by default). Streaming calls obtain an async iterable from <code>executeStream</code>.</li>
+    <li><strong>Account and upstream.</strong> The selected plugin picks an account — in practice the first active one, preferring a session-pinned ID — resolves credentials through the secret store for imported accounts, and sends the upstream request. 401 and 429 rotate accounts with cooldown handling; ambiguous network failures fail fast by design.</li>
+    <li><strong>Combo handling.</strong> If the resolved plugin is <code>lattice</code>, the combo engine walks its ordered targets, applies context-window and quota guards, and buffers stream events until the first content-bearing event before committing to a target.</li>
+    <li><strong>Event processing.</strong> Every stream event updates passport observations. The XML interceptor may convert text deltas that look like XML tool calls into canonical tool events. An idle/request timeout wrapper can emit a synthetic error event.</li>
+    <li><strong>Serialization.</strong> A dialect SSE adapter converts canonical events to wire events, adds keepalive comments, and emits a terminal event. Usage is recorded and a structured log row is appended in the generator's <code>finally</code> block.</li>
+    <li><strong>Observation.</strong> The router broadcasts a redacted log record to the dashboard and appends it to the NDJSON ledger. No prompts, completions, headers or credentials are recorded.</li>
+  </ol>
+</section>
+
+<section id="s6">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Component-by-component technical analysis</h2></div>
+
+  <h3>6.1 Server and middleware</h3>
+  <p><code>createServer</code> builds a Hono app and mounts middleware in an order that matters. The browser-origin guard is a genuine defense: a loopback service is still reachable from a page the operator visits, so requiring an explicit allowlisted or loopback <code>Origin</code> closes a class of DNS-rebinding and drive-by requests (<span class="ref">src/core/server.ts:19–29, 67–78</span>). CORS defaults to two explicit loopback origins. The body limiter drains chunked bodies and reattaches a buffered <code>Request</code>, which is correct but means a 10 MB request is fully resident in memory before routing.</p>
+  <p>Authentication compares tokens with a plain string inequality (<span class="ref">src/core/server.ts:156</span>). With 192-bit random tokens this is not a practical remote timing attack, but it is not constant-time either. More consequential: both tokens are printed to stdout at startup in the source entrypoint (<span class="ref">src/index.ts:109–110</span>) and the binary entrypoint (<span class="ref">bin/lattice.ts:92</span>), so terminal scrollback, screen sharing and process log capture can disclose them. The token file itself is generated with <code>randomBytes(24)</code>, written with mode 0600 and re-chmodded where supported (<span class="ref">src/core/auth-tokens.ts:30–39</span>) — solid for a local tool.</p>
+
+  <h3>6.2 Router</h3>
+  <p>The router is 687 lines of which roughly 440 are three near-identical endpoint handlers. Each repeats normalization, resolution, token counting, a non-streaming branch, a stream-tapping generator, SSE construction and response headers. The duplication is not merely aesthetic: the same fix has to be applied three times, and the three copies already differ in small ways (for example, which dialect is considered in the 404 handler). A single dialect-parameterized handler would remove most of this surface without changing behavior.</p>
+  <p>The router's account of its own responsibilities is honest: it records aggregate provider usage but does not choose accounts. That means quota attribution is based on "the active account with the newest <code>lastUsedAt</code>" in the pool (<span class="ref">src/pool/account-pool.ts:360–373</span>) rather than the account the plugin actually used, which is wrong under concurrency. It also means a client abort can be logged as a successful request: the stream-tapping generator's <code>finally</code> block records usage and a 200 status whenever no <code>stream_error</code> was observed, and client abort returns silently from the timeout wrapper (<span class="ref">src/core/router.ts:348–371</span>, <span class="ref">src/utils/idle-timeout.ts:91–93</span>).</p>
+
+  <h3>6.3 Dialect engine</h3>
+  <p>The canonical model is the project's best architectural decision. It defines content parts for text, image, thinking, redacted thinking, tool use and tool results, a request type carrying tools, tool choice, thinking config, reasoning effort, stream options and affinity, and a nine-variant stream-event union (<span class="ref">src/core/types/canonical.ts:23–336</span>). This is a real intermediate representation: the three ingress normalizers and three egress serializers are independent of each other and of the plugins.</p>
+  <p>Happy-path behavior is covered and mostly correct. OpenAI Chat tool-call deltas use the canonical index properly; Anthropic thinking, text and tool blocks are assembled into a state machine; the Responses JSON serializer produces a coherent response object. The weaknesses are in the long tail, discussed in section 10: request fields accepted but dropped, error stop reasons collapsed into success, Responses streaming event names that do not match the public protocol, and tool-call IDs replaced with locally generated ones.</p>
+
+  <h3>6.4 XML tool interceptor</h3>
+  <p>This component solves a real problem for open-weight models that emit tool calls as XML inside ordinary text deltas. It buffers text, recognizes four shapes, emits canonical tool events with a generated ID, and falls back to plain text when parsing fails. Its limitation is structural: parsing is regex-only. There is no entity decoding, attributes on <code>&lt;tool_call&gt;</code> break the match, non-greedy inner patterns fail on nested content, and two recognized prefixes — <code>&lt;function_call&gt;</code> and <code>&lt;function_calls&gt;</code> — are listed as trigger prefixes but have no corresponding parser, so they are eventually flushed as raw text (<span class="ref">src/engine/dialect/xml-tool-interceptor.ts:126–131, 189–239</span>). The 4 KB buffer bound is measured in UTF-16 code units rather than bytes. These are contained risks for the models it was built for, but they are the exact edge cases coding agents hit when a model emits malformed tool XML.</p>
+
+  <h3>6.5 Account pool and credentials</h3>
+  <p>The pool has a well-thought-out state model: active, cooldown, suspended, expired, invalid; <code>Retry-After</code> parsing; a four-hour threshold that converts a long rate limit into zero remaining quota; reset times; and an error count that invalidates an account after five failures. What it lacks is selection intelligence and concurrency control. <code>getNextRotatedAccount</code> implements per-provider round-robin but has no callers in <code>src/</code>; adapters instead pick <code>active[0]</code> (<span class="ref">src/plugins/kilo.ts:400–409</span>). Account objects are mutated in place, with no reservations or locks, so concurrent requests can collide on the same account.</p>
+  <p>Credential resolution is cleanly separated: imported accounts carry an opaque <code>acc_import_</code> ID and no secret in the store; the resolver fetches secrets by ID from the secret store for those accounts only (<span class="ref">src/core/credential-resolver.ts</span>). That design prevents the main JSON store from re-absorbing credentials after import, which is a meaningful integrity property.</p>
+
+  <h3>6.6 Model passports and observation</h3>
+  <p>Passports are more careful than most capability systems. Each record carries claims with a source of <code>declared</code>, <code>discovered</code> or <code>measured</code>, an observation time, an evidence string, a canonical-content digest, a signer key ID, the public key and an Ed25519 signature. Verification checks the digest, the key-ID/public-key binding and the signature; load rejects invalid or foreign records; measured claims are preserved across catalogue observations; and unknown values are absent rather than defaulted (<span class="ref">src/core/model-passports.ts:77–241</span>). The one routing consumer is context-window selection in the combo engine, which requires verification before trusting the claim (<span class="ref">src/plugins/combo.ts:62–75</span>).</p>
+  <p>Two gaps undermine the system's potential. <code>observe()</code> rebuilds a passport from a descriptor and copies measured claims but not the current <code>availability</code> field, so a later catalogue refresh wipes an explicit probe's result (<span class="ref">src/core/model-passports.ts:250–263</span>). More broadly, <code>availability.healthy</code> and <code>latencyMs</code> are written but never read by the router, combos or account selection. The "capability learning" loop therefore improves the dashboard, not routing.</p>
+
+  <h3>6.7 Ledger, telemetry and admin</h3>
+  <p>The ledger records only numeric and routing fields and is redacted by omission — no prompts, completions, headers or credentials — which is the right design and is guarded by tests. Its implementation is a synchronous <code>appendFileSync</code> per request and a full-file read and JSON parse for every metrics query, with no rotation or retention. The admin router exposes roughly 43 routes covering accounts, OAuth, import, combos, plugins, passports, probes, harness setup, logs and telemetry. All are behind the admin token, and the dashboard obtains that token from the operator rather than embedding it. The harness manager writes realistic provider configuration into client settings, including a fixed placeholder API key <code>sk-lattice-master</code> in generated configs (<span class="ref">src/admin/harness-manager.ts:375–618</span>); this is a local placeholder, not a server credential, but it should be derived from the configured gateway token to avoid confusion and to work when the token is rotated.</p>
+</section>
+
+<section id="s7">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Provider and plugin ecosystem</h2></div>
+  <p>Seven plugins are registered at startup: six upstream adapters and one virtual combo engine. All three required interface methods are genuinely implemented in each; there are no "not implemented" stubs. The optional lifecycle hooks tell a different story — <code>initialize</code> and <code>shutdown</code> are implemented by none, <code>refreshAuth</code> by only two, and <code>healthCheck</code> is a trivial boolean in three. The declared interface is broader than the ecosystem that uses it.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Plugin maturity and integration quality</caption>
+    <thead><tr><th>Plugin</th><th>Upstream / auth</th><th>Implementation</th><th>Material issues</th></tr></thead>
+    <tbody>
+      <tr><td><code>kilo</code></td><td>Kilo Code gateway · OAuth, API key, org ID</td><td><span class="chip ok">Mature</span></td><td>Largest catalogue; live sync only via probe. Static model IDs include unverified future-looking names.</td></tr>
+      <tr><td><code>nous</code></td><td>Nous Portal · OAuth / <code>sk-nous</code></td><td><span class="chip ok">Mature</span></td><td>Near-duplicate of Kilo; same cooldown and rotation logic copied rather than shared.</td></tr>
+      <tr><td><code>cline</code></td><td>Cline WorkOS · OAuth / API key</td><td><span class="chip ok">Mature</span></td><td>WorkOS client constants reverse-engineered from an upstream project; natural-language <code>Retry-After</code> parsing is a genuine strength.</td></tr>
+      <tr><td><code>deepseek</code></td><td>DeepSeek web · cookie pool</td><td><span class="chip partial">Partial</span></td><td>Fake challenge solution and mock session token; cooldown accounts never recover; browser impersonation headers.</td></tr>
+      <tr><td><code>opencode</code></td><td>OpenCode Zen · keyless / API key</td><td><span class="chip partial">Partial</span></td><td>CLI impersonation, injected "gate tools", hardcoded developer absolute path; no proxy rotation in this build.</td></tr>
+      <tr><td><code>freellmapi</code></td><td>Local aggregator at <code>127.0.0.1:31415</code></td><td><span class="chip partial">Partial</span></td><td>Hardcoded fallback API key, no 429/cooldown/retry, fabricated usage fallbacks, no tests reference this file.</td></tr>
+      <tr><td><code>lattice</code></td><td>Virtual combos (not an upstream)</td><td><span class="chip ok">Mature</span></td><td>Real pre-content failover and context/quota guards; context defaults derived from substring heuristics.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>7.1 Confirmed defects in the ecosystem</h3>
+  <p><span class="sev high">High</span> <strong>Hardcoded fallback credential.</strong> <code>FREELLMAPI_DEFAULT_KEY</code> is a literal API key in source, used as the account credential and as a final fallback in request headers (<span class="ref">src/plugins/freellmapi.ts:19–22, 43–55, 77–86</span>). The upstream is a local service on port 31415, so this is not a cloud secret, but it is a shared credential committed to source. It should be required from configuration and fail closed when absent.</p>
+
+  <p><span class="sev high">High</span> <strong>Fabricated challenge solution in DeepSeek.</strong> <code>solveChallenge()</code> posts a literal <code>solution: 'solved_nonce_proof'</code> and returns <code>'ds_session_cookie_mock'</code> on failure or when the upstream omits a token (<span class="ref">src/plugins/deepseek.ts:285–311</span>). Failing open with a fake session token guarantees a downstream authentication failure and hides the real cause. The method should throw a classified authentication error.</p>
+
+  <p><span class="sev high">High</span> <strong>DeepSeek cooldown is a permanent state.</strong> Accounts are moved to <code>status: 'cooldown'</code>, but <code>getActiveAccounts()</code> accepts only <code>'active'</code> and this adapter never performs the expiry reset that Kilo, Nous and Cline implement (<span class="ref">src/plugins/deepseek.ts:252–257, 542, 680</span>). Once cooled down, a DeepSeek account is effectively dead until an operator intervenes.</p>
+
+  <p><span class="sev med">Medium</span> <strong>Admin bootstrap registers the wrong combo ID and omits one plugin.</strong> <code>createAdminRouter</code> registers <code>new LatticeComboPlugin()</code> under the key <code>'lattice-combo'</code>, but the plugin's actual ID is <code>'lattice'</code>, and <code>freellmapi</code> is never registered there at all (<span class="ref">src/admin/admin-router.ts:128–145</span> versus <span class="ref">src/plugins/combo.ts:44</span>). The shipped entrypoints register all plugins correctly before <code>createServer</code>, so production startup is unaffected; library and in-process consumers that rely on the admin bootstrap get a registry where <code>lattice/…</code> models cannot resolve.</p>
+
+  <p><span class="sev med">Medium</span> <strong>Developer path in shipped code.</strong> The OpenCode tool loader hardcodes <code>C:\Users\adity\Videos\cline-proxy-main\…</code> (<span class="ref">src/plugins/opencode.ts:150</span>). On any other machine the load fails silently and the plugin falls back to twelve embedded stub tool definitions. This is a portability defect, not a security one.</p>
+
+  <p><span class="sev med">Medium</span> <strong>Catalogue credibility.</strong> Model IDs such as <code>nous/qwen/qwen4-max</code>, <code>kilo/particle-ai/particle-1:free</code>, <code>kilo/baidu/ernie-5.5-flash-preview:free</code>, <code>deepseek-v4.1-flash-free</code> and <code>claude-sonnet-4-5</code> are hand-maintained strings with a constant <code>created: 1731693600</code>. The project's own design document classifies such descriptors as <code>declared</code> and therefore unverified, which is the right epistemic stance; the problem is that combos route to them and the dashboard advertises them as if they were live. Live <code>/v1/models</code> synchronization exists in Kilo, Nous and FreeLLMAPI but is invoked only from <code>probe()</code> or <code>listModels()</code>, never from normal request routing (<span class="ref">src/plugins/kilo.ts:1063</span>, <span class="ref">src/plugins/nous.ts:1044</span>).</p>
+
+  <h3>7.2 Extensibility assessment</h3>
+  <p>Adding a provider currently requires touching at least four places: the new adapter file, both entrypoints (<span class="ref">src/index.ts:23–47</span>, <span class="ref">bin/lattice.ts:59–83</span>), the hardcoded prefix list in <code>model-resolver.ts</code>, and the static admin catalogue. There is no dynamic plugin discovery, no manifest format, no dependency declaration, and no isolation boundary — plugins are ordinary in-process classes with full filesystem and network access. Two resolvers implement different matching rules, and the combo resolver reaches into an untyped <code>(plugin as any).cachedModels</code> property that not every plugin has (<span class="ref">src/utils/model-resolver.ts:60–68</span>). The proxy pool is similarly incomplete: it is CRUD over in-memory state with no dispatch integration, and <code>getNextProxy()</code> increments its index before reading, skipping the first proxy (<span class="ref">src/pool/proxy-pool.ts:38–45</span>).</p>
+  <p>The honest conclusion: the plugin interface is a good <strong>execution</strong> seam and a poor <strong>ecosystem</strong> seam. Making it the latter requires catalog-driven resolution, a plugin manifest, and a single registry that both the router and combos consult.</p>
+</section>
+
+<section id="s8">
+  <div class="sec-head"><span class="sec-num">08</span><h2>Routing and virtual model combinations</h2></div>
+  <p>Routing in Lattice is a two-stage process. The router maps a client-facing model string to a plugin; if that plugin is the combo engine, a second stage walks an ordered list of concrete models. Both stages are deterministic and static. There is no scoring function, no health input, no latency or cost objective, and no learning from outcomes.</p>
+
+  <h3>8.1 Alias and provider resolution</h3>
+  <p>A hardcoded alias table maps Claude Code and common short names onto two combos: most Sonnet/Opus variants go to <code>lattice/code-flagship</code>, Haiku variants and <code>auto</code> go to <code>lattice/1m-free</code> or <code>lattice/fast-free</code> (<span class="ref">src/core/router.ts:157–174</span>). This is pragmatic harness compatibility — it makes Claude Code work without configuration — but it collapses materially different models into one target. An Opus request and a Haiku request are not capability-equivalent, and a user who names a specific model may be silently served by an unrelated free one.</p>
+  <p>Resolution then checks a provider prefix, a plugin ID, and a 60-second catalog cache, with a single-plugin short circuit noted earlier. The catalog cache is not invalidated when admin APIs add or remove models, so changes can take up to a minute to become visible in routing. Separately, the combo engine's resolver uses hardcoded prefixes and scans plugins' <code>cachedModels</code> arrays rather than calling <code>listModels()</code>. These two algorithms can disagree about the same model string.</p>
+
+  <h3>8.2 Combo execution</h3>
+  <p>The combo engine is the most thoughtfully designed routing component. For each target in priority order it:</p>
+  <ul>
+    <li>resolves the target to a plugin, skipping unresolved targets;</li>
+    <li>reads a context window from a <em>signature-verified</em> passport, falling back to the plugin descriptor and finally to substring heuristics such as <code>modelId.includes('1m')</code> → 1,048,576 tokens (<span class="ref">src/plugins/combo.ts:62–111</span>);</li>
+    <li>skips the target if the estimated prompt plus a 256-token safety margin leaves fewer than 256 output tokens;</li>
+    <li>skips the provider if all its accounts have zero remaining quota;</li>
+    <li>clamps <code>maxTokens</code> to the remaining window and executes the target;</li>
+    <li>on pre-content failure, rotates; on success, pins the target for the session.</li>
+  </ul>
+  <p>Streaming failover adds an important refinement: the adapter pulls events until the first content-bearing one — text, thinking, tool start or tool delta — before returning the stream. A target that connects and then dies before producing content can therefore be retried without duplicating anything visible to the client. Once content has been emitted, a mid-stream failure produces a <code>stream_error</code> event rather than switching model, which is the correct trade-off for tool-calling agents (<span class="ref">src/plugins/combo.ts:334–403</span>). The target switch budget is four, so a ten-target combo will try at most four candidates.</p>
+
+  <div class="note"><div class="label">Verdict on "intelligent routing"</div><p>The system is <strong>context-aware and quota-aware ordered failover</strong>, not intelligent routing. It does not choose among healthy providers by latency, price, quality or load; it does not use passport availability or measured latency; it has no circuit breaker or backoff; and its account selection is first-active rather than least-used. Calling it "intelligent" overstates what the code does. Calling it a well-engineered failover cascade does not.</p></div>
+</section>
+
+<section id="s9">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Account, quota and credential management</h2></div>
+  <p>The account model is richer than the routing built on top of it. A stored account carries status, cooldown timing and reason, error count, rate-limit reset, quota remaining/limit/reset, cumulative tokens and requests, and last-used time (<span class="ref">src/core/types/plugin.ts:20–48</span>). The pool implements cooldown expiry, reset-window detection, next-reset calculation, a four-hour long-cooldown rule that sets quota to zero, and invalidation after five errors.</p>
+
+  <p>Rotation policy is deliberately conservative and well reasoned. Kilo, Nous and Cline rotate an account on 401 (suspend) and 429 (cooldown plus <code>Retry-After</code> parsing, including natural-language forms in Cline), but fail fast on network errors, aborts and 5xx responses. The design rationale — an ambiguous failure may have processed a tool call or consumed a charge, so retrying another account could duplicate it — is correct and documented in the README. This is a good decision, even though it reduces availability.</p>
+
+  <p>The execution of that policy has three problems. First, selection is <code>active[0]</code> with a preference for a session-pinned ID; the round-robin method exists but is unused, so load concentrates on the first account. Second, there are no in-flight reservations or locks. Multiple concurrent requests can select the same account, and <code>lastUsedAt</code> is written at selection time then used later to attribute usage, so quota decrements can land on the wrong account (<span class="ref">src/pool/account-pool.ts:360–373</span>). Third, none of this runtime state is persisted: cooldowns, quota decrements and token counters are lost on restart, and <code>globalStorage.save()</code> is called only from a handful of admin mutations.</p>
+
+  <p>Credential handling is the strongest part of this subsystem. Imported accounts use opaque random IDs, store no secret in the account record, and resolve their credentials through <code>globalCredentialResolver</code> into the outbound header. The import flow requires an explicit operator-supplied path, returns only provider names, counts and a digest in preview, and binds a 60-second single-use confirmation token to the preview digest (<span class="ref">src/core/account-import.ts:63–130</span>). The secret store is honest about its backend: file storage is reported as <code>file-fallback</code>, and OS backends are advertised only after a real round-trip probe or tool presence check (<span class="ref">src/core/secret-store.ts:189–230</span>). Writes use a temp file plus atomic rename and mode 0600. External commands are invoked with <code>execFileSync</code> and argument arrays, with secrets passed on stdin — no shell interpolation.</p>
+</section>
+
+<section id="s10">
+  <div class="sec-head"><span class="sec-num">10</span><h2>API compatibility analysis</h2></div>
+  <p>This assessment is based on source inspection against the public OpenAI and Anthropic protocol shapes, plus the project's own conformance fixtures. It is not a live interop test against vendor SDKs; that distinction matters for the confidence level of the "confirmed" labels below. Where the code contradicts a documented event or field name, the finding is high confidence. Where the concern is about subtle client behavior, it is framed as a risk.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Dialect fidelity by feature</caption>
+    <thead><tr><th>Feature</th><th>OpenAI Chat</th><th>Anthropic Messages</th><th>OpenAI Responses</th></tr></thead>
+    <tbody>
+      <tr><td>Text + basic streaming</td><td><span class="sq ok"></span>Works</td><td><span class="sq ok"></span>Works</td><td><span class="sq partial"></span>SSE deltas non-standard</td></tr>
+      <tr><td>Tool definitions / non-stream tool calls</td><td><span class="sq ok"></span>Works</td><td><span class="sq ok"></span>Works</td><td><span class="sq ok"></span>Works</td></tr>
+      <tr><td>Streaming tool-call deltas</td><td><span class="sq ok"></span>Index used correctly</td><td><span class="sq partial"></span>Index ignored; single active block</td><td><span class="sq no"></span>Provider call ID discarded</td></tr>
+      <tr><td>Thinking / reasoning</td><td><span class="sq partial"></span>Non-standard <code>reasoning_content</code></td><td><span class="sq ok"></span>Blocks + signatures</td><td><span class="sq no"></span>Ignored in serializer</td></tr>
+      <tr><td>Images / multimodal</td><td><span class="sq partial"></span>Flat 1000-token estimate, URL MIME assumed JPEG</td><td><span class="sq partial"></span>Parts mapped, cache metadata dropped</td><td><span class="sq no"></span>Not covered</td></tr>
+      <tr><td>Structured outputs / <code>response_format</code></td><td><span class="sq no"></span>Accepted then dropped</td><td>n/a</td><td>n/a</td></tr>
+      <tr><td>Conversation state / <code>previous_response_id</code></td><td>n/a</td><td>n/a</td><td><span class="sq no"></span>Parsed then dropped</td></tr>
+      <tr><td>Usage reporting</td><td><span class="sq partial"></span>Provider or estimate</td><td><span class="sq partial"></span>Provider or estimate</td><td><span class="sq partial"></span>Provider or estimate</td></tr>
+      <tr><td>Error shape</td><td><span class="sq partial"></span>Correct for HTTP errors; stream errors in-band</td><td><span class="sq partial"></span>Same</td><td><span class="sq partial"></span>Failed marked as completed</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>10.1 OpenAI Chat Completions</h3>
+  <p>Normalization handles system messages, text and image parts, assistant reasoning content, assistant tool calls with JSON argument parsing and raw-string fallback, and tool result messages (<span class="ref">src/engine/dialect/normalizer.ts:40–220</span>). Streaming output follows the expected chunk shape with an initial role delta, text and tool-call deltas indexed correctly, an optional usage chunk when requested, a finish-reason chunk and <code>[DONE]</code>. This is the most faithful of the three dialects.</p>
+  <p><span class="sev med">Medium</span> <strong>Silently dropped request fields.</strong> <code>response_format</code>, <code>n</code>, <code>presence_penalty</code>, <code>frequency_penalty</code>, <code>logit_bias</code>, <code>seed</code> and <code>user</code> are parsed by the request schema but never read by the normalizer. A client requesting <code>json_object</code> structured output gets an ordinary completion with no indication that the constraint was ignored. This is the most consequential compatibility gap for agents that depend on schema-constrained output.</p>
+
+  <h3>10.2 Anthropic Messages</h3>
+  <p>Content blocks, system prompts, tool choice and thinking configuration are mapped carefully. Adjacent same-role messages are merged, which is convenient for provider compatibility but changes message boundaries and can erase cache-control breakpoints. Anthropic-specific metadata — <code>cache_control</code> on system blocks and tools, <code>metadata.user_id</code>, <code>disable_parallel_tool_use</code> — is dropped (<span class="ref">src/engine/dialect/normalizer.ts:225–437</span>).</p>
+  <p><span class="sev med">Medium</span> <strong>Parallel tool calls in streams.</strong> The Anthropic SSE adapter tracks one <code>activeBlockType</code> and one <code>currentBlockIndex</code>; <code>event.index</code> is not consulted for tool deltas. Interleaved argument deltas from parallel tool calls are therefore merged into a single block, producing corrupt JSON. Late thinking deltas are converted to text or suppressed to preserve Anthropic's block ordering, which also loses reasoning content. <code>message_start</code> hardcodes <code>output_tokens: 1</code>.</p>
+
+  <h3>10.3 OpenAI Responses — weakest dialect</h3>
+  <p><span class="sev high">High</span> <strong>Non-standard streaming events.</strong> The adapter emits <code>response.output_stream.delta</code> with delta types <code>reasoning_text_delta</code>, <code>input_text_delta</code> and <code>partial_json_delta</code> (<span class="ref">src/engine/dialect/stream-adapter.ts:692, 718, 751</span>). The documented Responses protocol uses distinct named events such as <code>response.output_text.delta</code> and <code>response.function_call_arguments.delta</code>. A real SDK listening for those events will see empty text and empty arguments. The conformance fixture checks only that <code>response.created</code> and <code>response.completed</code> appear, so this passes CI.</p>
+  <p><span class="sev high">High</span> <strong>Tool-call IDs are replaced.</strong> On <code>tool_call_start</code>, the adapter generates <code>call_${responseId}_${n}</code> and discards <code>event.id</code> from the canonical event (<span class="ref">src/engine/dialect/stream-adapter.ts:726–744</span>). Non-streaming serialization preserves the provider ID (<span class="ref">src/engine/dialect/serializer.ts:227</span>), so streaming and non-streaming disagree. In a multi-turn tool loop the client echoes the gateway-generated ID, which no longer matches the provider's call — the turn breaks.</p>
+  <p><span class="sev high">High</span> <strong>Reasoning and failure status.</strong> <code>serializeOpenAIResponse</code> handles only text and tool-use parts, so thinking content is silently lost; it sets <code>status: 'failed'</code> only for an <code>error</code> stop reason and emits no error field despite the interface declaring one (<span class="ref">src/engine/dialect/serializer.ts:214–272</span>). <code>previous_response_id</code> is accepted by the schema but never mapped, and the input item union accepts <code>message</code> and <code>function_call_output</code> but not an assistant <code>function_call</code> item, so a standard Responses tool loop fails validation with 400.</p>
+
+  <h3>10.4 Errors, usage and conformance depth</h3>
+  <p><span class="sev high">High</span> <strong>Errors reported as success.</strong> Canonical <code>stopReason: 'error'</code> maps to OpenAI <code>finish_reason: 'stop'</code> and Anthropic <code>stop_reason: 'end_turn'</code> with no error payload (<span class="ref">src/engine/dialect/serializer.ts:19–51</span>, <span class="ref">stream-adapter.ts:204, 499</span>). A failed generation is indistinguishable from a normal short completion in two of three dialects. Streaming errors are emitted in-band over HTTP 200 and, for OpenAI Chat, without a terminating <code>[DONE]</code>, so clients that wait for the terminator can hang.</p>
+  <p>Usage is provider-reported when present, otherwise locally estimated with a GPT BPE tokenizer plus fixed structural overheads. Several adapters fabricate fallback numbers such as 10 prompt and 20 completion tokens when upstream usage is missing. The <code>estimated</code> honesty flag exists only in the internal log record, not in the response the client receives, so a downstream system cannot tell a measured count from a guess. The three conformance fixtures verify a handful of JSON dot-paths and substring presence; they do not assert event sequences, field-level stream payloads, error paths, real SDK compatibility, or any of the features listed as missing above.</p>
+</section>
+
+<section id="s11">
+  <div class="sec-head"><span class="sec-num">11</span><h2>Streaming and reliability analysis</h2></div>
+  <p>The gateway has real reliability mechanisms: request deadlines, idle timeouts, keepalive comments, abort-signal plumbing, account rotation on unambiguous failures, and the pre-content buffering described above. It also has specific holes that matter under load or partial failure.</p>
+
+  <h3>11.1 Timeouts and cancellation</h3>
+  <p><span class="sev high">High</span> <strong>Deadlines do not abort upstream work.</strong> <code>withRequestDeadline</code> is a <code>Promise.race</code> between the work and a timer. When the timer wins, the caller receives a 504 but the underlying <code>fetch</code> keeps running; the client's abort signal is passed to the plugin separately and is not triggered by the deadline (<span class="ref">src/utils/request-deadline.ts:4–16</span>). Under sustained timeouts this leaks sockets, memory and provider quota. The streaming timeout wrapper emits a synthetic <code>stream_error</code> and cleans up its iterator, but likewise does not abort the upstream fetch.</p>
+  <p>Client cancellation is threaded correctly into <code>execute</code> and <code>executeStream</code> and through the interceptor and SSE adapters. The problem is accounting, not transport: on client abort the timeout wrapper returns without a <code>stream_error</code>, so the router's <code>finally</code> block still sees status 200, records usage and writes a successful log row for an incomplete stream (<span class="ref">src/core/router.ts:348–371</span>). This inflates quotas and telemetry precisely in the failure case.</p>
+
+  <h3>11.2 Failure handling</h3>
+  <p>There is no circuit breaker, no exponential backoff, no jitter, no bulkhead and no idempotency key. Retry loops try the next account or target immediately. A provider returning a uniform 5xx will be hit repeatedly on every request until exhausting the attempt budget, with no cool-down at the provider level. A client that retries an ambiguous failure may duplicate a tool call because nothing deduplicates requests.</p>
+  <p>The decision to fail fast on network errors, aborts and 5xx is defensible and documented; it trades availability for correctness. The inconsistency is that the combo engine's non-streaming path falls back on <em>any</em> error, including ambiguous ones, while individual adapters do not. The same request can therefore be retried at the combo layer after the plugin deliberately refused to retry at the account layer — the exact duplication risk the conservative policy was meant to avoid (<span class="ref">src/plugins/combo.ts:214–226</span> versus <span class="ref">src/plugins/kilo.ts:767–770</span>).</p>
+
+  <h3>11.3 Stream termination</h3>
+  <p>Stream errors are in-band events on an HTTP 200 response. For OpenAI Chat the error chunk has no <code>choices</code> array and is followed by neither <code>[DONE]</code> nor a normal finish chunk; for Responses the failure is encoded as <code>response.completed</code> with <code>status: 'failed'</code> rather than a documented failure event. Keepalive comments are emitted on a 15-second interval, which prevents proxy idle timeouts but does not distinguish a healthy slow model from a stalled upstream — that distinction is made only by the separate 120-second idle wrapper.</p>
+  <p>Net assessment: the streaming architecture is sound and the pre-content rule is genuinely good engineering, but the error contract is weak. A gateway whose clients are coding agents needs the failure signal to be unambiguous, because an agent that cannot tell a truncated stream from a finished one will continue a conversation on a false premise.</p>
+</section>
+
+<section id="s12">
+  <div class="sec-head"><span class="sec-num">12</span><h2>Security assessment</h2></div>
+  <p>Lattice has undergone a visible security rescue. The current tree contains an origin guard, bearer tokens, body limits, an upstream URL allow-list, redacted imports, honest secret-backend reporting and tests named <code>security-*</code> that assert real behavior. The threat model is appropriately modest: this is a local, single-operator service, not a multi-tenant SaaS. Findings below are rated against that model.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Security findings</caption>
+    <thead><tr><th>ID / severity</th><th>Finding</th><th>Status</th><th>Evidence and impact</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td class="narrow"><span class="sev high">High</span><br><code>SEC-01</code></td><td>Dashboard XSS via unescaped log and model fields</td><td>Confirmed</td><td>Escaping is applied to account fields (<span class="ref">dashboard-ui.ts:2788–2797</span>) but not to log rows, the model grid, combo rows or SSE log output (<span class="ref">:2567–2598</span>, <span class="ref">:3316–3335</span>, <span class="ref">:3657–3666</span>). The model name originates in the client request (<span class="ref">router.ts:297,363,445</span>) and upstream catalogue names are also rendered. A gateway-token client can submit a model string containing an <code>&lt;img onerror&gt;</code> payload; when an admin opens the dashboard, it executes in the admin origin and can read the admin token from <code>sessionStorage</code> (<span class="ref">:2387–2391</span>). The existing redaction test checks source regexes for account fields only, so it does not catch this.</td><td>Escape every interpolation or use <code>textContent</code>; add a strict CSP. Treat this as the highest-priority security fix.</td></tr>
+      <tr><td class="narrow"><span class="sev med">Medium</span><br><code>SEC-02</code></td><td>Redirect-following can bypass upstream URL validation</td><td>Potential</td><td><code>isSafeUpstreamBaseUrl</code> validates the initial URL (<span class="ref">config.ts:7–44</span>) but no fetch call sets <code>redirect: 'error'</code> or <code>'manual'</code>. A validated upstream that returns <code>302 Location: http://169.254.169.254/…</code> would be followed. Cross-origin fetch strips the Authorization header, but the request and response still occur. Requires control of an upstream base URL, which is admin-gated.</td><td>Disable redirects or revalidate every hop; block HTTPS→HTTP downgrade.</td></tr>
+      <tr><td class="narrow"><span class="sev med">Medium</span><br><code>SEC-03</code></td><td>Allow-list is string-only; DNS rebinding and loopback HTTP</td><td>Confirmed limitation</td><td><span class="ref">config.ts:5</span> explicitly places post-check private DNS out of scope, and <span class="ref">:28</span> permits HTTP to loopback by design, asserted by <span class="ref">security-web-boundaries.test.ts:11–14</span>. A hostname resolving privately at fetch time, or an admin pointing a base URL at <code>http://127.0.0.1:9222</code>, reaches internal services.</td><td>Resolve and validate every address; pin the connection; make loopback HTTP opt-in.</td></tr>
+      <tr><td class="narrow"><span class="sev med">Medium</span><br><code>SEC-04</code></td><td>Plaintext credentials in store without restrictive mode</td><td>Confirmed</td><td>Account creation stores full credentials (<span class="ref">admin-router.ts:175–184</span>) and <span class="ref">storage.ts:66–71</span> writes the JSON with <code>writeFileSync</code> and no <code>mode</code>, unlike the secret store. <span class="ref">SECURITY.md:32</span> describes protection only for imported accounts. Local users, backups or sync tools can read OAuth tokens added through the dashboard.</td><td>Route all credentials through <code>SecretStore</code>; set mode 0600 and migrate existing stores.</td></tr>
+      <tr><td class="narrow"><span class="sev med">Medium</span><br><code>SEC-05</code></td><td>Tokens printed in cleartext at startup</td><td>Confirmed</td><td><span class="ref">src/index.ts:109–110</span>, <span class="ref">bin/lattice.ts:92</span>. Terminal scrollback, screen shares and captured process logs disclose both tokens. Related: environment variables override the generated tokens in <span class="ref">config.ts:95–96</span>, but the banner still prints the generated ones (<span class="ref">index.ts:66–71</span>) — an operator can be shown the wrong token.</td><td>Print a fingerprint only, and print the token actually passed to <code>loadConfig</code>.</td></tr>
+      <tr><td class="narrow"><span class="sev med">Medium</span><br><code>SEC-06</code></td><td>Hardcoded fallback API key for local aggregator</td><td>Confirmed</td><td><span class="ref">src/plugins/freellmapi.ts:19–22</span>. Shared credential committed to source; scope is a localhost service, so impact is bounded.</td><td>Require <code>FREELLMAPI_API_KEY</code> from environment; fail closed if absent.</td></tr>
+      <tr><td class="narrow"><span class="sev low">Low</span><br><code>SEC-07</code></td><td>Non-constant-time token comparison</td><td>Hardening</td><td><span class="ref">src/core/server.ts:156</span> uses <code>!==</code>. With 192-bit random tokens remote exploitation is impractical; still below standard practice.</td><td>Use <code>timingSafeEqual</code> over hashed digests.</td></tr>
+      <tr><td class="narrow"><span class="sev low">Low</span><br><code>SEC-08</code></td><td>Arbitrary file metadata read via import path</td><td>Admin-only</td><td><span class="ref">admin-router.ts:583–591</span>, <span class="ref">account-import.ts:45–49,67–90</span>. An admin can read any JSON path; preview returns count, provider names and a digest. No credentials or raw records are exposed.</td><td>Restrict to a configured import directory; reject absolute paths and traversal.</td></tr>
+      <tr><td class="narrow"><span class="sev low">Low</span><br><code>SEC-09</code></td><td>Origin guard accepts any loopback origin on any port</td><td>Hardening</td><td><span class="ref">server.ts:19–29,67–78</span>; <span class="ref">security-dashboard-auth.test.ts:46–52</span> codifies acceptance of <code>http://127.0.0.1:4001</code>. Browsers do not auto-attach the bearer token and <code>sessionStorage</code> is origin-scoped, so no direct token theft follows.</td><td>Limit to configured origins; drop the blanket loopback allowance.</td></tr>
+      <tr><td class="narrow"><span class="sev low">Low</span><br><code>SEC-10</code></td><td>Admin token falls back to gateway token</td><td>Library-only</td><td><span class="ref">server.ts:145–147</span>. Shipped entrypoints always set both tokens; in-process consumers that set only the gateway token grant it admin rights.</td><td>Fail closed when an admin token is required but absent.</td></tr>
+      <tr><td class="narrow"><span class="sev low">Low</span><br><code>SEC-11</code></td><td>Prototype-pollution pattern in ledger metrics</td><td>Potential, unreachable</td><td><span class="ref">request-ledger.ts:72–77</span> keys an object by <code>provider</code>. Current values are internal plugin IDs, not request-controlled; a future path setting <code>__proto__</code> would mutate <code>Object.prototype</code>.</td><td>Use <code>Object.create(null)</code> or a <code>Map</code>.</td></tr>
+      <tr><td class="narrow"><span class="sev low">Low</span><br><code>SEC-12</code></td><td>Fixed placeholder key written into harness configs</td><td>Functional / hardening</td><td><span class="ref">harness-manager.ts:375–618</span> writes <code>sk-lattice-master</code> into seven generated client configs. No server code accepts that value, so the configs authenticate nowhere unless the generated token happens to match.</td><td>Insert the effective gateway token or mark clearly as a placeholder.</td></tr>
+      <tr><td class="narrow"><span class="sev low">Low</span><br><code>SEC-13</code></td><td>Raw error messages serialized without redaction</td><td>Potential</td><td><span class="ref">server.ts:188–195</span>, <span class="ref">errors.ts:202,211,216</span>. An upstream error containing a URL with a key in the query string could be returned to the client.</td><td>Redact credential patterns centrally before serialization.</td></tr>
+      <tr><td class="narrow"><span class="sev info">Info</span><br><code>SEC-14</code></td><td>Historical credential exposure notice</td><td>Unverified</td><td><span class="ref">SECURITY.md:3–20</span> states that a live-token store was once committed. The audited clone has 18 commits and no <code>data/</code> path in any tree, so this cannot be verified here. The rotation advice remains correct if it ever held.</td><td>Operational task for the operator, not a current-tree defect.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>12.1 What is done well</h3>
+  <p>The browser-origin guard is a real control, not decoration: a loopback HTTP server is otherwise reachable from any page the operator visits, and a foreign <code>Origin</code> is rejected unless allowlisted (<span class="ref">src/core/server.ts:67–78</span>). Tokens use 192 bits of CSPRNG output and are stored with restrictive permissions. Admin and gateway tokens are separate classes, and the dashboard shell is public while its data APIs are not. The import flow does not read a hardcoded path, returns no secrets in preview, and uses a short-lived single-use confirmation token. Secret backends use <code>execFileSync</code> with argument arrays and stdin input, so there is no shell interpolation; backend labels are probe-gated and default to an honest <code>file-fallback</code>. Passport keys are generated locally, stored 0600, and signatures are verified on load with tamper and foreign-key tests. These are concrete, non-performative controls.</p>
+
+  <h3>12.2 Boundaries that remain soft</h3>
+  <p>Trust boundaries are concentrated at the admin API and the upstream URL field. An operator with the admin token can set arbitrary account base URLs (subject to the validator), trigger model probes that consume provider quota, write client configuration through the harness manager, and read redacted account metadata. That is expected for a local tool, but it means the admin token is effectively a full local compromise; protecting it matters more than any individual endpoint. The printed token in SEC-01 therefore deserves more weight than its "medium" label suggests.</p>
+  <p>There is also no rate limiting or brute-force protection on the token check, no audit log of admin mutations beyond the request ledger, and no separation between "read telemetry" and "mutate accounts" beyond the single admin token. For a single operator this is acceptable; it would not survive a multi-tenant deployment.</p>
+</section>
+
+<section id="s13">
+  <div class="sec-head"><span class="sec-num">13</span><h2>Performance and scalability assessment</h2></div>
+  <p>No benchmarks or load tests were executed as part of this audit, so this section identifies mechanisms and bottlenecks rather than claiming measured throughput. The project's stress scripts (<code>tests/stress-concurrency.ts</code>, <code>tests/stress-runs.ts</code>) are not part of <code>bun test</code> and are referenced by no package script.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Cost centers and scaling behavior</caption>
+    <thead><tr><th>Mechanism</th><th>Per-request cost</th><th>Scaling implication</th></tr></thead>
+    <tbody>
+      <tr><td>Edge prompt tokenization (<span class="ref">token-counter.ts:93–133</span>)</td><td>Synchronous BPE over the full prompt; images flat 1,000 tokens</td><td>Adds CPU latency proportional to prompt size on every request, even when the provider reports exact usage. Blocks the event loop for long prompts.</td></tr>
+      <tr><td>Ledger append (<span class="ref">request-ledger.ts:47–51</span>)</td><td>Synchronous <code>appendFileSync</code></td><td>Serializes all request completions on one file descriptor; acceptable at low volume, a throughput ceiling under high concurrency.</td></tr>
+      <tr><td>Telemetry queries (<span class="ref">request-ledger.ts:52–80</span>)</td><td>Full-file read and JSON parse per call</td><td>Dashboard cost is O(total requests); grows without bound because there is no rotation or retention.</td></tr>
+      <tr><td>Primary store save (<span class="ref">storage.ts:62–75</span>)</td><td>Synchronous full JSON rewrite</td><td>Only on admin mutations, so rare; still blocks the loop and is non-atomic.</td></tr>
+      <tr><td>Catalog cache (<span class="ref">router.ts:122–154</span>)</td><td>Rebuilt every 60 seconds from all plugins</td><td>FreeLLMAPI's <code>listModels()</code> performs a live HTTP call, so catalog refresh adds upstream traffic. Failures are swallowed.</td></tr>
+      <tr><td>Session affinity (<span class="ref">session-affinity.ts:60–132</span>)</td><td>In-memory map, capped at 10,000</td><td>Fast, but process-local; a multi-process deployment loses affinity consistency.</td></tr>
+      <tr><td>Account selection (<span class="ref">kilo.ts:400–409</span>)</td><td>Linear scan of active accounts, first match</td><td>No reservation or load spreading; hotspots and quota contention with thousands of accounts.</td></tr>
+      <tr><td>Dashboard bundle (<span class="ref">dashboard-ui.ts</span>)</td><td>~110 KB inline script, verified by guard</td><td>Client-side cost only; no measurable server impact.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Three structural constraints would appear first under real scale. The single-process design keeps pools, affinity, cooldowns and rotation indices in memory, so horizontal scaling requires either sticky routing or externalized state. Synchronous filesystem work in the request-completion path couples gateway throughput to disk latency. And the lack of in-flight account reservations means concurrency does not spread load — it concentrates it on whichever account happens to be first in the active list.</p>
+  <p>None of this is fatal for the stated single-operator use case. It does mean "thousands of concurrent requests" is not a supported design point without work on state externalization, async persistence and account reservation.</p>
+</section>
+
+<section id="s14">
+  <div class="sec-head"><span class="sec-num">14</span><h2>Persistence and data integrity</h2></div>
+  <p>Persistence is the weakest major subsystem. The primary store, the ledger and the passport store use three different standards, and only two of them are defensible.</p>
+
+  <h3>14.1 Primary store</h3>
+  <p><code>data/lattice-store.json</code> holds accounts, combos and proxies. <code>save()</code> calls <code>writeFileSync</code> directly on the live file with no temp file, rename, lock or debounce (<span class="ref">src/pool/storage.ts:62–75</span>). A crash mid-write can leave a truncated file. <code>load()</code> catches JSON parse errors, logs them, and continues with empty pools — so a corrupt file produces a running gateway with no accounts and no combos, and the next admin mutation overwrites the evidence (<span class="ref">src/pool/storage.ts:32–60</span>). There is no schema version, migration path, backup or quarantine. Plaintext credentials may be present in account records created through older paths; the import flow deliberately avoids this, but the model still permits it.</p>
+  <p>Runtime state is not persisted at all. Cooldowns, quota decrements, token counters, <code>lastUsedAt</code>, status transitions and rotation indices exist only in memory. A restart resets quota enforcement, which is both a correctness problem and an incentive problem for free-tier account use.</p>
+  <p>By contrast, the passport store, secret store and harness manager all use temp-file-plus-rename atomic writes, and the passport loader leaves a corrupt file untouched for operator recovery (<span class="ref">src/core/model-passports.ts:208–241</span>). The project knows how to do this correctly; the main store simply does not.</p>
+
+  <h3>14.2 Ledger and passports</h3>
+  <p>The NDJSON ledger tolerates a truncated trailing line on read but never repairs it, has no retention policy, and grows without bound. Its redaction-by-omission design is good: only numeric and routing fields are stored. Passports use a versioned schema, stable canonical JSON, SHA-256 digest, Ed25519 signature and verification on load, with measured claims protected from catalogue downgrades. The two known passport defects are the loss of <code>availability</code> during <code>observe()</code> and a strict <code>&gt;</code> timestamp comparison that lets equal-time observations overwrite (<span class="ref">src/core/model-passports.ts:250–263</span>).</p>
+
+  <div class="note"><div class="label">Data-loss windows</div><p>(1) Crash during a primary store write → whole-file corruption with silent fallback to empty state. (2) Any restart → all quota, cooldown and usage counters lost. (3) Corrupt ledger tail → one dropped record with no repair. (4) Client abort → a usage record is written for work that may not have completed. These are concrete, not hypothetical, consequences of the current code paths.</p></div>
+</section>
+
+<section id="s15">
+  <div class="sec-head"><span class="sec-num">15</span><h2>Testing and CI assessment</h2></div>
+  <p>Commands were executed from the repository root on Windows with Bun 1.4.2. Results below are from this audit's own reproduction; a parallel research run produced the same pass counts with slightly different assertion totals, which vary with stress tests.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Executed commands and actual results</caption>
+    <thead><tr><th>Command</th><th>Exit</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td><code>bun install --frozen-lockfile</code></td><td>0</td><td>9 packages installed</td></tr>
+      <tr><td><code>bun run typecheck</code></td><td>0</td><td><code>bunx tsc --noEmit</code>, no diagnostics</td></tr>
+      <tr><td><code>bun test</code></td><td>0</td><td><strong>676 pass / 0 fail</strong>, 15,681 expect() calls, 82 files, 12.00 s</td></tr>
+      <tr><td><code>bun test tests/unit</code></td><td>0</td><td>376 pass / 0 fail, 39 files</td></tr>
+      <tr><td><code>bun run conformance</code></td><td>0</td><td>3/3 fixtures passed</td></tr>
+      <tr><td><code>bun scripts/check-dashboard.mjs</code></td><td>0</td><td>1 inline script parses (110,270 chars)</td></tr>
+      <tr><td><code>bun run verify</code></td><td>0</td><td>Typecheck → dashboard guard → 376 unit tests, all green</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The suite is larger and more real than a typical prototype's. The E2E harness starts a genuine Hono app through <code>createServer</code> on an ephemeral port with an isolated temporary data directory, and the mock upstream is a real <code>Bun.serve</code> HTTP server that simulates SSE, 400/401/404/429/500/502, <code>Retry-After</code>, OAuth device endpoints and request recording. Tests exercise abort mid-stream, thinking abort, tool-argument abort, unexpected closure and hang timeouts. Passport, session-affinity, ledger and rotation tests assert meaningful invariants including tamper rejection and measured-claim preservation.</p>
+
+  <p>Three qualifications matter. First, most tier-1 "plugin" E2E files define their own stub <code>ProviderPlugin</code> class with the same name as the production class and point it at the mock upstream. A green "F7 Plugin: Kilo" does not mean <code>src/plugins/kilo.ts</code> ran end to end. Production plugins are covered separately in unit tests, but the naming obscures this. Second, a significant share of the 676 tests exercise the adversarial and harness machinery itself, and two files assert on source text or documentation strings rather than runtime behavior. Third, conformance is shallow: three fixtures check dot-paths and substrings, never event ordering, field-level stream payloads or error paths — which is precisely why the Responses streaming defects in section 10 pass.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Coverage map</caption>
+    <thead><tr><th>Subsystem</th><th>Coverage</th><th>Comment</th></tr></thead>
+    <tbody>
+      <tr><td>Dialect normalize / serialize / stream / XML</td><td><span class="chip ok">Strong</span></td><td>Including adversarial variants and boundary cases.</td></tr>
+      <tr><td>Auth, web boundaries, redaction, port guard</td><td><span class="chip ok">Strong</span></td><td>Eight <code>security-*</code> test files.</td></tr>
+      <tr><td>Account pool, rotation, session affinity</td><td><span class="chip ok">Strong</span></td><td>Safe-rotation and intra-model-rotation regressions present.</td></tr>
+      <tr><td>Passports, observation, import, secrets</td><td><span class="chip ok">Present</span></td><td>Cryptographic invariants tested.</td></tr>
+      <tr><td>Streaming interruption</td><td><span class="chip ok">Present</span></td><td>Abort and hang scenarios in tier 2.</td></tr>
+      <tr><td>Concurrency</td><td><span class="chip partial">Partial</span></td><td>Stress harnesses exist but are outside <code>bun test</code>.</td></tr>
+      <tr><td>OAuth device flow</td><td><span class="chip partial">Partial</span></td><td>Mock endpoints touched; no dedicated timeout/token storage tests.</td></tr>
+      <tr><td>Admin dashboard UI</td><td><span class="chip partial">Shallow</span></td><td>Guard proves the inline script parses, not that it behaves.</td></tr>
+      <tr><td>Persistence corruption / atomicity</td><td><span class="chip no">Gap</span></td><td>No test writes a corrupt store or exercises concurrent saves.</td></tr>
+      <tr><td><code>freellmapi</code>, <code>harness-manager</code>, proxy pool</td><td><span class="chip no">Gap</span></td><td>No direct tests reference these modules.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><strong>No CI exists.</strong> There is no <code>.github/</code> directory and no workflow file anywhere in the tree. <code>bun run verify</code> is a local opt-in command. Given the number of source-text assertions and a dashboard parse guard that exists because a previous inline-script syntax error shipped, wiring <code>verify</code> into a pull-request check is the single highest-value testing investment available.</p>
+</section>
+
+<section id="s16">
+  <div class="sec-head"><span class="sec-num">16</span><h2>Genuine engineering strengths</h2></div>
+  <p>These are not consolation prizes. Each is a decision that would survive a rewrite and that many comparable gateways do not make.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Strengths and why they matter</caption>
+    <thead><tr><th>Strength</th><th>Where it lives</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A real canonical intermediate representation</strong></td><td><span class="ref">core/types/canonical.ts</span>, three independent normalizers and serializers</td><td>Dialects do not translate into each other pairwise. Adding a fourth dialect touches one normalizer and one serializer, not every existing pair. It is the architectural core the "universal" claim actually rests on.</td></tr>
+      <tr><td><strong>Pre-content failover with buffered stream events</strong></td><td><span class="ref">plugins/combo.ts:334–403</span></td><td>A target that dies before producing content is retried safely; after content starts, the gateway refuses to splice in another model. This avoids duplicated tool calls — a failure mode that breaks coding agents in subtle ways.</td></tr>
+      <tr><td><strong>Evidence-classed, signed model passports</strong></td><td><span class="ref">core/model-passports.ts</span></td><td>Declared, discovered and measured claims stay distinct; signatures prove record integrity; unknown values are absent rather than guessed. The design document explicitly rejects "a signed lie".</td></tr>
+      <tr><td><strong>Refusal to fabricate telemetry</strong></td><td><span class="ref">tests/unit/honesty-guard.test.ts</span>, <span class="ref">core/request-ledger.ts</span></td><td>A guard test blocks seeded counters and fake log rows; the ledger records only observed fields and no message content. Trustworthy observability is rarer than dashboards that look impressive.</td></tr>
+      <tr><td><strong>Consentful import and honest secret backends</strong></td><td><span class="ref">core/account-import.ts</span>, <span class="ref">core/secret-store.ts</span></td><td>No hardcoded paths, redacted preview, short-lived single-use confirmation, opaque account IDs, secrets separated from metadata, and OS backends advertised only after a probe.</td></tr>
+      <tr><td><strong>Correct-by-design rotation policy</strong></td><td>Kilo / Nous / Cline adapters</td><td>Rotate only on 401/429; fail fast on ambiguous network failures, aborts and 5xx. This prevents repeating a tool call or a charge — a correctness-first choice that is easy to get wrong.</td></tr>
+      <tr><td><strong>Bounded, hashed, content-free session affinity</strong></td><td><span class="ref">core/session-affinity.ts</span></td><td>SHA-256 session keys, 30-minute idle expiry, 10,000-entry cap, process-local only, and an API that exposes hashes rather than raw identifiers or prompts.</td></tr>
+      <tr><td><strong>A real test harness rather than mock-the-internals</strong></td><td><span class="ref">tests/harness/gateway-runner.ts</span>, <span class="ref">tests/harness/mock-upstream.ts</span></td><td>Tests start the actual Hono app over HTTP against an actual mock HTTP upstream with isolated ports and data directories. 676 tests pass with zero failures.</td></tr>
+      <tr><td><strong>Security hardening with named tests</strong></td><td>Eight <code>security-*</code> test files, <span class="ref">SECURITY.md</span></td><td>Origin guard, body limits, redaction, port-conflict handling and removal of silent local sync are backed by assertions, not only documentation.</td></tr>
+      <tr><td><strong>Context-window-aware routing</strong></td><td><span class="ref">plugins/combo.ts:62–111, 174–197</span></td><td>Passport-verified context windows, a safety margin, quota skipping, and <code>maxTokens</code> clamping. This is more care than most gateways give to context limits.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="s17">
+  <div class="sec-head"><span class="sec-num">17</span><h2>Confirmed weaknesses and technical debt</h2></div>
+  <p>Consolidated findings, ordered by severity. "Confirmed" means the source or executed command establishes the behavior. "Risk" means the path is plausible but was not reproduced. Duplicates from earlier component sections are intentionally collapsed here.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Findings register</caption>
+    <thead><tr><th>ID</th><th>Severity</th><th>Finding</th><th>Primary evidence</th><th>Impact</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td>F-01</td><td><span class="sev high">High</span></td><td>Responses streaming uses non-standard event names and delta shapes</td><td><span class="ref">stream-adapter.ts:692,718,751</span></td><td>Real Responses clients see empty text and arguments; conformance misses it</td><td>Emit documented event names; assert payloads in fixtures</td></tr>
+      <tr><td>F-02</td><td><span class="sev high">High</span></td><td>Responses streaming discards provider tool-call IDs</td><td><span class="ref">stream-adapter.ts:726–744</span></td><td>Multi-turn tool use breaks when the client echoes the wrong ID</td><td>Use <code>event.id</code> as <code>call_id</code></td></tr>
+      <tr><td>F-03</td><td><span class="sev high">High</span></td><td>Canonical <code>error</code> stop reason serialized as successful stop</td><td><span class="ref">serializer.ts:19–51</span>, <span class="ref">stream-adapter.ts:204,499</span></td><td>Failed generations look like normal completions in two dialects</td><td>Propagate failure status and error payload</td></tr>
+      <tr><td>F-04</td><td><span class="sev high">High</span></td><td>Primary store writes non-atomically; corrupt load silently empties state</td><td><span class="ref">storage.ts:32–75</span></td><td>Total state loss on crash or corruption</td><td>Temp+rename, versioned schema, quarantine, backup</td></tr>
+      <tr><td>F-05</td><td><span class="sev high">High</span></td><td>Deadlines reject without aborting upstream work</td><td><span class="ref">request-deadline.ts:4–16</span></td><td>Leaked sockets, memory and quota under sustained timeouts</td><td>Wire an <code>AbortController</code> into the work</td></tr>
+      <tr><td>F-06</td><td><span class="sev high">High</span></td><td>Client-aborted streams recorded as successful usage</td><td><span class="ref">router.ts:348–371</span>, <span class="ref">idle-timeout.ts:91–93</span></td><td>Inflated usage and wrong quota decrements</td><td>Record only on <code>stream_end</code>; emit abort error</td></tr>
+      <tr><td>F-07</td><td><span class="sev high">High</span></td><td>DeepSeek fake session token and permanent cooldown</td><td><span class="ref">deepseek.ts:285–311, 252–257</span></td><td>Masked auth failures; accounts never recover</td><td>Throw on challenge failure; implement cooldown expiry</td></tr>
+      <tr><td>F-08</td><td><span class="sev high">High</span></td><td>Hardcoded fallback API key in FreeLLMAPI plugin</td><td><span class="ref">freellmapi.ts:19–22,77–86</span></td><td>Shared credential in source</td><td>Require environment variable; fail closed</td></tr>
+      <tr><td>F-27</td><td><span class="sev high">High</span></td><td>Dashboard XSS: unescaped model/log fields execute in admin origin</td><td><span class="ref">dashboard-ui.ts:2567–2598,3316–3335</span></td><td>Gateway-token holder can steal the admin token and take over all accounts</td><td>Escape all interpolations; add CSP; extend redaction tests beyond account fields</td></tr>
+      <tr><td>F-09</td><td><span class="sev med">Medium</span></td><td>Account selection is first-active; round-robin is dead code; no reservations</td><td><span class="ref">account-pool.ts:106–117</span>, <span class="ref">kilo.ts:400–409</span></td><td>Hotspots, contention, quota misattribution under concurrency</td><td>Reserve in-flight accounts; least-used selection</td></tr>
+      <tr><td>F-10</td><td><span class="sev med">Medium</span></td><td>Runtime quota/cooldown state never persisted</td><td><code>save()</code> only in admin mutations</td><td>Quota enforcement resets on every restart</td><td>Persist state transitions or externalize to a store</td></tr>
+      <tr><td>F-11</td><td><span class="sev med">Medium</span></td><td>Structured outputs and several sampling fields silently dropped</td><td><span class="ref">normalizer.ts:202–219</span></td><td>Client constraints are not applied</td><td>Carry fields into canonical request and forward</td></tr>
+      <tr><td>F-12</td><td><span class="sev med">Medium</span></td><td>Responses drops thinking, <code>previous_response_id</code> and function-call input items</td><td><span class="ref">serializer.ts:214–272</span>, <span class="ref">responses.ts:40–43</span></td><td>Reasoning lost; standard tool loops rejected</td><td>Extend canonical model and input schema</td></tr>
+      <tr><td>F-13</td><td><span class="sev med">Medium</span></td><td>Anthropic parallel tool deltas merged; index ignored</td><td><span class="ref">stream-adapter.ts:448–487</span></td><td>Corrupt JSON arguments for parallel tools</td><td>Maintain per-index block state</td></tr>
+      <tr><td>F-14</td><td><span class="sev med">Medium</span></td><td>Stream errors in-band over HTTP 200; no <code>[DONE]</code> on Chat error</td><td><span class="ref">stream-adapter.ts:243–251</span></td><td>Clients may hang or treat failures as success</td><td>Define and implement a clear error contract</td></tr>
+      <tr><td>F-15</td><td><span class="sev med">Medium</span></td><td>XML interceptor recognizes prefixes it cannot parse; regex-only</td><td><span class="ref">xml-tool-interceptor.ts:126–131,189–239</span></td><td>Raw XML leaks to clients as text</td><td>Implement parsers or narrow the trigger set; use a streaming parser</td></tr>
+      <tr><td>F-16</td><td><span class="sev med">Medium</span></td><td>Two resolvers disagree; admin bootstrap registers wrong plugin IDs</td><td><span class="ref">model-resolver.ts:5–76</span>, <span class="ref">admin-router.ts:128–145</span></td><td>Model resolution depends on entrypoint and registry order</td><td>Single catalog-driven resolver; fix IDs</td></tr>
+      <tr><td>F-17</td><td><span class="sev med">Medium</span></td><td>Passport <code>availability</code> wiped by catalogue observation; health never used in routing</td><td><span class="ref">model-passports.ts:250–263</span></td><td>Probe results lost; capability learning cannot improve routing</td><td>Preserve availability; feed health into selection</td></tr>
+      <tr><td>F-18</td><td><span class="sev med">Medium</span></td><td>Ledger unbounded; telemetry reads parse the whole file</td><td><span class="ref">request-ledger.ts:41–80</span></td><td>Unbounded disk growth, O(n) dashboard queries</td><td>Rotation, retention, incremental aggregates</td></tr>
+      <tr><td>F-19</td><td><span class="sev med">Medium</span></td><td>No circuit breaker, backoff, jitter or idempotency</td><td>Repository-wide search</td><td>Retry storms and duplicate charges under provider outages</td><td>Add provider-level breaker with backoff and request keys</td></tr>
+      <tr><td>F-20</td><td><span class="sev med">Medium</span></td><td>Redirect-following bypasses upstream URL validation</td><td><span class="ref">config.ts:7–44</span>, no <code>redirect</code> settings on fetches</td><td>Potential SSRF if an upstream redirects privately</td><td>Disable or revalidate redirects</td></tr>
+      <tr><td>F-21</td><td><span class="sev low">Low</span></td><td>Fabricated usage fallbacks and estimated numbers without a wire flag</td><td><span class="ref">kilo.ts:722–724</span>, <span class="ref">router.ts:303</span></td><td>Clients cannot distinguish measured from guessed usage</td><td>Expose estimation indicator; remove constants</td></tr>
+      <tr><td>F-22</td><td><span class="sev low">Low</span></td><td>Single-plugin routing shortcut serves any model</td><td><span class="ref">router.ts:189–193</span></td><td>Unknown models silently accepted in single-plugin setups</td><td>Always validate against catalog or alias table</td></tr>
+      <tr><td>F-23</td><td><span class="sev low">Low</span></td><td>Hardcoded developer path; reverse-engineered upstream constants</td><td><span class="ref">opencode.ts:150</span>, <span class="ref">cline.ts:21–31</span></td><td>Portability failure; brittle upstream coupling</td><td>Resource-relative paths; documented config</td></tr>
+      <tr><td>F-24</td><td><span class="sev low">Low</span></td><td>Three near-identical 200-line endpoint handlers</td><td><span class="ref">router.ts:247–684</span></td><td>Fixes must be applied three times</td><td>Parameterize by dialect</td></tr>
+      <tr><td>F-25</td><td><span class="sev low">Low</span></td><td>Pricing is a single illustrative constant</td><td><span class="ref">pricing.ts:1–3</span></td><td>Dashboard "cost saved" is not a real figure</td><td>Per-model price table or explicit label</td></tr>
+      <tr><td>F-26</td><td><span class="sev low">Low</span></td><td>No CI; conformance covers 3 fixtures with substring checks</td><td>No workflow files; <span class="ref">conformance/runner.ts:29–71</span></td><td>Regressions in stream payloads ship undetected</td><td>Add PR workflow and event-level conformance</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="s18">
+  <div class="sec-head"><span class="sec-num">18</span><h2>Competitive landscape</h2></div>
+  <p>This section compares architectural approaches, not marketing claims. External documentation and repositories were fetched live on <strong>18 November 2026</strong>; source IDs below map to the list at the end of the section. The dedicated search endpoint was unavailable, so discovery used known official URLs through a browser-rendering fetch. Vendor performance and adoption numbers are flagged as self-claims. The last column is my assessment, not a claim from those projects.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Verified capability matrix [S1]–[S21]</caption>
+    <thead><tr><th>Project</th><th>Architecture / provider model</th><th>Routing intelligence</th><th>Account / quota</th><th>Dialects &amp; ops</th><th>License / maturity</th></tr></thead>
+    <tbody>
+      <tr><td><strong>LiteLLM</strong><br><span class="ref">[S1][S2][S4]</span></td><td>Python SDK plus centrally deployed AI Gateway. 100+ providers behind one interface; model aliases group multiple deployments. Router in <code>litellm/router.py</code>.</td><td>Documented strategies: <code>simple-shuffle</code> (recommended), least-busy, latency-based, cost-based, usage-based-v2; cooldowns, timeouts, fixed and exponential-backoff retries, fallbacks; Redis for shared cooldown/TPM-RPM state; Auto Router complexity tiers.</td><td>Virtual keys, spend tracking, per-project/user budgets and rate limits; multiple keys/deployments behind one model group.</td><td>Native OpenAI format plus documented <code>/responses</code>, <code>/messages</code>, embeddings, images, audio, batches, rerank, A2A. Admin dashboard and observability callbacks (Langfuse, MLflow, Lunary).</td><td>MIT core; <code>litellm/enterprise/</code> separately licensed [S3]. GitHub API: 63,487 stars, 13,395 forks, pushed 2026-11-18 [S2]. “8ms P95 at 1k RPS” is a README claim.</td></tr>
+      <tr><td><strong>One API</strong><br><span class="ref">[S5][S6]</span></td><td>Go + web console; upstream “channels” across OpenAI, Azure, Anthropic, Gemini, Bedrock, DeepSeek, Ollama, xAI; model mapping.</td><td>Load balancing across channels, automatic retry, channel groups with multipliers. README warns model mapping rebuilds the body and can drop unsupported fields.</td><td>Token expiry, quota, IP allowlist, allowed models; redemption codes; multi-node via shared MySQL + Redis.</td><td>OpenAI-compatible client API; upstreams translated. Usage detail views, admin API, optional Message Pusher alerts.</td><td>MIT. Long-running, mature; no independent usage stats verified.</td></tr>
+      <tr><td><strong>New API</strong><br><span class="ref">[S7][S8]</span></td><td>Self-hosted Go gateway; four text protocols converted through <strong>RelayKit</strong>; JS task plugins for async image/video APIs.</td><td>Model mappings, channel priorities and weights, retries, <strong>channel affinity</strong>, multiple upstream keys.</td><td>Quotas, subscriptions, usage logs, cache accounting, expression-based pricing by usage tier.</td><td>OpenAI Chat, <strong>Responses</strong>, Anthropic Messages, Gemini <code>generateContent</code>/<code>streamGenerateContent</code>. Conversion caveats documented. Audit logs, separate log DB incl. ClickHouse.</td><td><strong>AGPL-3.0</strong> — borrowing architecture is fine; reusing source carries obligations. Actively developed.</td></tr>
+      <tr><td><strong>Portkey Gateway</strong><br><span class="ref">[S9][S10]</span></td><td>Lightweight Node/TypeScript gateway; <code>configs</code> attach routing, reliability and guardrails to requests; native runtime per provider.</td><td>Fallbacks with configurable triggering errors, automatic retries (up to five, exponential backoff), weighted load balancing, timeouts, conditional routing, semantic caching, 40+ guardrails.</td><td>Bring-your-own or generated virtual keys; RBAC across users/workspaces/API keys; usage analytics.</td><td>OpenAI-compatible signature, multimodal, realtime/WebSocket, MCP Gateway. Hosted-only: provider optimization, full tracing, prompt management.</td><td>MIT. “250+ LLMs / 10B tokens/day / &lt;1ms” are README claims. Gateway 2.0 core open-sourcing announced.</td></tr>
+      <tr><td><strong>OpenRouter</strong><br><span class="ref">[S11][S12]</span></td><td>Closed-source hosted router; per-request <code>provider</code> object; one API across hundreds of models.</td><td><strong>Measured</strong> default routing on price, throughput, latency and reliability. Controls: <code>order</code>, <code>allow_fallbacks</code>, <code>require_parameters</code>, <code>data_collection</code>, <code>zdr</code>, <code>only</code>/<code>ignore</code>, quantizations, percentile thresholds, Nitro/floor-price shortcuts. Model fallbacks with explicit error triggers; billing at actual model.</td><td>BYOK, workspaces, spend controls, capping shared agent keys, app attribution.</td><td>OpenAI Chat and Responses plus Anthropic Messages at <code>/api/v1/messages</code> with its own fallback semantics. Logs and activity views.</td><td>Hosted only. Documentation breadth indicates a mature production service.</td></tr>
+      <tr><td><strong>OpenCode</strong><br><span class="ref">[S13][S14]</span></td><td>Agent, not gateway. Provider/model catalog from <code>models.dev</code>; providers declared in <code>opencode.jsonc</code> with <code>env</code>, <code>package</code>, <code>canonical</code>, <code>compatibility</code>, <code>settings</code>, <code>headers</code>, <code>body</code>, <code>models</code>. Built-ins disableable with <code>-</code> prefix.</td><td>Not a router: one provider/model per session; endpoint override, per-model header/body merges, header/chunk/whole-request timeouts, up to three retries, WebSocket with HTTP fallback.</td><td>No pooling; credentials via <code>/connect</code>, env vars or subscription sign-ins.</td><td>Consumes OpenAI/Anthropic/Google/Azure/Bedrock/Vertex via runtime packages; configurable compatibility quirks; provider <code>http</code> hooks for observability.</td><td>MIT. A clean reference for a manifest-driven plugin model.</td></tr>
+      <tr><td><strong>Claude Code / Codex</strong><br><span class="ref">[S15][S16][S17][S18]</span></td><td>Coding-agent harnesses. Claude Code uses <code>ANTHROPIC_BASE_URL</code>, model aliases, allowlists, fallback chains, effort levels and managed settings. Codex supports custom <code>model_provider</code> config in <code>config.toml</code>.</td><td>Routing intelligence lives in the gateway, not the agent. Claude Code fallback chains define which entries are tried and whether to ask before switching.</td><td>Gateway credential replaces subscription usage; <code>apiKeyHelper</code>; managed settings can pin <code>allowedProviders: ["customEndpoint"]</code>.</td><td>Must forward new capabilities (e.g. <code>anthropic-beta</code>) or features break. Anthropic explicitly states third-party gateways are <strong>not endorsed, maintained or audited</strong>, and ships its own self-hosted gateway. Codex docs warn custom provider config is not portable into managed cloud orchestration.</td><td>Claude Code proprietary; Codex repo Apache-2.0 [S17]. Both define the client contract a gateway must satisfy.</td></tr>
+      <tr><td><strong>LobeHub / Goose</strong><br><span class="ref">[S19][S20]</span></td><td>Agent platforms rather than request-level routers. LobeHub: 40+ providers, agent/MCP marketplace, Better Auth + SSO. Goose: local Rust agent, 15+ providers, 70+ MCP extensions, ACP subscriptions.</td><td>Request-level failover routing is unverified for both.</td><td>Workspaces/teams (LobeHub); API keys or subscription access (Goose).</td><td>Provider-agnostic via extensions; no verified gateway dialect conversion.</td><td>LobeHub Community License; Goose Apache-2.0, now under the Agentic AI Foundation.</td></tr>
+      <tr><td><strong>Lattice Gateway</strong><br><span class="ref">this audit</span></td><td>Local single-process gateway; canonical dialect core; plugin execution seam; account pools; ordered combo failover; signed evidence passports; consentful import; in-memory hashed affinity.</td><td>Context-window and quota-aware ordered failover; 429/401/403 account rotation with narrow semantics to avoid duplicated tool calls. No measured or policy-driven selection.</td><td>Consentful import, opaque IDs, separate secret store, probe-gated OS backends; cooldown pool. Runtime state memory-only.</td><td>Three text dialects plus <code>/v1/models</code>; dashboard, ledger, conformance fixtures. No embeddings/images/audio/MCP.</td><td>MIT claimed. 676 tests verified in this audit. No external community evidence verified.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>18.1 What the established projects do better</h3>
+  <ol>
+    <li><strong>Routing depth and measurement.</strong> OpenRouter routes on measured price, throughput, latency and reliability with percentile constraints [S11]; LiteLLM publishes several strategies with honest trade-off notes [S4]; Portkey exposes error-triggered fallbacks and weighted balancing in configuration [S9]. Lattice's static combo order plus 429/401/403 failover is correct but far less expressive.</li>
+    <li><strong>Multi-tenancy and organizational controls.</strong> LiteLLM, New API and Portkey document virtual keys, budgets, groups/RBAC and usage attribution. Lattice has one operator and one admin token.</li>
+    <li><strong>Protocol breadth.</strong> LiteLLM documents embeddings, images, audio, batches, rerank and A2A [S1]; New API adds Gemini and task plugins [S7]; Portkey adds realtime/WebSocket and MCP Gateway [S9]. Lattice covers three text dialects.</li>
+    <li><strong>Operational maturity.</strong> Shared cooldown state via Redis, managed database migrations, Helm/Terraform deployments, signed images and stable release channels [S1][S4]. Lattice uses local JSON files and in-memory affinity — appropriate for one machine, not HA.</li>
+  </ol>
+
+  <h3>18.2 What Lattice does differently</h3>
+  <ul>
+    <li><strong>Consumer-grade upstream credentials as first-class plugins.</strong> Cookie sessions, keyless anonymous tiers and OAuth portal accounts. Most comparators assume clean provider API keys or subscription sign-in; New API's multiple upstream keys is the nearest analogue [S7].</li>
+    <li><strong>Evidence-tagged capability records.</strong> None of the compared projects documents a <code>declared</code>/<code>discovered</code>/<code>measured</code> provenance model, nor an explicit statement that signing proves integrity rather than truth.</li>
+    <li><strong>Idempotency-aware failover.</strong> Rotation is restricted to responses that prove the upstream did not process the request. OpenRouter triggers fallbacks on rate limits and downtime as well [S12]; Portkey's triggers are configurable but not framed around duplicate tool calls.</li>
+    <li><strong>Privacy-minimizing affinity.</strong> Hash-only, in-memory, non-persisted, with no prompt storage — a stronger default than typical gateway request logs.</li>
+    <li><strong>Local-first zero-ops UX.</strong> Single binary or Bun source, dashboard, and dialect coverage for Cursor/Claude Code/Roo-style clients without a Postgres/Redis footprint.</li>
+  </ul>
+
+  <h3>18.3 Ideas worth adopting</h3>
+  <ul>
+    <li>Declarative routing with weights, priority, affinity and error-specific fallback triggers — cite New API's channel model and Portkey's config semantics [S7][S9].</li>
+    <li>Local measured routing signals (success rate, latency, cost). OpenRouter's percentile constraints are a good conceptual model [S11]; heed LiteLLM's warning that usage-based routing adds Redis latency [S4].</li>
+    <li>A pluggable shared-state abstraction for cooldowns and quotas. OpenCode's manifest shape — <code>env</code>, <code>package</code>, <code>settings</code>, <code>models</code> — is a clean reference for Lattice's plugin metadata [S13].</li>
+    <li>Per-client keys and budgets, even for a single operator; IDEs and agents are distinct consumers.</li>
+    <li>A maintained dialect compatibility matrix tied to client releases. Claude Code's documentation is explicit that gateways failing to forward new capabilities break features [S16].</li>
+  </ul>
+
+  <h3>18.4 Approaches to avoid</h3>
+  <ul>
+    <li><strong>Reusing AGPL-licensed source.</strong> New API is AGPL-3.0 [S8]. Borrow architecture, not code, unless the obligations are acceptable.</li>
+    <li><strong>Unbounded failover on ambiguous errors.</strong> Broad fallback triggers combined with tool calls duplicate side effects. Lattice's narrow rule is the better default — keep it.</li>
+    <li><strong>Flattening catalogue claims into facts.</strong> The passport evidence distinction is more defensible than aggressive capability normalization.</li>
+    <li><strong>Persisting affinity or prompts.</strong> That would turn a routing optimization into a conversation store and undermine the privacy stance.</li>
+    <li><strong>Assuming transparency is automatic.</strong> Third-party gateways are not endorsed or audited by Anthropic [S16]; every dialect layer needs a test matrix tied to client releases.</li>
+    <li><strong>Secret-storage claims without probing.</strong> Lattice's “report the real backend, fall back to 0600” is the right pattern.</li>
+  </ul>
+
+  <h3>18.5 Where Lattice could credibly differentiate</h3>
+  <p>Not on generic gateway breadth — LiteLLM, New API, Portkey and OpenRouter are far ahead on routing, tenancy, ecosystem and operations. The defensible position is <strong>the truthful local gateway for coding agents</strong>: messy consumer credentials handled with consent, evidence provenance presented honestly, failover classified by whether the upstream processed the request, and session continuity that stores no conversation. Those are structural properties, not marketing copy. They are worth protecting while the routing engine and protocol contract are rebuilt around them.</p>
+
+  <h4>Sources — all fetched live 2026-11-18</h4>
+  <ul>
+    <li><span class="ref">[S1]</span> LiteLLM README — <code>https://github.com/BerriAI/litellm/blob/main/README.md</code>; <span class="ref">[S2]</span> GitHub API — <code>https://api.github.com/repos/BerriAI/litellm</code>; <span class="ref">[S3]</span> LiteLLM LICENSE; <span class="ref">[S4]</span> Router docs — <code>https://docs.litellm.ai/docs/routing</code></li>
+    <li><span class="ref">[S5]</span> One API README — <code>https://github.com/songquanpeng/one-api</code>; <span class="ref">[S6]</span> One API LICENSE</li>
+    <li><span class="ref">[S7]</span> New API README — <code>https://github.com/QuantumNous/new-api</code>; <span class="ref">[S8]</span> New API LICENSE (AGPL-3.0)</li>
+    <li><span class="ref">[S9]</span> Portkey Gateway README — <code>https://github.com/Portkey-AI/gateway</code>; <span class="ref">[S10]</span> Portkey LICENSE</li>
+    <li><span class="ref">[S11]</span> OpenRouter Provider Selection — <code>https://openrouter.ai/docs/guides/routing/provider-selection</code>; <span class="ref">[S12]</span> OpenRouter Model Fallbacks — <code>https://openrouter.ai/docs/guides/routing/model-fallbacks</code></li>
+    <li><span class="ref">[S13]</span> OpenCode Providers — <code>https://opencode.ai/docs/providers/</code>; <span class="ref">[S14]</span> OpenCode LICENSE</li>
+    <li><span class="ref">[S15]</span> Claude Code Model configuration — <code>https://code.claude.com/docs/en/model-config</code>; <span class="ref">[S16]</span> Claude Code Other LLM gateways — <code>https://code.claude.com/docs/en/llm-gateway</code></li>
+    <li><span class="ref">[S17]</span> Codex README — <code>https://github.com/openai/codex</code>; <span class="ref">[S18]</span> Codex Configuration Reference — <code>https://learn.chatgpt.com/docs/config-file/config-reference</code></li>
+    <li><span class="ref">[S19]</span> LobeHub README — <code>https://github.com/lobehub/lobe-chat</code>; <span class="ref">[S20]</span> Goose README — <code>https://github.com/block/goose</code>; <span class="ref">[S21]</span> Lattice README (local, claims only)</li>
+  </ul>
+  <p><strong>Explicitly unverified:</strong> independent benchmarks for LiteLLM and Portkey latency claims; star counts for projects other than LiteLLM (the GitHub API rate-limited after the first query); Portkey Gateway 2.0 internals; Codex <code>wire_api</code> enum values; LobeHub request-level routing and dialect conversion. Lattice's runtime behavior in this section is replaced by this audit's own findings in sections 3–17.</p>
+</section>
+
+<section id="s19">
+  <div class="sec-head"><span class="sec-num">19</span><h2>Missing capabilities</h2></div>
+  <p>Separating "worth adding" from "feature bloat" matters here. The following gaps are grouped by whether they fix a real failure mode or merely add surface area.</p>
+
+  <h3>19.1 Fix a real failure mode now</h3>
+  <ul>
+    <li><strong>Atomic, versioned persistence with migrations and backup.</strong> Without it, every other reliability feature rests on a file that can be silently destroyed.</li>
+    <li><strong>Upstream abortion and cancellation propagation.</strong> Deadlines must stop work, not just stop waiting.</li>
+    <li><strong>A single routing decision engine</strong> that consumes account health, measured latency, quota and cost, with per-provider circuit breakers and backoff.</li>
+    <li><strong>Protocol-correct streaming errors and Responses events.</strong> Client correctness depends on unambiguous termination.</li>
+    <li><strong>In-flight account reservations and correct usage attribution.</strong> Required before any serious concurrency.</li>
+    <li><strong>CI that runs <code>verify</code> and event-level conformance on every change.</strong> The project already has the checks; it does not enforce them.</li>
+  </ul>
+
+  <h3>19.2 Meaningful but later</h3>
+  <ul>
+    <li><strong>Real per-model pricing and cost-aware selection.</strong> The data model exists; the price table does not. Useful only once usage numbers are trustworthy.</li>
+    <li><strong>Policy-based routing</strong> — e.g. "prefer free, fall back to paid only after two failures" — expressed as data rather than hardcoded combos.</li>
+    <li><strong>Model benchmarking and active capability probes</strong> with scheduling, budget controls and result history, building on the passport system.</li>
+    <li><strong>Structured outputs, multimodal fidelity and cache-control passthrough</strong> where the canonical model can represent them without dialect-specific hacks.</li>
+    <li><strong>Plugin manifests and dynamic discovery</strong> with declared capabilities, configuration schemas and lifecycle hooks.</li>
+    <li><strong>Operational tooling</strong>: request replay from the ledger, trace export, per-provider SLOs, alerting on cooldown rates.</li>
+  </ul>
+
+  <h3>19.3 Deliberately out of scope</h3>
+  <p>Multi-tenancy, distributed deployment, billing, a remote control plane, and per-message adaptive model selection would each add a new product rather than improve this one. The design document is right to name them as non-goals. A local gateway that is excellent at one operator's aggregation problem is more valuable than a mediocre attempt at a platform.</p>
+</section>
+
+<section id="s20">
+  <div class="sec-head"><span class="sec-num">20</span><h2>Recommended target architecture</h2></div>
+  <p>The target is not a rewrite. It is the same system with four boundaries made explicit and four mechanisms made reliable.</p>
+
+  <h3>20.1 Principles</h3>
+  <ul>
+    <li><strong>One source of truth per decision.</strong> A single registry/catalog resolves models; a single routing engine chooses targets; a single account allocator owns selection.</li>
+    <li><strong>Failures are typed and observable.</strong> Every upstream failure has a category, a retry decision, and an event visible to the client and operator.</li>
+    <li><strong>State that matters survives restart.</strong> Accounts, combos and runtime quota state are versioned and written atomically.</li>
+    <li><strong>Claims carry evidence.</strong> Extend the passport discipline to health, latency and pricing rather than treating static catalogue rows as facts.</li>
+    <li><strong>Compatibility is executable.</strong> Protocol conformance is a test suite with event-level assertions, not a fixture that checks substrings.</li>
+  </ul>
+
+  <figure>
+  <svg viewBox="0 0 920 430" role="img" aria-label="Recommended target architecture with a single decision engine and explicit state boundaries">
+    <defs><marker id="c" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#948e83"/></marker></defs>
+    <rect x="40" y="30" width="200" height="52" fill="#1c1a18" stroke="#514c44"/><text class="svg-t" x="56" y="61">Client dialect adapters</text>
+    <line x1="240" y1="56" x2="320" y2="56" stroke="#948e83" marker-end="url(#c)"/>
+    <rect x="322" y="30" width="230" height="52" fill="#141312" stroke="#9a9489"/><text class="svg-t" x="338" y="61">Canonical engine</text>
+    <line x1="552" y1="56" x2="632" y2="56" stroke="#948e83" marker-end="url(#c)"/>
+    <rect x="634" y="30" width="226" height="52" fill="#1c1a18" stroke="#514c44"/><text class="svg-t" x="650" y="61">Routing decision engine</text>
+
+    <line x1="460" y1="82" x2="460" y2="122" stroke="#948e83" marker-end="url(#c)"/>
+    <rect x="322" y="124" width="230" height="56" fill="#201e1b" stroke="#514c44"/><text class="svg-s" x="338" y="145">catalog + passports + evidence</text><text class="svg-s" x="338" y="165">one resolver, verified capabilities</text>
+    <line x1="747" y1="82" x2="747" y2="122" stroke="#948e83" marker-end="url(#c)"/>
+    <rect x="634" y="124" width="226" height="56" fill="#201e1b" stroke="#514c44"/><text class="svg-s" x="650" y="145">account allocator + breakers</text><text class="svg-s" x="650" y="165">reservations, health, backoff</text>
+
+    <line x1="460" y1="180" x2="460" y2="220" stroke="#948e83" marker-end="url(#c)"/>
+    <rect x="240" y="222" width="440" height="56" fill="#141312" stroke="#9a9489"/><text class="svg-t" x="262" y="253">Provider adapters (manifest-driven, isolated lifecycle)</text>
+
+    <line x1="460" y1="278" x2="460" y2="318" stroke="#948e83" marker-end="url(#c)"/>
+    <rect x="240" y="320" width="440" height="56" fill="#1c1a18" stroke="#514c44"/><text class="svg-s" x="262" y="341">Upstreams · typed failures · abortable requests</text><text class="svg-s" x="262" y="361">redirects validated · idempotency keys where safe</text>
+
+    <rect x="40" y="222" width="176" height="154" fill="#201e1b" stroke="#514c44"/>
+    <text class="svg-t" x="54" y="248">State boundary</text>
+    <text class="svg-s" x="54" y="272">versioned store</text><text class="svg-s" x="54" y="292">atomic writes</text>
+    <text class="svg-s" x="54" y="312">secret backend</text><text class="svg-s" x="54" y="332">quota snapshots</text><text class="svg-s" x="54" y="352">retention policy</text>
+    <rect x="704" y="222" width="156" height="154" fill="#201e1b" stroke="#514c44"/>
+    <text class="svg-t" x="718" y="248">Observation</text>
+    <text class="svg-s" x="718" y="272">redacted ledger</text><text class="svg-s" x="718" y="292">event-level traces</text><text class="svg-s" x="718" y="312">health metrics</text><text class="svg-s" x="718" y="332">cost + latency</text><text class="svg-s" x="718" y="352">CI-enforced conformance</text>
+  </svg>
+  <figcaption>Fig. 3 — Target shape. The canonical engine and client adapters stay; routing, allocation, state and observation become explicit subsystems.</figcaption>
+  </figure>
+
+  <h3>20.2 Incremental changes (low risk, high return)</h3>
+  <ol>
+    <li>Fix the Responses event names, tool-call IDs and stop-reason mapping; add event-level conformance assertions.</li>
+    <li>Switch <code>storage.save()</code> to temp+rename, add a schema version, quarantine corrupt files and persist runtime quota state.</li>
+    <li>Make deadlines abort upstream work; record usage only on confirmed completion.</li>
+    <li>Replace first-active selection with an in-flight reservation and least-used policy; attribute usage by actual account ID.</li>
+    <li>Consolidate the three router handlers into one dialect-parameterized pipeline and unify the two resolvers.</li>
+    <li>Add a CI workflow running typecheck, dashboard guard, unit tests and conformance.</li>
+  </ol>
+
+  <h3>20.3 Architectural changes (higher cost, higher ceiling)</h3>
+  <ol>
+    <li>A routing decision engine with an explicit policy pipeline: eligibility → capability fit → health → cost/latency → quota → selection, with reasons recorded for each decision.</li>
+    <li>Provider manifests with declared capabilities, configuration schemas, lifecycle hooks and process-isolated execution for untrusted adapters.</li>
+    <li>Extending passports from capability evidence into a general evidence store used by routing, benchmarking and pricing.</li>
+    <li>Externalized state (a small embedded database or a durable key-value store) if multi-process deployment is ever wanted. Do not take this step without a multi-process requirement.</li>
+  </ol>
+</section>
+
+<section id="s21">
+  <div class="sec-head"><span class="sec-num">21</span><h2>Prioritized engineering roadmap</h2></div>
+  <p>Complexity is estimated as S (days), M (one to two weeks), or L (multi-week). Acceptance criteria are written to be testable. Dependencies are named where an item assumes earlier work.</p>
+
+  <div class="roadmap-band"><div class="p">P0 · Critical</div><div>Correctness, security and data integrity. These should precede feature work.</div></div>
+  <div class="table-wrap">
+  <table>
+    <caption>P0 — must be addressed first</caption>
+    <thead><tr><th>Item</th><th>Problem / solution</th><th>Modules</th><th>Complexity · deps</th><th>Acceptance criteria</th></tr></thead>
+    <tbody>
+      <tr><td><strong>P0-1</strong><br>Atomic, versioned persistence</td><td>Non-atomic writes and silent corrupt-load can destroy all state. Write to temp then rename, add <code>schemaVersion</code>, quarantine corrupt files, back up before migration, and persist runtime quota/cooldown snapshots.</td><td><code>pool/storage.ts</code>, <code>pool/account-pool.ts</code></td><td>M · none</td><td>Kill process mid-write simulation leaves the previous file valid; corrupt file is preserved and reported; restart restores quota and cooldown state; migration fixture passes.</td></tr>
+      <tr><td><strong>P0-2</strong><br>Fix Responses streaming contract</td><td>Documented events and call IDs are wrong. Emit named delta events, preserve provider <code>call_id</code>, serialize reasoning, and implement a real failure event.</td><td><code>stream-adapter.ts</code>, <code>serializer.ts</code>, conformance fixtures</td><td>M · none</td><td>Event-level assertions check names and payload fields; a real Responses client completes a two-turn tool loop; reasoning appears in output items.</td></tr>
+      <tr><td><strong>P0-3</strong><br>Errors are not success</td><td><code>stopReason:'error'</code> maps to successful finish reasons. Propagate failure status, emit dialect error payloads, and emit <code>[DONE]</code> for Chat stream errors.</td><td><code>serializer.ts</code>, <code>stream-adapter.ts</code>, <code>server.ts</code></td><td>S · none</td><td>Each dialect returns a non-success status or explicit error object for a forced upstream failure; no stream hangs waiting for a terminator.</td></tr>
+      <tr><td><strong>P0-4</strong><br>Abortable deadlines and honest usage</td><td>Timeouts leave work running; aborted streams are logged as 200 with usage. Use an <code>AbortController</code> tied to the deadline and record usage only on <code>stream_end</code>.</td><td><code>request-deadline.ts</code>, <code>idle-timeout.ts</code>, <code>router.ts</code></td><td>M · none</td><td>Timeout test asserts the upstream saw an abort; client-abort test asserts no usage row and no 200 log.</td></tr>
+      <tr><td><strong>P0-5</strong><br>Credential hygiene</td><td>Hardcoded fallback key, fake DeepSeek session token, and permanent cooldown. Require configuration, throw on auth failure, implement cooldown expiry, stop printing tokens.</td><td><code>freellmapi.ts</code>, <code>deepseek.ts</code>, entrypoints</td><td>S · none</td><td>No literal credentials remain in <code>src/</code>; startup without configured key fails with a clear message; a cooled DeepSeek account becomes active after its reset time.</td></tr>
+      <tr><td><strong>P0-6</strong><br>Enforce checks in CI</td><td>No workflow exists; dashboard parse guard exists because a syntax error shipped. Add a pull-request workflow running <code>bun run verify</code> and conformance.</td><td><code>.github/workflows/</code></td><td>S · none</td><td>A PR with a deliberate syntax error or failing conformance fixture is blocked; green runs report exact test counts.</td></tr>
+      <tr><td><strong>P0-7</strong><br>Upstream redirect validation</td><td>URL allow-listing is bypassable via redirects. Disable redirects or revalidate each hop, and pin DNS resolution where feasible.</td><td><code>config.ts</code>, all plugin fetch sites</td><td>M · P0-6</td><td>Test upstream 302 to a link-local address is refused; every fetch site uses the shared safe-fetch helper.</td></tr>
+      <tr><td><strong>P0-8</strong><br>Dashboard XSS and credential-at-rest</td><td>Unescaped log/model fields enable admin-token theft; manually added credentials are written in plaintext without restrictive mode. Escape all output, add a CSP, and route credentials through the secret store with 0600.</td><td><code>dashboard-ui.ts</code>, <code>admin-router.ts</code>, <code>storage.ts</code>, <code>secret-store.ts</code></td><td>M · none</td><td>An HTML payload in a model name renders as text; a strict CSP is present; no account record contains a plaintext secret and the store file is 0600.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="roadmap-band"><div class="p p1">P1 · High</div><div>Routing correctness, concurrency and protocol fidelity for the remaining dialects.</div></div>
+  <div class="table-wrap">
+  <table>
+    <caption>P1 — important architectural and functional improvements</caption>
+    <thead><tr><th>Item</th><th>Problem / solution</th><th>Modules</th><th>Complexity · deps</th><th>Acceptance criteria</th></tr></thead>
+    <tbody>
+      <tr><td><strong>P1-1</strong><br>Single resolver and registry</td><td>Two resolvers disagree; admin bootstrap uses wrong plugin IDs. Build one catalog-driven resolver consumed by router and combos; remove prefix hardcoding.</td><td><code>model-resolver.ts</code>, <code>router.ts</code>, <code>admin-router.ts</code></td><td>M · P0-6</td><td>A newly registered plugin's model routes correctly without source edits; no provider prefix literals outside plugin manifests; identical resolution in both entrypoints.</td></tr>
+      <tr><td><strong>P1-2</strong><br>Account reservations and attribution</td><td>First-active selection, no locks, usage attributed by <code>lastUsedAt</code>. Add per-request reservations, least-used selection, and pass the actual account ID into usage recording.</td><td><code>account-pool.ts</code>, plugins, <code>router.ts</code></td><td>L · P0-4</td><td>Concurrency test with 200 parallel requests shows balanced distribution; every usage row matches the account that executed the request.</td></tr>
+      <tr><td><strong>P1-3</strong><br>Provider circuit breakers and backoff</td><td>Retry storms with no delay. Per-provider breaker with failure thresholds, half-open probing, exponential backoff and jitter.</td><td>new <code>core/breaker.ts</code>, plugins, <code>combo.ts</code></td><td>M · P1-2</td><td>Simulated 5xx storm trips the breaker within configured threshold; no request waits longer than the backoff ceiling; recovery observed.</td></tr>
+      <tr><td><strong>P1-4</strong><br>OpenAI Chat and Anthropic fidelity</td><td>Dropped structured outputs and sampling fields; parallel tool deltas merged; cache metadata dropped. Extend canonical model and per-index stream state.</td><td><code>canonical.ts</code>, normalizers, serializers, adapters</td><td>L · P0-2</td><td><code>response_format</code> reaches the upstream; parallel tool JSON parses correctly; cache-control survives round-trip where the provider supports it.</td></tr>
+      <tr><td><strong>P1-5</strong><br>Passport availability is real evidence</td><td>Probe results wiped on refresh; health never used in routing. Preserve <code>availability</code>, use <code>&gt;=</code> timestamps, and feed verified health into eligibility.</td><td><code>model-passports.ts</code>, <code>passport-observation.ts</code>, <code>combo.ts</code></td><td>S · none</td><td>Probe result survives a catalogue refresh; an unhealthy passport target is skipped when alternatives exist; no negative claim is invented.</td></tr>
+      <tr><td><strong>P1-6</strong><br>Ledger retention and incremental metrics</td><td>Unbounded NDJSON and O(n) queries. Rotate files, add TTL retention, and maintain rolling aggregates in memory or a small index.</td><td><code>request-ledger.ts</code>, <code>admin-router.ts</code></td><td>M · P0-1</td><td>Dashboard query time is independent of ledger size; retention removes records older than policy; truncated tail is repaired on load.</td></tr>
+      <tr><td><strong>P1-7</strong><br>XML interceptor robustness</td><td>Unparsed prefixes leak as text; regex parsing is brittle. Implement all advertised shapes, decode entities, cap buffers in bytes, and flush before errors.</td><td><code>xml-tool-interceptor.ts</code></td><td>M · P0-6</td><td>Each advertised prefix produces tool events; malformed tags never emit raw XML as content; buffer bound enforced in bytes.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="roadmap-band"><div class="p p2">P2 · Medium</div><div>Capability and developer-experience improvements that widen what the gateway can do well.</div></div>
+  <div class="table-wrap">
+  <table>
+    <caption>P2 — meaningful enhancements</caption>
+    <thead><tr><th>Item</th><th>Problem / solution</th><th>Modules</th><th>Complexity · deps</th><th>Acceptance criteria</th></tr></thead>
+    <tbody>
+      <tr><td><strong>P2-1</strong><br>Real pricing and cost signals</td><td>One illustrative constant. Add a versioned per-model price table, mark estimates explicitly on the wire, and make cost a routing input only for paid tiers.</td><td><code>pricing.ts</code>, <code>router.ts</code>, dashboard</td><td>M · P1-6</td><td>Cost figures derive from model-specific prices and reported usage; estimated usage is labelled in responses; unknown prices are absent, not guessed.</td></tr>
+      <tr><td><strong>P2-2</strong><br>Admin/gateway privilege separation</td><td>Admin token falls back to the gateway token in library use, and the origin guard blanket-allows loopback on any port. Require an explicit admin token and narrow the origin allow-list.</td><td><code>server.ts</code>, <code>security-dashboard-auth.test.ts</code></td><td>S · none</td><td>In-process config with only a gateway token cannot reach <code>/api/*</code>; a loopback origin on an unlisted port is rejected unless explicitly configured.</td></tr>
+      <tr><td><strong>P2-3</strong><br>Plugin manifests and lifecycle</td><td>Adding a provider requires four source edits and hooks are unused. Define a manifest with ID, models, capabilities, config schema and lifecycle; load plugins from it.</td><td><code>plugins/registry.ts</code>, new manifest loader</td><td>L · P1-1</td><td>A new provider added as a manifest plus adapter file routes requests without editing core files; initialize/shutdown are invoked.</td></tr>
+      <tr><td><strong>P2-4</strong><br>Event-level conformance suite</td><td>Three substring fixtures. Expand to ordered event sequences, field-level payloads, error paths, abort paths and each dialect's tool loop.</td><td><code>conformance/</code></td><td>M · P0-2</td><td>At least one fixture per dialect per major feature; CI fails on any event-name or payload drift.</td></tr>
+      <tr><td><strong>P2-5</strong><br>Policy-based combos</td><td>Combos are static arrays with substring heuristics. Express targets and constraints as data with a documented policy language.</td><td><code>pool/combos.ts</code>, <code>plugins/combo.ts</code></td><td>M · P1-5</td><td>A combo can express "free first, two failures, then paid" without source changes; context windows come from verified claims or are absent.</td></tr>
+      <tr><td><strong>P2-6</strong><br>Test-suite renaming and focus</td><td>Stub classes shadow production names; some tests assert source text. Rename stubs, mark source-text guards explicitly, and add direct tests for untested modules.</td><td><code>tests/</code></td><td>S · none</td><td>No test file defines a class with a production plugin's name; <code>freellmapi</code>, proxy pool and harness manager have direct tests.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="roadmap-band"><div class="p p3">P3 · Strategic</div><div>Differentiators worth pursuing only after the foundations are solid.</div></div>
+  <div class="table-wrap">
+  <table>
+    <caption>P3 — longer-term opportunities</caption>
+    <thead><tr><th>Item</th><th>Opportunity</th><th>Modules</th><th>Complexity · deps</th><th>Acceptance criteria</th></tr></thead>
+    <tbody>
+      <tr><td><strong>P3-1</strong><br>Model benchmarking intelligence</td><td>Explicit, budgeted probes and passive observation can produce latency and success-rate history per model, not just availability.</td><td>passports, new benchmark service</td><td>L · P2-5</td><td>Historical metrics are queryable; probes never run automatically; cost controls prevent quota surprise.</td></tr>
+      <tr><td><strong>P3-2</strong><br>Adaptive model selection</td><td>Use measured evidence to choose among capability-equivalent targets rather than following a fixed order.</td><td>routing engine, passports</td><td>L · P3-1, P1-3</td><td>A/B comparison shows improved latency or success rate without increased failure; every decision has a recorded reason.</td></tr>
+      <tr><td><strong>P3-3</strong><br>Plugin isolation and lifecycle</td><td>Untrusted adapters currently have full process access. Isolate execution behind a narrow host API with resource limits.</td><td>plugin runtime</td><td>L · P2-3</td><td>A misbehaving plugin cannot read unrelated files or block the gateway; lifecycle transitions are observable.</td></tr>
+      <tr><td><strong>P3-4</strong><br>Externalized state for multi-process use</td><td>Only if horizontal scaling becomes a requirement. Move pools, affinity and breaker state to a shared store.</td><td>state layer, all subsystems</td><td>L · P1-2, P1-3</td><td>Two gateway instances share quota and affinity consistently; failover across instances is tested.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note neutral"><div class="label">Sequencing advice</div><p>Do not start P1-3 or P3-2 before P1-1 and P1-2. A circuit breaker or adaptive selector built on misattributed usage and unverified health will make confident decisions from bad data — worse than the current static behavior. The same applies to P2-1: pricing without trustworthy usage numbers produces precise-looking fiction, a failure mode this project has already guarded against once.</p></div>
+</section>
+
+<section id="s22">
+  <div class="sec-head"><span class="sec-num">22</span><h2>Production-readiness assessment</h2></div>
+  <p>"Production" means different things for a personal local tool and a shared service. The table separates those judgments.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>Readiness by deployment intent</caption>
+    <thead><tr><th>Dimension</th><th>Local single-operator use</th><th>Shared / multi-tenant service</th><th>Basis</th></tr></thead>
+    <tbody>
+      <tr><td>Core request serving</td><td><span class="chip ok">Ready</span></td><td><span class="chip partial">Conditional</span></td><td>676 tests, real HTTP harness, working dialects on the main paths.</td></tr>
+      <tr><td>Dialect fidelity</td><td><span class="chip partial">Acceptable</span></td><td><span class="chip no">Not ready</span></td><td>Responses streaming, structured outputs, error contract gaps.</td></tr>
+      <tr><td>State durability</td><td><span class="chip no">Not ready</span></td><td><span class="chip no">Not ready</span></td><td>Non-atomic writes, corrupt-load behavior, no runtime state on disk.</td></tr>
+      <tr><td>Failure handling</td><td><span class="chip partial">Acceptable</span></td><td><span class="chip no">Not ready</span></td><td>No breaker, no backoff, non-aborting deadlines.</td></tr>
+      <tr><td>Security boundary</td><td><span class="chip partial">Acceptable with care</span></td><td><span class="chip no">Not ready</span></td><td>Single admin token, printed credentials, redirect risk, no rate limits or tenancy.</td></tr>
+      <tr><td>Operability</td><td><span class="chip partial">Basic</span></td><td><span class="chip no">Not ready</span></td><td>Good dashboard and ledger for one operator; no retention, alerting or SLOs.</td></tr>
+      <tr><td>Change safety</td><td><span class="chip partial">Local verify only</span></td><td><span class="chip no">Not ready</span></td><td>No CI; conformance depth too shallow to catch stream regressions.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The honest summary: Lattice is usable today as a local aggregation gateway for its author's stated workflow, provided the operator accepts that a restart resets quota state, that a crash can lose the account store, and that Responses clients and structured-output users will hit compatibility gaps. It is not ready to be exposed to a team, a network beyond loopback, or any workload where a wrong usage number or a mis-served model carries cost.</p>
+  <p>Reaching shared-service readiness is not a matter of polishing. It requires P0-1 through P0-7, the concurrency work in P1-2, and a CI gate. That is a meaningful but bounded program — not a rewrite.</p>
+</section>
+
+<section id="s23">
+  <div class="sec-head"><span class="sec-num">23</span><h2>Final engineering verdict</h2></div>
+  <p class="lead">Lattice Gateway is better built than its documentation suggests and less complete than its naming implies.</p>
+  <p>The canonical dialect layer, the pre-content failover rule, the evidence-first passport design and the refusal to fabricate telemetry are the work of engineers who think about failure modes. Those decisions are worth preserving. The gaps — non-atomic state, static routing, abort leaks, protocol-level streaming defects and absent CI — are equally real and mostly localized to boundaries that can be fixed without discarding the architecture.</p>
+  <p>The most valuable next step is not another provider or another dashboard view. It is making the existing decisions durable: atomic state, abortable requests, one resolver, correct stream events, and checks that run on every change. Do that, and the gateway's existing strengths stop being islands and start being a system.</p>
+</section>
+
+<section id="appendix">
+  <div class="sec-head"><span class="sec-num">A</span><h2>Appendix: evidence and method</h2></div>
+
+  <h3>A.1 Method and limitations</h3>
+  <p>The repository was cloned fresh from <code>https://github.com/aa-humaaan/lattice-gateway.git</code> at commit <code>b094a190bb2f3fcf25339205c5dcb9cc78284b1b</code> on 18 November 2026. Source was read directly; no pre-existing report was opened or used. Execution was performed on Windows with Bun 1.4.2. Four independent research agents inspected provider plugins, the dialect engine, security boundaries, persistence/routing, tests, and the competitive landscape; their findings were checked against the source before inclusion in this report.</p>
+  <p>Not verified: live interoperability against real OpenAI or Anthropic SDKs and endpoints; provider-side truth of static model catalogue entries; production performance under load (no benchmarks were run); the historical credential exposure described in <code>SECURITY.md</code> (no <code>data/</code> path exists in the audited clone's 18 commits). Competitive sources in section 18 were fetched live on 18 November 2026 and are listed there with URLs and access date; vendor performance claims remain labelled as self-reported.</p>
+
+  <h3>A.2 Key source references</h3>
+  <div class="table-wrap">
+  <table class="compact">
+    <caption>Files most frequently cited</caption>
+    <thead><tr><th>Area</th><th>Path</th></tr></thead>
+    <tbody>
+      <tr><td>Ingress and auth</td><td><code>src/core/server.ts</code>, <code>src/core/config.ts</code>, <code>src/core/auth-tokens.ts</code></td></tr>
+      <tr><td>Routing</td><td><code>src/core/router.ts</code>, <code>src/utils/model-resolver.ts</code>, <code>src/plugins/registry.ts</code></td></tr>
+      <tr><td>Dialects</td><td><code>src/engine/dialect/{normalizer,serializer,stream-adapter,xml-tool-interceptor}.ts</code></td></tr>
+      <tr><td>Canonical types</td><td><code>src/core/types/{canonical,plugin,errors,openai,anthropic,responses}.ts</code></td></tr>
+      <tr><td>Pools and state</td><td><code>src/pool/{account-pool,combos,storage,proxy-pool}.ts</code>, <code>src/core/{session-affinity,credential-resolver}.ts</code></td></tr>
+      <tr><td>Security</td><td><code>src/core/{secret-store,account-import}.ts</code>, <code>src/admin/admin-router.ts</code>, <code>SECURITY.md</code></td></tr>
+      <tr><td>Evidence</td><td><code>src/core/{model-passports,passport-observation,request-ledger}.ts</code></td></tr>
+      <tr><td>Testing</td><td><code>tests/harness/{gateway-runner,mock-upstream}.ts</code>, <code>src/conformance/runner.ts</code>, <code>tests/unit/honesty-guard.test.ts</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>A.3 Command transcript</h3>
+  <p>All commands were run from the repository root. Outputs are reported verbatim in section 15. <code>bun run conformance</code> rewrites <code>conformance/results.json</code> with different line endings; the file was restored with <code>git checkout</code> after the run. No application source, configuration or existing project file was modified.</p>
+
+  <h3>A.4 Finding-status legend</h3>
+  <p><span class="sev crit">Critical</span> data loss or compromise likely · <span class="sev high">High</span> correctness or security defect with meaningful impact · <span class="sev med">Medium</span> real limitation with bounded impact · <span class="sev low">Low</span> technical debt or polish · <span class="sev good">Strength</span> deliberate, valuable decision. Status labels: <strong>confirmed</strong>, <strong>potential</strong>, <strong>unverified</strong>, <strong>missing</strong>.</p>
+
+  <div class="footer-note">LATTICE GATEWAY · INDEPENDENT ENGINEERING AUDIT · COMMIT b094a19 · 18 NOVEMBER 2026 · SELF-CONTAINED DOCUMENT</div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

@@ -4,7 +4,10 @@ import { join } from 'path';
 
 const workflowPath = join(import.meta.dir, '..', '..', '.github', 'workflows', 'ci.yml');
 
-describe('P0-6: CI workflow guards', () => {
+// SOURCE GUARD: CI configuration is YAML consumed by GitHub, not a module the
+// test process can import or invoke. Asserting on its text is the only way to
+// prove the required checks are wired into pull requests.
+describe('P0-6: CI workflow SOURCE GUARDS', () => {
   it('workflow file exists', () => {
     expect(existsSync(workflowPath)).toBe(true);
   });

@@ -1,0 +1,29 @@
+{
+  "name": "client-abort-responses",
+  "dialect": "openai-responses",
+  "feature": "client-abort",
+  "request": { "model": "test", "input": "abort" },
+  "canonicalExpect": { "model": "test", "messages.0.role": "user" },
+  "response": {
+    "id": "resp_abort",
+    "model": "test",
+    "created": 1,
+    "content": [{ "type": "text", "text": "partial" }],
+    "stopReason": "stop",
+    "usage": { "promptTokens": 1, "completionTokens": 1, "totalTokens": 2 }
+  },
+  "responseExpect": { "object": "response", "status": "completed" },
+  "streamEvents": [
+    { "type": "stream_start", "id": "resp_abort", "model": "test", "created": 1 },
+    { "type": "text_delta", "delta": "partial" },
+    { "type": "text_delta", "delta": "never" },
+    { "type": "stream_end", "stopReason": "stop" }
+  ],
+  "abortAfter": 2,
+  "streamExpectEvents": [
+    { "type": "response.created", "fields": { "type": "response.created", "response.id": "resp_abort", "response.status": "in_progress" } },
+    { "type": "response.output_item.added", "fields": { "type": "response.output_item.added", "item.type": "message" } },
+    { "type": "response.output_text.delta", "fields": { "type": "response.output_text.delta", "delta": "partial", "item_id": "msg_resp_abort_0" } }
+  ],
+  "streamStatus": "passed"
+}

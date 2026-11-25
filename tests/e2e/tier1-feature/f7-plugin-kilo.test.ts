@@ -24,7 +24,7 @@ import type { ProviderPlugin, ModelDescriptor, StoredAccount } from '../../../sr
 import type { CanonicalRequest, CanonicalResponse, CanonicalStreamEvent } from '../../../src/core/types/canonical';
 import { GatewayError } from '../../../src/core/types/errors';
 
-class KiloProviderPlugin implements ProviderPlugin {
+class StubKiloProviderPlugin implements ProviderPlugin {
   readonly id = 'kilo';
   readonly displayName = 'Kilo Code Upstream Plugin';
   readonly defaultBaseUrl: string;
@@ -146,13 +146,13 @@ class KiloProviderPlugin implements ProviderPlugin {
 
 describe('Feature F7: Plugin Kilo Code Upstream', () => {
   let mockServer: MockUpstreamServer;
-  let kiloPlugin: KiloProviderPlugin;
+  let kiloPlugin: StubKiloProviderPlugin;
   let gatewayServer: any;
   let client: TestClient;
 
   beforeAll(async () => {
     mockServer = await createMockUpstream();
-    kiloPlugin = new KiloProviderPlugin(mockServer.url);
+    kiloPlugin = new StubKiloProviderPlugin(mockServer.url);
 
     const app = createServer({ port: 0 }, [kiloPlugin]);
     gatewayServer = Bun.serve({

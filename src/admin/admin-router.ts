@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { isSafeUpstreamBaseUrl } from '../core/config';
 import { createLedger } from '../core/request-ledger';
 import { globalAccountPool } from '../pool/account-pool';
+import { globalBreakerRegistry } from '../core/breaker';
 import { globalComboManager } from '../pool/combos';
 import { globalProxyPool } from '../pool/proxy-pool';
 import { globalPluginRegistry } from '../plugins/registry';
@@ -17,6 +18,7 @@ import { LatticeComboPlugin } from '../plugins/combo';
 import { Database } from 'bun:sqlite';
 import * as path from 'path';
 import * as fs from 'fs';
+import { redactSecrets } from '../utils/redact';
 
 import { getDashboardHtml } from './dashboard-ui';
 import {
@@ -30,7 +32,11 @@ import { globalSessionAffinityStore } from '../core/session-affinity';
 import { detectAllHarnesses, configureHarness } from './harness-manager';
 import { resolveTargetProviderId } from '../utils/model-resolver';
 import { globalImportManager } from '../core/account-import';
-import { ILLUSTRATIVE_USD_PER_TOKEN } from '../core/pricing';
+import {
+  costUsdForEvents,
+  PRICING_EFFECTIVE_DATE,
+  PRICING_SCHEMA_VERSION,
+} from '../core/pricing';
 import { globalSecretStore } from '../core/secret-store';
 import { moveSecretsToStore, OVERLAY_KEYS } from '../core/credential-resolver';
 
@@ -277,7 +283,7 @@ export function createAdminRouter(): Hono {
       const health = await plugin.healthCheck();
       return c.json({ success: true, accountId: id, providerId: account.providerId, health });
     } catch (err: any) {
-      return c.json({ success: false, accountId: id, error: err.message }, 500);
+      return c.json({ success: false, accountId: id, error: redactSecrets(err.message) }, 500);
     }
   });
 
@@ -352,7 +358,7 @@ export function createAdminRouter(): Hono {
           } catch (err: any) {
             state.done = true;
             state.success = false;
-            state.error = err.message || 'WorkOS authorization failed';
+            state.error = redactSecrets(err.message) || 'WorkOS authorization failed';
           }
         })();
 
@@ -372,7 +378,7 @@ export function createAdminRouter(): Hono {
           },
         });
       } catch (err: any) {
-        return c.json({ success: false, error: err.message }, 500);
+        return c.json({ success: false, error: redactSecrets(err.message) }, 500);
       }
     }
 
@@ -452,7 +458,7 @@ export function createAdminRouter(): Hono {
           } catch (err: any) {
             state.done = true;
             state.success = false;
-            state.error = err.message || 'Kilo device authorization failed';
+            state.error = redactSecrets(err.message) || 'Kilo device authorization failed';
           }
         })();
 
@@ -473,7 +479,7 @@ export function createAdminRouter(): Hono {
           },
         });
       } catch (err: any) {
-        return c.json({ success: false, error: err.message }, 500);
+        return c.json({ success: false, error: redactSecrets(err.message) }, 500);
       }
     }
 
@@ -562,7 +568,7 @@ export function createAdminRouter(): Hono {
           } catch (err: any) {
             state.done = true;
             state.success = false;
-            state.error = err.message || 'Nous portal authorization failed';
+            state.error = redactSecrets(err.message) || 'Nous portal authorization failed';
           }
         })();
 
@@ -582,7 +588,7 @@ export function createAdminRouter(): Hono {
           },
         });
       } catch (err: any) {
-        return c.json({ success: false, error: err.message }, 500);
+        return c.json({ success: false, error: redactSecrets(err.message) }, 500);
       }
     }
 
@@ -619,7 +625,7 @@ export function createAdminRouter(): Hono {
       const preview = globalImportManager.preview(body.source, body.path);
       return c.json({ success: true, ...preview });
     } catch (err: any) {
-      return c.json({ success: false, error: err.message }, 400);
+      return c.json({ success: false, error: redactSecrets(err.message) }, 400);
     }
   });
 
@@ -629,7 +635,7 @@ export function createAdminRouter(): Hono {
       const result = globalImportManager.confirm(body.token);
       return c.json({ success: true, ...result });
     } catch (err: any) {
-      return c.json({ success: false, error: err.message }, 400);
+      return c.json({ success: false, error: redactSecrets(err.message) }, 400);
     }
   });
 
@@ -972,6 +978,14 @@ export function createAdminRouter(): Hono {
         : 0;
     const windowTokens = recent.reduce((sum, event) => sum + (event.totalTokens || 0), 0);
     const tokensPerSec = spanSeconds ? Math.floor(windowTokens / spanSeconds) : 0;
+    // Only reported tokens of models with a published price produce a cost.
+    const cost = costUsdForEvents(recent);
+    const estimatedTokenEvents = recent.filter((event) => event.estimated === true).length;
+    const usageLabel = estimatedTokenEvents > 0 || recent.length === 0 ? 'estimated' : 'reported';
+    const providerCostUsd: Record<string, number | null> = {};
+    for (const provider of Object.keys(metrics.providerTokens)) {
+      providerCostUsd[provider] = costUsdForEvents(recent.filter((event) => event.provider === provider));
+    }
 
     return c.json({
       success: true,
@@ -981,9 +995,14 @@ export function createAdminRouter(): Hono {
         completionTokens: metrics.completionTokens,
         totalRequests: metrics.totalRequests,
         tokensPerSec,
-        savedUsd: (metrics.totalTokens * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2),
-        usdPerToken: ILLUSTRATIVE_USD_PER_TOKEN,
-        priceIsIllustrative: true,
+        costUsd: cost,
+        savedUsd: cost === null ? '' : cost.toFixed(2),
+        priceIsIllustrative: false,
+        providerCostUsd,
+        usageLabel,
+        estimatedTokenEvents,
+        pricingVersion: PRICING_SCHEMA_VERSION,
+        pricingEffectiveDate: PRICING_EFFECTIVE_DATE,
         providerTokens: metrics.providerTokens,
         estimated: true,
       },
@@ -1004,6 +1023,9 @@ export function createAdminRouter(): Hono {
     };
     const sinceMs = Date.now() - (windowsMs[period] ?? windowsMs.today);
     const metrics = requestLedger.metrics(sinceMs);
+    const windowEvents = requestLedger.readRecent(5000).filter((event) => event.timestamp >= sinceMs);
+    const totalCost = costUsdForEvents(windowEvents);
+    const estimatedTokenEvents = windowEvents.filter((event) => event.estimated === true).length;
 
     const providerStats: Record<string, any> = {};
     for (const [provider, tokens] of Object.entries(metrics.providerTokens)) {
@@ -1012,7 +1034,7 @@ export function createAdminRouter(): Hono {
         cached: 0,
         completion: tokens.completion,
         total: tokens.total,
-        costSaved: Number((tokens.total * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2)),
+        costSaved: costUsdForEvents(windowEvents.filter((event) => event.provider === provider)),
         requests: metrics.providerRequests[provider] || 0,
       };
     }
@@ -1026,7 +1048,11 @@ export function createAdminRouter(): Hono {
         totalCachedTokens: 0,
         totalCompletionTokens: metrics.completionTokens,
         totalTokens: metrics.totalTokens,
-        totalCostSaved: Number((metrics.totalTokens * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2)),
+        // Both fields are null until a priced model reports usage.
+        totalCostSaved: totalCost,
+        totalCostUsd: totalCost,
+        usageLabel: estimatedTokenEvents > 0 || windowEvents.length === 0 ? 'estimated' : 'reported',
+        estimatedTokenEvents,
         cachedTokensUnavailable: true,
       },
       providers: providerStats,
@@ -1084,7 +1110,8 @@ export function createAdminRouter(): Hono {
             completionTokens: usage.completion,
             cachedTokens: 0,
             totalTokens: usage.total,
-            costSaved: Number((usage.total * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2)),
+            costSaved: costUsdForEvents(events.filter((event) =>
+              event.provider === id && event.model === modelId)),
             requests: usage.requests,
           };
         }),
@@ -1097,7 +1124,7 @@ export function createAdminRouter(): Hono {
             contextWindowFormatted: m.contextWindowFormatted,
             maxOutputTokensFormatted: m.maxOutputTokensFormatted,
             promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalTokens: 0,
-            costSaved: '0.00', requests: 0,
+            costSaved: null, requests: 0,
           })),
       ];
       return {
@@ -1107,7 +1134,7 @@ export function createAdminRouter(): Hono {
         promptTokens: slot.prompt,
         completionTokens: slot.completion,
         cachedTokens: 0,
-        costSaved: Number((slot.total * ILLUSTRATIVE_USD_PER_TOKEN).toFixed(2)),
+        costSaved: costUsdForEvents(events.filter((event) => event.provider === id)),
         requests: slot.requests,
         models,
       };
@@ -1361,6 +1388,18 @@ export function createAdminRouter(): Hono {
     });
   });
 
+  router.post('/api/breakers/:providerId/reset', (c) => {
+    const providerId = c.req.param('providerId');
+    const breaker = globalBreakerRegistry.resetProvider(providerId);
+    return c.json({
+      success: true,
+      providerId,
+      state: breaker.state,
+      probeInFlight: breaker.isProbeInFlight,
+      message: `Breaker for ${providerId} reset`,
+    });
+  });
+
   router.get('/api/stats', (c) => {
     const ledgerMetrics = requestLedger.metrics();
     return c.json({
@@ -1433,7 +1472,7 @@ export function createAdminRouter(): Hono {
           id: acc.id,
           providerId: acc.providerId,
           status: 'error',
-          error: err.message || 'Probe error',
+          error: redactSecrets(err.message) || 'Probe error',
           latencyMs: Date.now() - start,
         });
       }

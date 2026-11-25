@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "effectiveDate": "2026-11-24",
+  "currency": "USD",
+  "models": {
+    "openai/gpt-4o": {
+      "tier": "paid",
+      "promptUsdPerToken": 0.0000025,
+      "completionUsdPerToken": 0.00001
+    }
+  }
+}

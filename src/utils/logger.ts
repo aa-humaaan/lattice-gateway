@@ -1,3 +1,5 @@
+import { redactSecrets } from './redact';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const LEVEL_WEIGHTS: Record<LogLevel, number> = {
@@ -31,7 +33,7 @@ export class Logger {
   private format(level: LogLevel, message: string, meta?: unknown): string {
     const timestamp = new Date().toISOString();
     const metaStr = meta !== undefined ? ` ${typeof meta === 'object' ? JSON.stringify(meta) : String(meta)}` : '';
-    return `[${timestamp}] [${level.toUpperCase()}] [${this.prefix}] ${message}${metaStr}`;
+    return redactSecrets(`[${timestamp}] [${level.toUpperCase()}] [${this.prefix}] ${message}${metaStr}`);
   }
 
   public debug(message: string, meta?: unknown): void {

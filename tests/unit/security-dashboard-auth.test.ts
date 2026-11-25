@@ -43,11 +43,26 @@ describe('admin dashboard authentication', () => {
     }
   });
 
-  test('loopback origins on other ports are accepted', async () => {
+  test('a loopback origin on an unlisted port is rejected', async () => {
     const app = createServer({ adminToken: 'admin-secret' });
     const res = await app.request('/v1/models', {
       headers: { Origin: 'http://127.0.0.1:4001' },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+  });
+
+  test('the default dashboard origin keeps working with a configured admin token', async () => {
+    const app = createServer({ adminToken: 'admin-secret' });
+    const html = await app.request('/admin', {
+      headers: { Origin: 'http://127.0.0.1:4000' },
+    });
+    expect(html.status).toBe(200);
+    const api = await app.request('/api/accounts', {
+      headers: {
+        Origin: 'http://127.0.0.1:4000',
+        Authorization: 'Bearer admin-secret',
+      },
+    });
+    expect(api.status).toBe(200);
   });
 });

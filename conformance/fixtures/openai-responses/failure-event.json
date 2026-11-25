@@ -1,6 +1,7 @@
 {
-  "name": "failure-event",
+  "name": "error-responses",
   "dialect": "openai-responses",
+  "feature": "error",
   "request": { "model": "test", "input": "fail" },
   "canonicalExpect": { "model": "test", "messages.0.role": "user" },
   "response": {

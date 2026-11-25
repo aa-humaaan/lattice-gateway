@@ -2,6 +2,8 @@ import { globalPluginRegistry } from '../plugins/registry';
 import type { ModelDescriptor, ProviderPlugin } from '../core/types/plugin';
 import { GatewayError } from '../core/types/errors';
 import { assertRemovedAggregatorAvailable } from '../plugins/removed-aggregator';
+import { PRICES, rankRoutingCandidates } from '../core/pricing';
+import type { PriceTable } from '../core/pricing';
 
 // Virtual model aliases. These are gateway model definitions, not provider
 // prefixes: the "lattice" segment is the combo plugin's registered ID.
@@ -89,11 +91,15 @@ function match(modelId: string, catalog: CatalogIndex): ModelResolution | undefi
   return undefined;
 }
 
-function resolveWith(modelId: string, catalog: CatalogIndex): ModelResolution {
+function resolveWith(modelId: string, catalog: CatalogIndex, prices: PriceTable = PRICES): ModelResolution {
   assertRemovedAggregatorAvailable(modelId);
   const alias = MODEL_ALIASES[modelId];
   const candidates = alias && alias !== modelId ? [alias, modelId] : [modelId];
-  for (const candidate of candidates) {
+  // Cost may reorder alias candidates only when every candidate is a priced
+  // paid model; a free tier or unknown price leaves the declared order intact.
+  const ranked = rankRoutingCandidates(candidates.map((modelId) => ({ modelId })), prices)
+    .map((entry) => entry.modelId);
+  for (const candidate of ranked) {
     const found = match(candidate, catalog);
     if (found) return found;
   }
@@ -106,7 +112,11 @@ function resolveWith(modelId: string, catalog: CatalogIndex): ModelResolution {
  * resolution logic. Router, combos and admin all use this same matcher with
  * their own plugin source (server map vs global registry).
  */
-export function createModelResolver(getPlugins: () => Iterable<ProviderPlugin>) {
+export function createModelResolver(
+  getPlugins: () => Iterable<ProviderPlugin>,
+  options: { prices?: PriceTable } = {}
+) {
+  const prices = options.prices ?? PRICES;
   let cached: { index: CatalogIndex; at: number } | null = null;
 
   // Real plugins expose their curated catalog synchronously; this keeps the
@@ -135,10 +145,10 @@ export function createModelResolver(getPlugins: () => Iterable<ProviderPlugin>) 
     return index;
   }
 
-  const resolveSync = (modelId: string): ModelResolution => resolveWith(modelId, syncIndex());
+  const resolveSync = (modelId: string): ModelResolution => resolveWith(modelId, syncIndex(), prices);
 
   async function resolve(modelId: string): Promise<ModelResolution> {
-    return resolveWith(modelId, await fullIndex());
+    return resolveWith(modelId, await fullIndex(), prices);
   }
 
   const resolveProviderId = (modelId: string): string => {

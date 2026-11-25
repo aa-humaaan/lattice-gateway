@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'fs';
 
+// SOURCE GUARD: the dashboard is a string of inline HTML/JS built into a TS
+// module, so its shipped content has no importable API to exercise directly.
 const html = () => readFileSync('src/admin/dashboard-ui.ts', 'utf8');
 
-describe('dashboard truth', () => {
+describe('SOURCE GUARD: dashboard truth', () => {
   test('no hard-coded token or request counts are shipped', () => {
     const src = html();
     for (const fake of ['813,700', '524,300', '289,400', '462', '1,420', '128,400', '24.85']) {

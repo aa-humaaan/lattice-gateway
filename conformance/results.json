@@ -3,21 +3,84 @@
   "passed": true,
   "results": [
     {
-      "name": "thinking-tools",
+      "name": "client-abort-anthropic",
       "dialect": "anthropic-messages",
       "passed": true,
       "streamStatus": "passed",
       "failures": []
     },
     {
-      "name": "tools",
+      "name": "error-anthropic",
+      "dialect": "anthropic-messages",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "plain-text-anthropic",
+      "dialect": "anthropic-messages",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "tool-loop-anthropic",
+      "dialect": "anthropic-messages",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "client-abort-chat",
       "dialect": "openai-chat",
       "passed": true,
       "streamStatus": "passed",
       "failures": []
     },
     {
-      "name": "basic",
+      "name": "error-chat",
+      "dialect": "openai-chat",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "plain-text-chat",
+      "dialect": "openai-chat",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "tool-loop-chat",
+      "dialect": "openai-chat",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "client-abort-responses",
+      "dialect": "openai-responses",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "error-responses",
+      "dialect": "openai-responses",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "plain-text-responses",
+      "dialect": "openai-responses",
+      "passed": true,
+      "streamStatus": "passed",
+      "failures": []
+    },
+    {
+      "name": "tool-loop-responses",
       "dialect": "openai-responses",
       "passed": true,
       "streamStatus": "passed",

@@ -25,7 +25,7 @@ import type { ProviderPlugin, ModelDescriptor, StoredAccount } from '../../../sr
 import type { CanonicalRequest, CanonicalResponse, CanonicalStreamEvent } from '../../../src/core/types/canonical';
 import { GatewayError } from '../../../src/core/types/errors';
 
-class NousProviderPlugin implements ProviderPlugin {
+class StubNousProviderPlugin implements ProviderPlugin {
   readonly id = 'nous';
   readonly displayName = 'Nous Research Hermes Plugin';
   readonly defaultBaseUrl: string;
@@ -156,13 +156,13 @@ class NousProviderPlugin implements ProviderPlugin {
 
 describe('Feature F8: Plugin Nous Research Upstream & Hermes', () => {
   let mockServer: MockUpstreamServer;
-  let nousPlugin: NousProviderPlugin;
+  let nousPlugin: StubNousProviderPlugin;
   let gatewayServer: any;
   let client: TestClient;
 
   beforeAll(async () => {
     mockServer = await createMockUpstream();
-    nousPlugin = new NousProviderPlugin(mockServer.url);
+    nousPlugin = new StubNousProviderPlugin(mockServer.url);
 
     const app = createServer({ port: 0 }, [nousPlugin]);
     gatewayServer = Bun.serve({

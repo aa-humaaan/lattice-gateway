@@ -717,12 +717,16 @@ export class OpenCodeProviderPlugin implements ProviderPlugin {
       created: data.created || Math.floor(Date.now() / 1000),
       content: contentParts,
       stopReason,
-      usage: {
-        promptTokens: data.usage?.prompt_tokens || 10,
-        completionTokens: data.usage?.completion_tokens || 20,
-        totalTokens: data.usage?.total_tokens || 30,
-        reasoningTokens: data.usage?.completion_tokens_details?.reasoning_tokens,
-      },
+      usage: data.usage
+        ? {
+            promptTokens: data.usage.prompt_tokens ?? 0,
+            completionTokens: data.usage.completion_tokens ?? 0,
+            totalTokens: data.usage.total_tokens ?? 0,
+            ...(data.usage.completion_tokens_details?.reasoning_tokens !== undefined
+              ? { reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens }
+              : {}),
+          }
+        : { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimated: true },
     };
   }
 

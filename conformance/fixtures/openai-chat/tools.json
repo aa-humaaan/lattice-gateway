@@ -1,1 +1,44 @@
-{"name":"tools","dialect":"openai-chat","request":{"model":"test","messages":[{"role":"user","content":"read"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]},"canonicalExpect":{"model":"test","tools.0.function.name":"read_file","messages.0.role":"user"},"response":{"id":"resp_chat","model":"test","created":1,"content":[{"type":"tool_use","id":"call_1","name":"read_file","input":{"path":"a.ts"}}],"stopReason":"tool_calls","usage":{"promptTokens":4,"completionTokens":3,"totalTokens":7}},"responseExpect":{"choices.0.finish_reason":"tool_calls","choices.0.message.tool_calls.0.function.name":"read_file","usage.total_tokens":7},"streamEvents":[{"type":"stream_start","id":"stream_chat","model":"test","created":1},{"type":"text_delta","delta":"ok"},{"type":"stream_end","stopReason":"stop"}],"streamContains":["chat.completion.chunk","\"content\":\"ok\"","[DONE]"]}
+{
+  "name": "tool-loop-chat",
+  "dialect": "openai-chat",
+  "feature": "tool-loop",
+  "request": {
+    "model": "test",
+    "messages": [{ "role": "user", "content": "read" }],
+    "tools": [{ "type": "function", "function": { "name": "read_file", "parameters": { "type": "object" } } }]
+  },
+  "canonicalExpect": { "model": "test", "tools.0.function.name": "read_file", "messages.0.role": "user" },
+  "response": {
+    "id": "resp_chat",
+    "model": "test",
+    "created": 1,
+    "content": [{ "type": "tool_use", "id": "call_1", "name": "read_file", "input": { "path": "a.ts" } }],
+    "stopReason": "tool_calls",
+    "usage": { "promptTokens": 4, "completionTokens": 3, "totalTokens": 7 }
+  },
+  "responseExpect": {
+    "object": "chat.completion",
+    "choices.0.finish_reason": "tool_calls",
+    "choices.0.message.tool_calls.0.id": "call_1",
+    "choices.0.message.tool_calls.0.function.name": "read_file",
+    "choices.0.message.tool_calls.0.function.arguments": "{\"path\":\"a.ts\"}",
+    "usage.total_tokens": 7
+  },
+  "streamEvents": [
+    { "type": "stream_start", "id": "resp_chat", "model": "test", "created": 1 },
+    { "type": "tool_call_start", "index": 0, "id": "call_1", "name": "read_file" },
+    { "type": "tool_call_delta", "index": 0, "argumentsDelta": "{\"path\"" },
+    { "type": "tool_call_delta", "index": 0, "argumentsDelta": ":\"a.ts\"}" },
+    { "type": "tool_call_stop", "index": 0 },
+    { "type": "stream_end", "stopReason": "tool_calls" }
+  ],
+  "streamExpectEvents": [
+    { "type": "chat.completion.chunk", "fields": { "object": "chat.completion.chunk", "choices.0.delta.role": "assistant" } },
+    { "type": "chat.completion.chunk", "fields": { "choices.0.delta.tool_calls.0.id": "call_1", "choices.0.delta.tool_calls.0.type": "function", "choices.0.delta.tool_calls.0.function.name": "read_file" } },
+    { "type": "chat.completion.chunk", "fields": { "choices.0.delta.tool_calls.0.function.arguments": "{\"path\"" } },
+    { "type": "chat.completion.chunk", "fields": { "choices.0.delta.tool_calls.0.function.arguments": ":\"a.ts\"}" } },
+    { "type": "chat.completion.chunk", "fields": { "choices.0.finish_reason": "tool_calls" } },
+    { "type": "[DONE]" }
+  ],
+  "streamStatus": "passed"
+}

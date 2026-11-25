@@ -1773,7 +1773,7 @@ export function getDashboardHtml(nonce?: string): string {
         <div class="kpi-card">
           <div class="kpi-label">Est. Cost Saved</div>
           <div class="kpi-value" id="usage-kpi-cost" style="color: var(--amber-text);">--</div>
-          <div class="kpi-subtext">vs Commercial API billing</div>
+          <div class="kpi-subtext" id="usage-cost-label">vs Commercial API billing</div>
         </div>
       </div>
 
@@ -3200,6 +3200,11 @@ export function getDashboardHtml(nonce?: string): string {
       }
     }
 
+    // A missing price or estimated usage is shown as absent, never as $0.00.
+    function formatCost(value) {
+      return value == null ? '—' : '$' + Number(value).toFixed(2);
+    }
+
     async function fetchTelemetry() {
       try {
         const res = await fetch('/api/telemetry');
@@ -3218,7 +3223,9 @@ export function getDashboardHtml(nonce?: string): string {
           if (elComp) elComp.textContent = t.completionTokens.toLocaleString();
           if (elReqs) elReqs.textContent = t.totalRequests.toLocaleString();
           if (kpiTokens) kpiTokens.textContent = t.totalTokens.toLocaleString();
-          if (kpiSaved) kpiSaved.textContent = '$' + t.savedUsd;
+          if (kpiSaved) kpiSaved.textContent = formatCost(t.costUsd);
+          const costLabel = document.getElementById('usage-cost-label');
+          if (costLabel) costLabel.textContent = t.usageLabel === 'estimated' ? 'Estimated usage' : 'Reported usage';
 
           const tbody = document.getElementById('telemetry-provider-tbody');
           if (tbody && t.providerTokens) {
@@ -3228,7 +3235,7 @@ export function getDashboardHtml(nonce?: string): string {
                 '<td>' + (data.prompt || 0).toLocaleString() + '</td>' +
                 '<td>' + (data.completion || 0).toLocaleString() + '</td>' +
                 '<td style="color:var(--text-primary); font-weight:600;">' + (data.total || 0).toLocaleString() + '</td>' +
-                '<td style="color:var(--emerald-text); font-family:var(--font-mono); font-weight:600;">$' + ((data.total || 0) * (t.usdPerToken || 0)).toFixed(2) + '</td>' +
+                '<td style="color:var(--emerald-text); font-family:var(--font-mono); font-weight:600;">' + formatCost(t.providerCostUsd && t.providerCostUsd[p]) + '</td>' +
               '</tr>'
             ).join('');
           }
@@ -3323,7 +3330,12 @@ export function getDashboardHtml(nonce?: string): string {
       if (elComp) elComp.textContent = (stats.totalCompletionTokens || 0).toLocaleString();
 
       const elCost = document.getElementById('usage-kpi-cost');
-      if (elCost) elCost.textContent = '~$' + (stats.totalCostSaved || 0).toFixed(2);
+      if (elCost) elCost.textContent = stats.usageLabel === 'estimated'
+        ? 'Estimated ' + formatCost(stats.totalCostUsd)
+        : formatCost(stats.totalCostUsd);
+      const usageCostLabel = document.getElementById('usage-cost-label');
+      if (usageCostLabel) usageCostLabel.textContent = stats.usageLabel === 'estimated'
+        ? 'Estimated usage' : 'Reported usage';
 
       // Update distribution track & legend
       const track = document.getElementById('usage-distribution-track');
@@ -3388,7 +3400,7 @@ export function getDashboardHtml(nonce?: string): string {
               '<div class="token-chart-totals">' +
                 '<span style="color:var(--text-primary); font-weight:700;">' + pTotal.toLocaleString() + '</span> total tokens &bull; ' +
                 '<span>' + pRequests.toLocaleString() + ' reqs</span> &bull; ' +
-                '<span style="color:var(--amber-text);">$' + (p.costSaved || 0).toFixed(2) + ' saved</span>' +
+                '<span style="color:var(--amber-text);">' + formatCost(p.costSaved) + ' saved</span>' +
               '</div>' +
             '</div>' +
             '<div class="token-stacked-bar">' +
@@ -3426,7 +3438,7 @@ export function getDashboardHtml(nonce?: string): string {
             '<td style="text-align: right; font-family: var(--font-mono); color: #60a5fa;">' + p.cachedTokens.toLocaleString() + '</td>' +
             '<td style="text-align: right; font-family: var(--font-mono); color: var(--emerald-text);">' + p.completionTokens.toLocaleString() + '</td>' +
             '<td style="text-align: right; font-family: var(--font-mono); font-weight: 700;">' + p.totalTokens.toLocaleString() + '</td>' +
-            '<td style="text-align: right; font-family: var(--font-mono); color: var(--amber-text);">$' + p.costSaved.toFixed(2) + '</td>' +
+            '<td style="text-align: right; font-family: var(--font-mono); color: var(--amber-text);">' + formatCost(p.costSaved) + '</td>' +
             '<td style="text-align: right; font-family: var(--font-mono);">' + p.requests.toLocaleString() + '</td>' +
           '</tr>';
 
@@ -3443,7 +3455,7 @@ export function getDashboardHtml(nonce?: string): string {
                 '<td style="text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.78rem;">' + m.cachedTokens.toLocaleString() + '</td>' +
                 '<td style="text-align: right; font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.78rem;">' + m.completionTokens.toLocaleString() + '</td>' +
                 '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem;">' + m.totalTokens.toLocaleString() + '</td>' +
-                '<td style="text-align: right; font-family: var(--font-mono); color: var(--amber-text); font-size: 0.78rem;">$' + m.costSaved.toFixed(2) + '</td>' +
+                '<td style="text-align: right; font-family: var(--font-mono); color: var(--amber-text); font-size: 0.78rem;">' + formatCost(m.costSaved) + '</td>' +
                 '<td style="text-align: right; font-family: var(--font-mono); font-size: 0.78rem;">' + m.requests.toLocaleString() + '</td>' +
               '</tr>';
             }

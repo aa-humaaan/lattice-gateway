@@ -1,0 +1,33 @@
+{
+  "name": "plain-text-chat",
+  "dialect": "openai-chat",
+  "feature": "plain-text",
+  "request": { "model": "test", "messages": [{ "role": "user", "content": "hi" }] },
+  "canonicalExpect": { "model": "test", "messages.0.role": "user", "messages.0.content": "hi" },
+  "response": {
+    "id": "chat_text",
+    "model": "test",
+    "created": 1,
+    "content": [{ "type": "text", "text": "hello" }],
+    "stopReason": "stop",
+    "usage": { "promptTokens": 2, "completionTokens": 1, "totalTokens": 3 }
+  },
+  "responseExpect": {
+    "object": "chat.completion",
+    "choices.0.finish_reason": "stop",
+    "choices.0.message.content": "hello",
+    "usage.total_tokens": 3
+  },
+  "streamEvents": [
+    { "type": "stream_start", "id": "chat_text", "model": "test", "created": 1 },
+    { "type": "text_delta", "delta": "hello" },
+    { "type": "stream_end", "stopReason": "stop" }
+  ],
+  "streamExpectEvents": [
+    { "type": "chat.completion.chunk", "fields": { "object": "chat.completion.chunk", "id": "chat_text", "choices.0.delta.role": "assistant", "choices.0.finish_reason": null } },
+    { "type": "chat.completion.chunk", "fields": { "choices.0.delta.content": "hello", "choices.0.finish_reason": null } },
+    { "type": "chat.completion.chunk", "fields": { "choices.0.delta": {}, "choices.0.finish_reason": "stop" } },
+    { "type": "[DONE]" }
+  ],
+  "streamStatus": "passed"
+}

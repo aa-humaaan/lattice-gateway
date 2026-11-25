@@ -1,0 +1,19 @@
+{
+  "id": "lattice/fast-free",
+  "name": "Lattice Fast Free 0$ Tier",
+  "description": "High-speed 0$ cost inference aggregator with automatic failover",
+  "policy": {
+    "version": 1,
+    "strategy": "tier-failover",
+    "tiers": ["free"],
+    "maxFailuresPerTier": 2147483647
+  },
+  "targets": [
+    { "model": "kilo/nvidia/nemotron-3.5-lightning:free", "tier": "free" },
+    { "model": "kilo/code-fast:free", "tier": "free" },
+    { "model": "kilo/kilo-auto/free", "tier": "free" },
+    { "model": "kilo/deepseek-r1:free", "tier": "free" },
+    { "model": "big-pickle", "tier": "free" },
+    { "model": "mimo-v2.6-flash-free", "tier": "free" }
+  ]
+}

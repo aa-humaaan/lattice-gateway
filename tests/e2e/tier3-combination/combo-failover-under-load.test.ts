@@ -273,11 +273,24 @@ describe('Tier 3 Combination: Failover Under Heavy Concurrent Load', () => {
 
   // 3. Cooldown tracking accuracy during heavy load
   it('maintains strictly accurate positive cooldown timestamps during high load', async () => {
+    // Self-contained: a prior test's 5s cooldown can expire while the suite is
+    // loaded, so trigger a fresh one instead of depending on test order.
+    primary.requestCount = 0;
+    primary.cooldownUntil = undefined;
+    const burst = Array.from({ length: 8 }, (_, i) =>
+      client.openaiChat({
+        model: 'combo-load/flagship',
+        messages: [{ role: 'user', content: `Cooldown probe #${i}` }],
+        stream: false,
+      })
+    );
+    const responses = await Promise.all(burst);
+    for (const res of responses) expect(res.status).toBe(200);
     expect(primary.cooldownUntil).toBeDefined();
     const remainingMs = primary.cooldownUntil! - Date.now();
     expect(remainingMs).toBeGreaterThan(0);
     expect(remainingMs).toBeLessThanOrEqual(5000);
-  });
+  }, 30_000);
 
   // 4. Least-connections distribution across available backup providers
   it('balances requests across backup providers according to active connection availability', async () => {

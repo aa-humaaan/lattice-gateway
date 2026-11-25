@@ -10,7 +10,7 @@ import type {
   CanonicalStreamEvent,
 } from '../core/types/canonical';
 import { GatewayError } from '../core/types/errors';
-import { globalComboManager } from '../pool/combos';
+import { comboTargetTier, globalComboManager, orderComboTargets } from '../pool/combos';
 import { globalAccountPool } from '../pool/account-pool';
 import { globalBreakerRegistry } from '../core/breaker';
 import { globalPluginRegistry } from './registry';
@@ -27,7 +27,6 @@ import {
   type SessionAffinityStore,
 } from '../core/session-affinity';
 
-const DEFAULT_CONTEXT_WINDOW = 128000;
 const CONTEXT_SAFETY_MARGIN_TOKENS = 256;
 const MIN_OUTPUT_TOKENS = 256;
 const MAX_STREAM_TARGET_SWITCHES = 4;
@@ -60,7 +59,7 @@ export class LatticeComboPlugin implements ProviderPlugin {
     return resolveProviderForModel(modelId);
   }
 
-  private async getModelContextWindow(modelId: string): Promise<number> {
+  private async getModelContextWindow(modelId: string): Promise<number | undefined> {
     const { plugin, resolvedModel } = this.resolveProviderForModel(modelId);
     for (const id of new Set([modelId, resolvedModel])) {
       const passport = this.passportStore.get(id);
@@ -91,22 +90,9 @@ export class LatticeComboPlugin implements ProviderPlugin {
       logger.warn(`[LatticeCombo] Failed to fetch models for ${plugin.id}, using default context window: ${err}`);
     }
 
-    if (
-      modelId.includes('1m') ||
-      modelId.includes('particle-1') ||
-      modelId.includes('ernie-5.5') ||
-      modelId.includes('nemotron-3.5-lightning') ||
-      modelId.includes('ling-3.2') ||
-      modelId.includes('step-5-preview') ||
-      modelId.includes('muse-spark') ||
-      modelId.includes('claude-sonnet-4-5') ||
-      modelId.includes('claude-opus-4-5') ||
-      modelId.includes('claude-haiku-4-5')
-    ) {
-      return 1_048_576;
-    }
-
-    return DEFAULT_CONTEXT_WINDOW;
+    // No verified claim means no context window is known. Never infer one from
+    // the model name — a name is not evidence.
+    return undefined;
   }
 
   private isContextOverflowError(err: unknown): boolean {
@@ -139,6 +125,23 @@ export class LatticeComboPlugin implements ProviderPlugin {
       passport.availability.value.healthy === false;
   }
 
+  private recordTierFailure(
+    combo: { id: string; policy?: { maxFailuresPerTier: number }; tiers?: Record<string, string> },
+    target: string,
+    tierFailures: Map<string, number>,
+    activeTiers: Set<string>
+  ): void {
+    const policy = combo.policy;
+    const tier = combo.tiers?.[target];
+    if (!policy || !tier || !activeTiers.has(tier)) return;
+    const failures = (tierFailures.get(tier) ?? 0) + 1;
+    tierFailures.set(tier, failures);
+    if (failures >= policy.maxFailuresPerTier) {
+      activeTiers.delete(tier);
+      logger.warn(`[LatticeCombo] Tier ${tier} exhausted after ${failures} failures for combo ${combo.id}`);
+    }
+  }
+
   async execute(req: CanonicalRequest, signal?: AbortSignal): Promise<CanonicalResponse> {
     const combo = globalComboManager.getCombo(req.model);
     if (!combo) {
@@ -153,101 +156,119 @@ export class LatticeComboPlugin implements ProviderPlugin {
     const estimate = countPromptTokens(req);
     let lastError: any = null;
     let overflowCount = 0;
-    let skippedCount = 0;
+    let unavailableCount = 0;
+    let consideredCount = 0;
     let quotaSkippedCount = 0;
     const maxContextSeen = { value: 0 };
     const sessionKey = req.affinity?.sessionKey;
     const pinnedTarget = sessionKey ? this.affinityStore.getTarget(sessionKey) : undefined;
-    const targets = pinnedTarget && combo.targets.includes(pinnedTarget)
-      ? [pinnedTarget, ...combo.targets.filter((target) => target !== pinnedTarget)]
-      : [...combo.targets];
+    const targets = orderComboTargets(combo, pinnedTarget);
     // A verified failed probe is a reason to try an alternative, not a permanent
     // negative capability claim. Keep all targets when none is known-healthy.
     const healthyTargets = targets.filter((target) => !this.isUnhealthyTarget(target));
     const candidates = healthyTargets.length > 0 ? healthyTargets : targets;
+    const activeTiers = new Set(combo.policy?.tiers ?? []);
+    const tierFailures = new Map<string, number>();
 
     let attemptCount = 0;
     for (const target of candidates) {
+      const tier = comboTargetTier(combo, target);
+      if (combo.policy && tier && !activeTiers.has(tier)) {
+        logger.warn(`[LatticeCombo] Tier ${tier} failure limit reached for combo ${combo.id}; skipping ${target}`);
+        continue;
+      }
       if (attemptCount >= MAX_STREAM_TARGET_SWITCHES) {
         logger.warn(`[LatticeCombo] Target attempt budget exhausted for combo ${combo.id}`);
         break;
       }
       attemptCount++;
+      consideredCount++;
       let resolved: { plugin: ProviderPlugin; resolvedModel: string };
       try {
         resolved = this.resolveProviderForModel(target);
       } catch (err) {
         lastError = err;
-        skippedCount++;
+        unavailableCount++;
         continue;
       }
 
       const targetBreaker = globalBreakerRegistry.get(resolved.plugin.id);
       if (!targetBreaker.allow()) {
         lastError = lastError ?? new GatewayError(503, 'breaker_open', `Provider ${resolved.plugin.id} is circuit-broken`);
-        skippedCount++;
+        unavailableCount++;
         continue;
       }
       targetBreaker.beginAttempt();
-
-      const contextWindow = await this.getModelContextWindow(target);
-      if (contextWindow > maxContextSeen.value) maxContextSeen.value = contextWindow;
-
-      const availableForOutput = contextWindow - estimate.total - CONTEXT_SAFETY_MARGIN_TOKENS;
-      if (availableForOutput < MIN_OUTPUT_TOKENS) {
-        logger.warn(
-          `[LatticeCombo] Skipping target ${target} for combo ${combo.id}: prompt (~${estimate.total} tokens) + safety margin exceeds context window (${contextWindow} tokens)`
-        );
-        skippedCount++;
-        continue;
-      }
-
-      if (!this.hasQuotaAvailable(resolved.plugin.id)) {
-        logger.warn(
-          `[LatticeCombo] Skipping target ${target} for combo ${combo.id}: all accounts for provider ${resolved.plugin.id} have exhausted quota`
-        );
-        quotaSkippedCount++;
-        continue;
-      }
-
-      let clampedMaxTokens: number | undefined;
-      if (req.maxTokens !== undefined) {
-        clampedMaxTokens = Math.min(req.maxTokens, availableForOutput);
-      }
-
       try {
-        logger.info(`[LatticeCombo] Routing combo ${combo.id} -> target ${target} (${resolved.plugin.id}, ctx=${contextWindow}, est_prompt=${estimate.total}${clampedMaxTokens ? `, max_tokens=${clampedMaxTokens}` : ''})`);
-
-        const targetReq: CanonicalRequest = {
-          ...req,
-          model: target,
-          maxTokens: clampedMaxTokens,
-        };
-
-        const res = await resolved.plugin.execute(targetReq, signal);
-        targetBreaker.recordSuccess();
-        if (sessionKey) this.affinityStore.pinTarget(sessionKey, target);
-        return {
-          ...res,
-          model: combo.id,
-        };
-      } catch (err: any) {
-        lastError = err;
-        targetBreaker.recordFailure(err);
-        if (this.isContextOverflowError(err)) {
-          overflowCount++;
-          logger.warn(
-            `[LatticeCombo] Target ${target} context overflow for combo ${combo.id}: ${err.message || err}. Trying next target...`
-          );
-        } else {
-          logger.warn(
-            `[LatticeCombo] Target ${target} failed for combo ${combo.id}: ${err.message || err}. Falling back to next target...`
-          );
+        const contextWindow = await this.getModelContextWindow(target);
+        if (contextWindow !== undefined && contextWindow > maxContextSeen.value) {
+          maxContextSeen.value = contextWindow;
         }
+
+        // An unknown context window imposes no constraint; it is never guessed.
+        const availableForOutput = contextWindow === undefined
+          ? Number.POSITIVE_INFINITY
+          : contextWindow - estimate.total - CONTEXT_SAFETY_MARGIN_TOKENS;
+        if (availableForOutput < MIN_OUTPUT_TOKENS) {
+          logger.warn(
+            `[LatticeCombo] Skipping target ${target} for combo ${combo.id}: prompt (~${estimate.total} tokens) + safety margin exceeds context window (${contextWindow} tokens)`
+          );
+          overflowCount++;
+          continue;
+        }
+
+        if (!this.hasQuotaAvailable(resolved.plugin.id)) {
+          logger.warn(
+            `[LatticeCombo] Skipping target ${target} for combo ${combo.id}: all accounts for provider ${resolved.plugin.id} have exhausted quota`
+          );
+          quotaSkippedCount++;
+          continue;
+        }
+
+        let clampedMaxTokens: number | undefined;
+        if (req.maxTokens !== undefined && Number.isFinite(availableForOutput)) {
+          clampedMaxTokens = Math.min(req.maxTokens, availableForOutput);
+        }
+
+        try {
+          logger.info(`[LatticeCombo] Routing combo ${combo.id} -> target ${target} (${resolved.plugin.id}, ctx=${contextWindow ?? 'unknown'}, est_prompt=${estimate.total}${clampedMaxTokens ? `, max_tokens=${clampedMaxTokens}` : ''})`);
+
+          const targetReq: CanonicalRequest = {
+            ...req,
+            model: target,
+            maxTokens: clampedMaxTokens,
+          };
+
+          const res = await resolved.plugin.execute(targetReq, signal);
+          targetBreaker.recordSuccess();
+          if (sessionKey) this.affinityStore.pinTarget(sessionKey, target);
+          req.accountId = targetReq.accountId;
+          req.servedByProviderId = targetReq.servedByProviderId ?? resolved.plugin.id;
+          return {
+            ...res,
+            model: combo.id,
+          };
+        } catch (err: any) {
+          lastError = err;
+          targetBreaker.recordFailure(err);
+          this.recordTierFailure(combo, target, tierFailures, activeTiers);
+          if (this.isContextOverflowError(err)) {
+            overflowCount++;
+            logger.warn(
+              `[LatticeCombo] Target ${target} context overflow for combo ${combo.id}: ${err.message || err}. Trying next target...`
+            );
+          } else {
+            logger.warn(
+              `[LatticeCombo] Target ${target} failed for combo ${combo.id}: ${err.message || err}. Falling back to next target...`
+            );
+          }
+        }
+      } finally {
+        targetBreaker.cancelProbe();
       }
     }
 
-    if (quotaSkippedCount > 0 && quotaSkippedCount + skippedCount + overflowCount >= combo.targets.length) {
+    if (quotaSkippedCount > 0 && quotaSkippedCount + unavailableCount + overflowCount >= consideredCount) {
       const resetInfo = globalAccountPool.getNextResetTime();
       const retryAfter = resetInfo?.retryAfterSeconds || 60;
       const resetTimeStr = resetInfo
@@ -261,7 +282,16 @@ export class LatticeComboPlugin implements ProviderPlugin {
       );
     }
 
-    if (skippedCount + overflowCount >= combo.targets.length) {
+    if (consideredCount > 0 && unavailableCount > 0 && unavailableCount + overflowCount >= consideredCount) {
+      throw new GatewayError(
+        503,
+        'all_targets_unavailable',
+        `All targets in combo ${combo.id} are unavailable (circuit-broken or unresolvable). Restore or replace the providers, then retry.`,
+        { providerId: this.id }
+      );
+    }
+
+    if (consideredCount > 0 && overflowCount >= consideredCount) {
       throw new GatewayError(
         400,
         'context_length_exceeded',
@@ -293,168 +323,188 @@ export class LatticeComboPlugin implements ProviderPlugin {
     const estimate = countPromptTokens(req);
     let lastError: any = null;
     let overflowCount = 0;
-    let skippedCount = 0;
+    let unavailableCount = 0;
+    let consideredCount = 0;
     let quotaSkippedCount = 0;
     let switchCount = 0;
     const maxContextSeen = { value: 0 };
     const sessionKey = req.affinity?.sessionKey;
     const pinnedTarget = sessionKey ? this.affinityStore.getTarget(sessionKey) : undefined;
-    const targets = pinnedTarget && combo.targets.includes(pinnedTarget)
-      ? [pinnedTarget, ...combo.targets.filter((target) => target !== pinnedTarget)]
-      : [...combo.targets];
+    const targets = orderComboTargets(combo, pinnedTarget);
     // A verified failed probe is a reason to try an alternative, not a permanent
     // negative capability claim. Keep all targets when none is known-healthy.
     const healthyTargets = targets.filter((target) => !this.isUnhealthyTarget(target));
     const candidates = healthyTargets.length > 0 ? healthyTargets : targets;
+    const activeTiers = new Set(combo.policy?.tiers ?? []);
+    const tierFailures = new Map<string, number>();
 
     for (const target of candidates) {
+      const tier = comboTargetTier(combo, target);
+      if (combo.policy && tier && !activeTiers.has(tier)) {
+        logger.warn(`[LatticeCombo] Tier ${tier} failure limit reached for combo ${combo.id}; skipping ${target}`);
+        continue;
+      }
       if (switchCount >= MAX_STREAM_TARGET_SWITCHES) {
         logger.warn(`[LatticeCombo] Switch budget exhausted for combo ${combo.id}`);
         break;
       }
+      consideredCount++;
       let resolved: { plugin: ProviderPlugin; resolvedModel: string };
       try {
         resolved = this.resolveProviderForModel(target);
       } catch (err) {
         lastError = err;
-        skippedCount++;
+        unavailableCount++;
         continue;
       }
 
       const targetBreaker = globalBreakerRegistry.get(resolved.plugin.id);
       if (!targetBreaker.allow()) {
         lastError = lastError ?? new GatewayError(503, 'breaker_open', `Provider ${resolved.plugin.id} is circuit-broken`);
-        skippedCount++;
+        unavailableCount++;
         continue;
       }
       targetBreaker.beginAttempt();
-
-      const contextWindow = await this.getModelContextWindow(target);
-      if (contextWindow > maxContextSeen.value) maxContextSeen.value = contextWindow;
-
-      const availableForOutput = contextWindow - estimate.total - CONTEXT_SAFETY_MARGIN_TOKENS;
-      if (availableForOutput < MIN_OUTPUT_TOKENS) {
-        logger.warn(
-          `[LatticeCombo] Skipping stream target ${target} for combo ${combo.id}: prompt (~${estimate.total} tokens) + safety margin exceeds context window (${contextWindow} tokens)`
-        );
-        skippedCount++;
-        continue;
-      }
-
-      if (!this.hasQuotaAvailable(resolved.plugin.id)) {
-        logger.warn(
-          `[LatticeCombo] Skipping stream target ${target} for combo ${combo.id}: all accounts for provider ${resolved.plugin.id} have exhausted quota`
-        );
-        quotaSkippedCount++;
-        continue;
-      }
-
-      let clampedMaxTokens: number | undefined;
-      if (req.maxTokens !== undefined) {
-        clampedMaxTokens = Math.min(req.maxTokens, availableForOutput);
-      }
-
       try {
-        logger.info(`[LatticeCombo] Streaming combo ${combo.id} -> target ${target} (${resolved.plugin.id}, ctx=${contextWindow}, est_prompt=${estimate.total}${clampedMaxTokens ? `, max_tokens=${clampedMaxTokens}` : ''})`);
+        const contextWindow = await this.getModelContextWindow(target);
+        if (contextWindow !== undefined && contextWindow > maxContextSeen.value) {
+          maxContextSeen.value = contextWindow;
+        }
 
-        const targetReq: CanonicalRequest = {
-          ...req,
-          model: target,
-          maxTokens: clampedMaxTokens,
-        };
+        // An unknown context window imposes no constraint; it is never guessed.
+        const availableForOutput = contextWindow === undefined
+          ? Number.POSITIVE_INFINITY
+          : contextWindow - estimate.total - CONTEXT_SAFETY_MARGIN_TOKENS;
+        if (availableForOutput < MIN_OUTPUT_TOKENS) {
+          logger.warn(
+            `[LatticeCombo] Skipping stream target ${target} for combo ${combo.id}: prompt (~${estimate.total} tokens) + safety margin exceeds context window (${contextWindow} tokens)`
+          );
+          overflowCount++;
+          continue;
+        }
 
-        const stream = await resolved.plugin.executeStream(targetReq, signal);
-        const iterator = stream[Symbol.asyncIterator]();
-        const buffered: CanonicalStreamEvent[] = [];
-        let firstContent: IteratorResult<CanonicalStreamEvent> | undefined;
-        let emptyStream = false;
+        if (!this.hasQuotaAvailable(resolved.plugin.id)) {
+          logger.warn(
+            `[LatticeCombo] Skipping stream target ${target} for combo ${combo.id}: all accounts for provider ${resolved.plugin.id} have exhausted quota`
+          );
+          quotaSkippedCount++;
+          continue;
+        }
+
+        let clampedMaxTokens: number | undefined;
+        if (req.maxTokens !== undefined && Number.isFinite(availableForOutput)) {
+          clampedMaxTokens = Math.min(req.maxTokens, availableForOutput);
+        }
+
         try {
-          // Metadata events (stream_start) are not content. Keep reading until
-          // the first content-bearing event so a "connected then died" upstream
-          // is still safe to retry without duplicating anything for the client.
-          while (true) {
-            const next = await iterator.next();
-            if (next.done) {
-              emptyStream = true;
-              break;
+          logger.info(`[LatticeCombo] Streaming combo ${combo.id} -> target ${target} (${resolved.plugin.id}, ctx=${contextWindow ?? 'unknown'}, est_prompt=${estimate.total}${clampedMaxTokens ? `, max_tokens=${clampedMaxTokens}` : ''})`);
+
+          const targetReq: CanonicalRequest = {
+            ...req,
+            model: target,
+            maxTokens: clampedMaxTokens,
+          };
+
+          const stream = await resolved.plugin.executeStream(targetReq, signal);
+          const iterator = stream[Symbol.asyncIterator]();
+          const buffered: CanonicalStreamEvent[] = [];
+          let firstContent: IteratorResult<CanonicalStreamEvent> | undefined;
+          let emptyStream = false;
+          try {
+            // Metadata events (stream_start) are not content. Keep reading until
+            // the first content-bearing event so a "connected then died" upstream
+            // is still safe to retry without duplicating anything for the client.
+            while (true) {
+              const next = await iterator.next();
+              if (next.done) {
+                emptyStream = true;
+                break;
+              }
+              if (isContentEvent(next.value)) {
+                firstContent = next;
+                break;
+              }
+              buffered.push(next.value);
             }
-            if (isContentEvent(next.value)) {
-              firstContent = next;
-              break;
-            }
-            buffered.push(next.value);
+          } catch (err: any) {
+            lastError = err;
+            targetBreaker.recordFailure(err);
+            switchCount++;
+            logger.warn(`[LatticeCombo] Stream target ${target} failed before content: ${err.message || err}. Retrying next target...`);
+            continue;
           }
+
+          if (emptyStream) {
+            lastError = new Error(`Upstream ${target} returned an empty stream`);
+            switchCount++;
+            logger.warn(`[LatticeCombo] Stream target ${target} returned no events. Retrying next target...`);
+            continue;
+          }
+
+          targetBreaker.recordSuccess();
+          if (sessionKey) this.affinityStore.pinTarget(sessionKey, target);
+          // Mirror the serving target's attribution onto the outer request; the
+          // router settles quota, ledger and receipts from that request.
+          req.accountId = targetReq.accountId;
+          req.servedByProviderId = targetReq.servedByProviderId ?? resolved.plugin.id;
+          const comboId = combo.id;
+          return (async function* () {
+            try {
+              for (const event of buffered) {
+                if (event.type === 'stream_start') {
+                  yield { ...event, model: comboId };
+                } else {
+                  yield event;
+                }
+              }
+              let current = firstContent!;
+              while (!current.done) {
+                const event = current.value;
+                if (event.type === 'stream_start') {
+                  yield { ...event, model: comboId };
+                } else {
+                  yield event;
+                }
+                current = await iterator.next();
+              }
+            } catch (streamErr: any) {
+              // Content has already been emitted. Switching models now would
+              // duplicate tool calls and break the client's session.
+              targetBreaker.recordFailure(streamErr);
+              logger.error(`[LatticeCombo] Mid-stream error on target ${target}: ${streamErr.message || streamErr}`);
+              yield {
+                type: 'stream_error',
+                error: {
+                  message: streamErr.message || 'Upstream connection closed mid-stream',
+                  type: 'upstream_error',
+                  code: 'stream_failed',
+                  status: streamErr.status ?? streamErr.statusCode ?? 500,
+                },
+              };
+            }
+          })();
         } catch (err: any) {
           lastError = err;
           targetBreaker.recordFailure(err);
+          this.recordTierFailure(combo, target, tierFailures, activeTiers);
           switchCount++;
-          logger.warn(`[LatticeCombo] Stream target ${target} failed before content: ${err.message || err}. Retrying next target...`);
-          continue;
-        }
-
-        if (emptyStream) {
-          lastError = new Error(`Upstream ${target} returned an empty stream`);
-          switchCount++;
-          logger.warn(`[LatticeCombo] Stream target ${target} returned no events. Retrying next target...`);
-          continue;
-        }
-
-        targetBreaker.recordSuccess();
-        if (sessionKey) this.affinityStore.pinTarget(sessionKey, target);
-        const comboId = combo.id;
-        return (async function* () {
-          try {
-            for (const event of buffered) {
-              if (event.type === 'stream_start') {
-                yield { ...event, model: comboId };
-              } else {
-                yield event;
-              }
-            }
-            let current = firstContent!;
-            while (!current.done) {
-              const event = current.value;
-              if (event.type === 'stream_start') {
-                yield { ...event, model: comboId };
-              } else {
-                yield event;
-              }
-              current = await iterator.next();
-            }
-          } catch (streamErr: any) {
-            // Content has already been emitted. Switching models now would
-            // duplicate tool calls and break the client's session.
-            targetBreaker.recordFailure(streamErr);
-            logger.error(`[LatticeCombo] Mid-stream error on target ${target}: ${streamErr.message || streamErr}`);
-            yield {
-              type: 'stream_error',
-              error: {
-                message: streamErr.message || 'Upstream connection closed mid-stream',
-                type: 'upstream_error',
-                code: 'stream_failed',
-                status: streamErr.status ?? streamErr.statusCode ?? 500,
-              },
-            };
+          if (this.isContextOverflowError(err)) {
+            overflowCount++;
+            logger.warn(
+              `[LatticeCombo] Stream target ${target} context overflow for combo ${combo.id}: ${err.message || err}. Trying next target...`
+            );
+          } else {
+            logger.warn(
+              `[LatticeCombo] Stream target ${target} failed for combo ${combo.id}: ${err.message || err}. Falling back to next target...`
+            );
           }
-        })();
-      } catch (err: any) {
-        lastError = err;
-        targetBreaker.recordFailure(err);
-        switchCount++;
-        if (this.isContextOverflowError(err)) {
-          overflowCount++;
-          logger.warn(
-            `[LatticeCombo] Stream target ${target} context overflow for combo ${combo.id}: ${err.message || err}. Trying next target...`
-          );
-        } else {
-          logger.warn(
-            `[LatticeCombo] Stream target ${target} failed for combo ${combo.id}: ${err.message || err}. Falling back to next target...`
-          );
         }
+      } finally {
+        targetBreaker.cancelProbe();
       }
     }
 
-    if (quotaSkippedCount > 0 && quotaSkippedCount + skippedCount + overflowCount >= combo.targets.length) {
+    if (quotaSkippedCount > 0 && quotaSkippedCount + unavailableCount + overflowCount >= consideredCount) {
       const resetInfo = globalAccountPool.getNextResetTime();
       const retryAfter = resetInfo?.retryAfterSeconds || 60;
       const resetTimeStr = resetInfo
@@ -468,7 +518,16 @@ export class LatticeComboPlugin implements ProviderPlugin {
       );
     }
 
-    if (skippedCount + overflowCount >= combo.targets.length) {
+    if (consideredCount > 0 && unavailableCount > 0 && unavailableCount + overflowCount >= consideredCount) {
+      throw new GatewayError(
+        503,
+        'all_targets_unavailable',
+        `All targets in combo ${combo.id} are unavailable (circuit-broken or unresolvable). Restore or replace the providers, then retry.`,
+        { providerId: this.id }
+      );
+    }
+
+    if (consideredCount > 0 && overflowCount >= consideredCount) {
       throw new GatewayError(
         400,
         'context_length_exceeded',

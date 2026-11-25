@@ -68,4 +68,23 @@ describe('P1-4 structured outputs and sampling fields', () => {
     const body = await res.text();
     expect(body).toContain('response_format');
   });
+
+  test('a provider that does not declare sampling fields rejects them explicitly', async () => {
+    const app = createServer({}, [
+      stub('sampling-supported', { samplingFields: true }),
+      stub('sampling-unsupported'),
+    ]);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'sampling-unsupported/model',
+        messages: [{ role: 'user', content: 'hello' }],
+        seed: 7,
+        frequency_penalty: 0.2,
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toMatch(/sampling|seed/i);
+  });
 });

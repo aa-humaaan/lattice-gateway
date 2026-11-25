@@ -1,0 +1,10 @@
+{
+  "id": "throwaway",
+  "displayName": "Throwaway Test Provider",
+  "adapter": "../adapter.ts",
+  "factory": "createPlugin",
+  "lifecycle": { "hooks": ["shutdown"] },
+  "configSchema": {
+    "apiKey": { "type": "string", "required": true, "env": "THROWAWAY_API_KEY" }
+  }
+}

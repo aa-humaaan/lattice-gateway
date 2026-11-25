@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { createSafeFetch, safeFetch } from '../../src/core/safe-fetch';
+import { KiloProviderPlugin } from '../../src/plugins/kilo';
+import type { StoredAccount } from '../../src/core/types/plugin';
 
 describe('P0-7: safeFetch redirect validation', () => {
   it('refuses a 302 redirect to a link-local metadata address', async () => {
@@ -51,4 +53,44 @@ describe('P0-7: safeFetch redirect validation', () => {
     await createSafeFetch(stub)('https://example.com/');
     expect(seen?.redirect).toBe('manual');
   });
+});
+
+// Behavioral kill: the module is also exercised through a real plugin, so a
+// regression in redirect validation fails an observable outcome, not an import.
+describe('behavioral: plugin egress refuses unsafe redirects', () => {
+  it('a Kilo health probe refuses a 302 into link-local metadata and never issues the hop', async () => {
+    let targetHits = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch(req) {
+        if (new URL(req.url).hostname === '169.254.169.254') {
+          targetHits++;
+          return new Response('metadata leaked');
+        }
+        return new Response(null, {
+          status: 302,
+          headers: { Location: 'http://169.254.169.254/latest/meta-data/' },
+        });
+      },
+    });
+    const account: StoredAccount = {
+      id: 'safe-fetch-probe',
+      providerId: 'kilo',
+      authType: 'api_key',
+      status: 'active',
+      credentials: { apiKey: 'sk-probe' },
+      createdAt: 1,
+      updatedAt: 1,
+      errorCount: 0,
+    };
+    try {
+      const plugin = new KiloProviderPlugin(`http://127.0.0.1:${server.port}/v1`, account);
+      const result = await plugin.healthCheck(account);
+      expect(result.healthy).toBe(false);
+      expect(result.message).toMatch(/unsafe|refus/i);
+      expect(targetHits).toBe(0);
+    } finally {
+      server.stop(true);
+    }
+  }, 15_000);
 });

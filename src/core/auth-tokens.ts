@@ -1,10 +1,17 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'fs';
 import { join } from 'path';
 
 export interface LocalAuthTokens {
   gatewayToken: string;
   adminToken: string;
+}
+
+/** Compare secrets in constant time; hashing also hides their length. */
+export function constantTimeEqual(a: string, b: string): boolean {
+  const left = createHash('sha256').update(a).digest();
+  const right = createHash('sha256').update(b).digest();
+  return timingSafeEqual(left, right);
 }
 
 /** Short, non-reversible identifier safe to print in terminal scrollback. */

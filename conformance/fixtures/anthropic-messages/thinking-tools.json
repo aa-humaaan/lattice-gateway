@@ -1,1 +1,44 @@
-{"name":"thinking-tools","dialect":"anthropic-messages","request":{"model":"test","max_tokens":100,"system":"Be exact","messages":[{"role":"user","content":"calculate"}],"tools":[{"name":"calculator","description":"math","input_schema":{"type":"object"}}]},"canonicalExpect":{"model":"test","systemPrompt":"Be exact","tools.0.function.name":"calculator","messages.0.role":"user"},"response":{"id":"msg_test","model":"test","created":1,"content":[{"type":"thinking","thinking":"check"},{"type":"tool_use","id":"tool_1","name":"calculator","input":{"x":2}}],"stopReason":"tool_calls","usage":{"promptTokens":5,"completionTokens":4,"totalTokens":9}},"responseExpect":{"type":"message","stop_reason":"tool_use","content.0.type":"thinking","content.1.name":"calculator","usage.input_tokens":5},"streamEvents":[{"type":"stream_start","id":"msg_stream","model":"test","created":1},{"type":"thinking_delta","delta":"check"},{"type":"text_delta","delta":"answer"},{"type":"stream_end","stopReason":"stop"}],"streamContains":["event: message_start","thinking_delta","text_delta","event: message_stop"]}
+{
+  "name": "tool-loop-anthropic",
+  "dialect": "anthropic-messages",
+  "feature": "tool-loop",
+  "request": {
+    "model": "test",
+    "max_tokens": 100,
+    "system": "Be exact",
+    "messages": [{ "role": "user", "content": "calculate" }],
+    "tools": [{ "name": "calculator", "description": "math", "input_schema": { "type": "object" } }]
+  },
+  "canonicalExpect": { "model": "test", "systemPrompt": "Be exact", "tools.0.function.name": "calculator", "messages.0.role": "user" },
+  "response": {
+    "id": "msg_test",
+    "model": "test",
+    "created": 1,
+    "content": [{ "type": "thinking", "thinking": "check" }, { "type": "tool_use", "id": "tool_1", "name": "calculator", "input": { "x": 2 } }],
+    "stopReason": "tool_calls",
+    "usage": { "promptTokens": 5, "completionTokens": 4, "totalTokens": 9 }
+  },
+  "responseExpect": { "type": "message", "stop_reason": "tool_use", "content.0.type": "thinking", "content.1.type": "tool_use", "content.1.name": "calculator", "content.1.input.x": 2, "usage.input_tokens": 5 },
+  "streamEvents": [
+    { "type": "stream_start", "id": "msg_stream", "model": "test", "created": 1 },
+    { "type": "thinking_delta", "delta": "check" },
+    { "type": "tool_call_start", "index": 0, "id": "tool_1", "name": "calculator" },
+    { "type": "tool_call_delta", "index": 0, "argumentsDelta": "{\"x\"" },
+    { "type": "tool_call_delta", "index": 0, "argumentsDelta": ":2}" },
+    { "type": "tool_call_stop", "index": 0 },
+    { "type": "stream_end", "stopReason": "tool_calls" }
+  ],
+  "streamExpectEvents": [
+    { "type": "message_start", "fields": { "type": "message_start", "message.id": "msg_stream" } },
+    { "type": "content_block_start", "fields": { "type": "content_block_start", "index": 0, "content_block.type": "thinking" } },
+    { "type": "content_block_delta", "fields": { "type": "content_block_delta", "index": 0, "delta.type": "thinking_delta", "delta.thinking": "check" } },
+    { "type": "content_block_stop", "fields": { "type": "content_block_stop", "index": 0 } },
+    { "type": "content_block_start", "fields": { "type": "content_block_start", "index": 1, "content_block.type": "tool_use", "content_block.id": "tool_1", "content_block.name": "calculator" } },
+    { "type": "content_block_delta", "fields": { "type": "content_block_delta", "index": 1, "delta.type": "input_json_delta", "delta.partial_json": "{\"x\"" } },
+    { "type": "content_block_delta", "fields": { "type": "content_block_delta", "index": 1, "delta.partial_json": ":2}" } },
+    { "type": "content_block_stop", "fields": { "type": "content_block_stop", "index": 1 } },
+    { "type": "message_delta", "fields": { "type": "message_delta", "delta.stop_reason": "tool_use" } },
+    { "type": "message_stop", "fields": { "type": "message_stop" } }
+  ],
+  "streamStatus": "passed"
+}

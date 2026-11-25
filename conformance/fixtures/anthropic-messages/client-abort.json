@@ -1,0 +1,29 @@
+{
+  "name": "client-abort-anthropic",
+  "dialect": "anthropic-messages",
+  "feature": "client-abort",
+  "request": { "model": "test", "max_tokens": 16, "messages": [{ "role": "user", "content": "abort" }] },
+  "canonicalExpect": { "model": "test", "messages.0.role": "user" },
+  "response": {
+    "id": "msg_abort",
+    "model": "test",
+    "created": 1,
+    "content": [{ "type": "text", "text": "partial" }],
+    "stopReason": "stop",
+    "usage": { "promptTokens": 1, "completionTokens": 1, "totalTokens": 2 }
+  },
+  "responseExpect": { "type": "message", "stop_reason": "end_turn" },
+  "streamEvents": [
+    { "type": "stream_start", "id": "msg_abort", "model": "test", "created": 1 },
+    { "type": "text_delta", "delta": "partial" },
+    { "type": "text_delta", "delta": "never" },
+    { "type": "stream_end", "stopReason": "stop" }
+  ],
+  "abortAfter": 2,
+  "streamExpectEvents": [
+    { "type": "message_start", "fields": { "type": "message_start", "message.id": "msg_abort" } },
+    { "type": "content_block_start", "fields": { "type": "content_block_start", "index": 0, "content_block.type": "text" } },
+    { "type": "content_block_delta", "fields": { "type": "content_block_delta", "index": 0, "delta.text": "partial" } }
+  ],
+  "streamStatus": "passed"
+}

@@ -14,7 +14,9 @@ describe('credential store hygiene', () => {
     expect(result.stdout.toString().trim()).toBe('');
   });
 
-  test('SECURITY.md tells the operator to rotate before untracking', () => {
+  // SOURCE GUARD: operator documentation is prose, not executable code; the
+  // rotation instructions can only be verified by reading the shipped file.
+  test('SOURCE GUARD: SECURITY.md tells the operator to rotate before untracking', () => {
     expect(existsSync('SECURITY.md')).toBe(true);
     const doc = readFileSync('SECURITY.md', 'utf8');
     expect(doc).toContain('rotate');

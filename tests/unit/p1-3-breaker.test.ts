@@ -174,6 +174,25 @@ describe('P1-3 provider breaker', () => {
     expect(isProviderHealthFailure(Object.assign(new Error('too slow'), { name: 'TimeoutError' }))).toBe(true);
   });
 
+  test('a 5xx whose message contains "aborted" is still a provider-health failure', () => {
+    const err = new GatewayError(500, 'internal_error', 'aborted upstream');
+    expect(isProviderHealthFailure(err)).toBe(true);
+
+    const breaker = new BreakerRegistry({ failureThreshold: 1, now: () => 0 }).get('provider-a');
+    expect(breaker.recordFailure(err)).toBe(true);
+    expect(breaker.state).toBe('open');
+  });
+
+  test('a provider error with statusCode 500 is classified by status, not message', () => {
+    const err = Object.assign(new Error('aborted upstream'), { statusCode: 500 });
+    expect(isProviderHealthFailure(err)).toBe(true);
+  });
+
+  test('a real caller abort is excluded by error type, not message text', () => {
+    expect(isProviderHealthFailure(Object.assign(new Error('aborted by caller'), { name: 'AbortError' }))).toBe(false);
+    expect(isProviderHealthFailure(Object.assign(new Error('aborted'), { code: 'ABORT_ERR' }))).toBe(false);
+  });
+
   test('the allocator skips accounts whose provider breaker is open', () => {
     const registry = new BreakerRegistry({ failureThreshold: 1, now: () => 0 });
     const pool = new AccountPoolManager(undefined, registry);
@@ -244,5 +263,16 @@ describe('P1-3 provider breaker', () => {
     expect(res.model).toBe(COMBO_ID);
     expect(down.calls).toBe(0);
     expect(up.calls).toBe(1);
+  });
+
+  test('an open breaker leaves a sole circuit-broken provider with no allocatable account', () => {
+    const registry = new BreakerRegistry({ failureThreshold: 1, now: () => 0 });
+    const pool = new AccountPoolManager(undefined, registry);
+    const down = account('a-down-only', 'provider-down-only');
+    pool.addAccount(down);
+
+    registry.get('provider-down-only').recordFailure(new GatewayError(503, 'service_unavailable', 'down'));
+    expect(registry.get('provider-down-only').allow()).toBe(false);
+    expect(pool.acquireAccount([down])).toBeUndefined();
   });
 });

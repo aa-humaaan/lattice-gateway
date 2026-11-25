@@ -8,11 +8,12 @@ import { globalPluginRegistry } from '../src/plugins/registry';
 import { globalAccountPool } from '../src/pool/account-pool';
 import { globalComboManager } from '../src/pool/combos';
 import { globalStorage } from '../src/pool/storage';
+import { initializeFromManifest, shutdownFromManifest } from '../src/core/plugin-lifecycle';
+import { fileURLToPath } from 'url';
 
 import { KiloProviderPlugin } from '../src/plugins/kilo';
 import { NousProviderPlugin } from '../src/plugins/nous';
 import { ClinePoolPlugin } from '../src/plugins/cline';
-import { OpenCodeProviderPlugin } from '../src/plugins/opencode';
 import { DeepSeekPoolPlugin } from '../src/plugins/deepseek';
 import { LatticeComboPlugin } from '../src/plugins/combo';
 
@@ -54,13 +55,16 @@ console.log(banner);
 // 1. Load persistent accounts, combos, and proxy configs
 globalStorage.load();
 
-// 2. Instantiate and register the 6 primary upstream plugins
+// 2. Instantiate the still-hardcoded plugins; OpenCode comes from its manifest.
 const kiloPlugin = new KiloProviderPlugin();
 const nousPlugin = new NousProviderPlugin();
 const clinePlugin = new ClinePoolPlugin();
-const opencodePlugin = new OpenCodeProviderPlugin();
 const deepseekPlugin = new DeepSeekPoolPlugin();
 const comboPlugin = new LatticeComboPlugin();
+
+const manifestDir = fileURLToPath(new URL('../src/plugins/manifests', import.meta.url));
+await globalPluginRegistry.loadManifestsFrom(manifestDir);
+const opencodePlugin = globalPluginRegistry.get('opencode') as any;
 
 // Wire accounts from global pool into plugins
 for (const acc of globalAccountPool.listAccounts()) {
@@ -74,7 +78,6 @@ for (const acc of globalAccountPool.listAccounts()) {
 globalPluginRegistry.register(kiloPlugin);
 globalPluginRegistry.register(nousPlugin);
 globalPluginRegistry.register(clinePlugin);
-globalPluginRegistry.register(opencodePlugin);
 globalPluginRegistry.register(deepseekPlugin);
 globalPluginRegistry.register(comboPlugin);
 
@@ -86,7 +89,9 @@ const config = loadConfig({
   adminToken: authTokens.adminToken,
 });
 console.log(tokenBannerLines(config));
-const app = createServer(config, globalPluginRegistry.getAll());
+const pluginInstances = globalPluginRegistry.getAll();
+await initializeFromManifest(globalPluginRegistry, { dataDir: config.dataDir || 'data', logger });
+const app = createServer(config, pluginInstances);
 
 let server: any;
 try {
@@ -116,3 +121,11 @@ const displayHost = config.host === '0.0.0.0' ? '127.0.0.1' : config.host;
 logger.info(`Lattice Gateway listening at http://${displayHost}:${server.port}`);
 logger.info(`Admin Dashboard accessible at http://${displayHost}:${server.port}/admin`);
 logger.info(`Ready for incoming OpenAI, Anthropic, and Responses traffic.`);
+
+const shutdown = async () => {
+  await shutdownFromManifest(globalPluginRegistry);
+  try { server.stop(); } catch {}
+  process.exit(0);
+};
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
