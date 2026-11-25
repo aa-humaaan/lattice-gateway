@@ -3,7 +3,6 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { serve } from 'bun';
 import { createServer } from '../../src/core/server';
 import { globalAccountPool } from '../../src/pool/account-pool';
@@ -403,10 +402,9 @@ describe('ADV-6 two parallel tool calls via official SDKs', () => {
   it('Anthropic SDK streams both tool_use blocks with intact JSON inputs', async () => {
     const app = createServer({ dataDir: mkdtempSync(join(tmpdir(), 'lg-adv6a-')) }, [toolPlugin()]);
     const server = serve({ port: 0, fetch: app.fetch });
-    const sdkEntry = 'C:/Users/adity/AppData/Local/Temp/opencode/sdk-scratch/node_modules/@anthropic-ai/sdk/index.js';
-    const { default: Anthropic } = await import(pathToFileURL(resolve(sdkEntry)).href);
+    const { Anthropic } = await import('@anthropic-ai/sdk');
     const client = new Anthropic({ baseURL: `http://127.0.0.1:${server.port}`, apiKey: 'x' });
-    const s = client.messages.stream({
+    const s: any = client.messages.stream({
       model: 'tool-mock/parallel', max_tokens: 200,
       messages: [{ role: 'user', content: 'weather' }],
       tools: [{ name: 'get_weather', description: 'w', input_schema: { type: 'object', properties: { city: { type: 'string' } } } }],
