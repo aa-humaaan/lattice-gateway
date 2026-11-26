@@ -5,6 +5,7 @@ import { registerRoutes } from './router';
 import { ProviderPlugin } from './types/plugin';
 import { GatewayError, serializeDialectError } from './types/errors';
 import { constantTimeEqual } from './auth-tokens';
+import { redactSecrets } from '../utils/redact';
 
 export type AppEnv = {
   Variables: {
@@ -183,7 +184,7 @@ export function createServer(
     const genericError = new GatewayError(
       500,
       'internal_server_error',
-      err.message || 'An unexpected internal error occurred in Project Lattice',
+      redactSecrets(err.message) || 'An unexpected internal error occurred in Project Lattice',
       { reqId }
     );
     return c.json(serializeDialectError(genericError, dialect), 500, headers);
